@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>地铁织城</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+</head>
+<body>
+<div id="app">
+  <canvas id="map" aria-label="map"></canvas>
+
+  <header class="sign">
+    <div class="sign-body">
+      <h1 id="cityName">——</h1>
+      <div class="romaji" id="cityPinyin"></div>
+    </div>
+    <div class="sign-actions">
+      <button class="btn" id="newCity" type="button" data-i18n="newCity"></button>
+      <button class="btn lang-cycle" id="langCycle" type="button" aria-label="Language">中</button>
+    </div>
+    <div class="stripe" id="stripe"></div>
+    <div class="sign-meta"><span><span data-i18n="pop"></span><b id="popLbl">—</b><em id="popDelta"></em></span></div>
+    <div class="lvl"><div class="lvl-row"><b id="lvlName"></b><span id="lvlNext"></span></div><div class="lvl-bar"><i id="lvlBar"></i></div><button class="btn primary expand" id="expandBtn" type="button" hidden data-i18n="expandBtn"></button></div>
+  </header>
+
+  <aside class="panel" id="panel">
+    <button class="icon-btn panel-toggle" id="panelToggle" type="button" aria-label="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></button>
+    <section class="board">
+      <div class="board-row main"><span class="bl" data-i18n="avg"></span><span class="led" id="mAvg">—</span><span class="bu" data-i18n="min"></span></div>
+      <div class="board-row"><span class="bl" data-i18n="vsNo"></span><span class="led" id="mDelta">±0.0</span><span class="bu" data-i18n="min"></span></div>
+      <div class="board-row"><span class="bl" data-i18n="share"></span><span class="led" id="mShare">0.0</span><span class="bu">%</span></div>
+      <div class="board-row"><span class="bl" data-i18n="eff"></span><span class="led" id="mEff">40</span><span class="bu" data-i18n="pts"></span></div>
+      <div class="board-note" id="mNote"></div>
+    </section>
+    <div class="panel-scroll">
+      <div class="stats">
+        <div class="stat"><div class="k" data-i18n="roads"></div><div class="v word" id="mJam">—</div></div>
+        <div class="stat"><div class="k" data-i18n="walk"></div><div class="v" id="mCover">0<small>%</small></div></div>
+        <div class="stat"><div class="k" data-i18n="riders"></div><div class="v" id="mRiders">0</div></div>
+      </div>
+      <div class="budget">
+        <div class="row"><span data-i18n="invest"></span><span><b id="mInvest">0</b></span></div>
+      </div>
+      <div>
+        <div class="sec-head"><h2 data-i18n="sugTitle"></h2></div>
+        <div class="sugg" id="suggList"></div>
+      </div>
+      <div>
+        <div class="sec-head"><h2 data-i18n="layer"></h2></div>
+        <div class="seg seg4" id="heatSeg" role="group">
+          <button type="button" data-heat="pop" aria-pressed="true" data-i18n="heatPop"></button>
+          <button type="button" data-heat="commute" aria-pressed="false" data-i18n="heatCommute"></button>
+          <button type="button" data-heat="demand" aria-pressed="false" data-i18n="heatDemand"></button>
+          <button type="button" data-heat="off" aria-pressed="false" data-i18n="heatOff"></button>
+        </div>
+        <div class="heat-legend" id="heatLegend"><span id="legL"></span><i id="legBar"></i><span id="legR"></span></div>
+      </div>
+      <div>
+        <div class="sec-head"><h2><span data-i18n="lines"></span><span id="lineCount"></span></h2><button class="btn" id="newLineBtn" type="button" data-i18n="newLine"></button></div>
+        <div class="lines" id="lineList"></div>
+      </div>
+    </div>
+    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button></div>
+  </aside>
+
+  <nav class="toolbar">
+    <button class="tool" type="button" data-tool="pan" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-2a1.5 1.5 0 0 1 3 0V12"/><path d="M14 10.5a1.5 1.5 0 0 1 3 0V12"/><path d="M17 11.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-4.6-2.2L4.3 16a1.6 1.6 0 0 1 2.4-2.1L8 15"/></svg><span class="tl" data-i18n="browse"></span><kbd>1</kbd></button>
+    <button class="tool" type="button" data-tool="build" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 18c4-1 5-9 9-9s4 6 9 3"/><circle cx="3.5" cy="18" r="2"/><circle cx="20.5" cy="12" r="2"/></svg><span class="tl" data-i18n="build"></span><kbd>2</kbd></button>
+    <button class="tool" type="button" data-tool="erase" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg><span class="tl" data-i18n="erase"></span><kbd>3</kbd></button>
+    <span class="sep"></span>
+    <button class="tool" type="button" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span class="tl" data-i18n="undo"></span></button>
+    <button class="tool" type="button" id="redoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg><span class="tl" data-i18n="redo"></span></button>
+    <button class="tool" type="button" id="assistBtn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z"/></svg><span class="tl" data-i18n="assist"></span><kbd>A</kbd></button>
+    <span class="sep"></span>
+    <div class="clock">
+      <button class="icon-btn" id="playBtn" type="button" aria-label="pause"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+      <div class="clock-face"><span class="time led" id="clockLbl"></span></div>
+      <button class="speed" type="button" id="speedBtn">1×</button>
+      <button class="icon-btn" id="muteBtn" type="button" aria-label="mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="muteIcon"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+    </div>
+    <span class="sep"></span>
+    <div class="langs" id="langs" role="group" aria-label="Language">
+      <button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button><button type="button" data-lang="ja">日</button>
+    </div>
+  </nav>
+
+  <div class="build-hint" id="buildHint" hidden></div>
+  <div class="tip" id="tip" hidden></div>
+  <div class="toast" id="toast" hidden></div>
+  <button class="fab" id="fab" type="button" hidden data-i18n="fab"></button>
+  <div class="impact" id="impact" hidden></div>
+  <div class="assist-card" id="assistCard" hidden></div>
+  <div class="ach-pop" id="achPop" hidden></div>
+  <div class="loading" id="loading" hidden></div>
+  <div class="modal" id="exportModal" hidden>
+    <div class="report export-card" role="dialog" aria-labelledby="exTitle">
+      <div class="rep-head"><div><h2 id="exTitle"></h2><div class="sub" id="exSub"></div></div></div>
+      <div class="ex-img"><img id="exImg" alt=""></div>
+      <div class="row"><span class="ex-hint" data-i18n="exportHint"></span><button class="btn" id="exClose" type="button" data-i18n="close"></button><a class="btn primary" id="exSave" download="metro-map.png" data-i18n="exportSave"></a></div>
+    </div>
+  </div>
+  <div class="modal" id="achModal" hidden>
+    <div class="report" role="dialog" aria-labelledby="achTitle">
+      <div class="rep-head"><div><h2 id="achTitle" data-i18n="achTitle"></h2><div class="sub" id="achSub"></div></div></div>
+      <div class="ach-grid" id="achGrid"></div>
+      <div class="row"><button class="btn primary" id="achClose" type="button" data-i18n="close"></button></div>
+    </div>
+  </div>
+
+  <div class="help" id="help">
+    <h3 data-i18n="helpTitle"></h3>
+    <ol><li data-i18n-html="help1"></li><li data-i18n-html="help2"></li><li data-i18n-html="help3"></li><li data-i18n-html="help4"></li></ol>
+    <div class="row"><button class="btn primary" id="helpGo" type="button" data-i18n="start"></button><button class="btn" id="helpClose" type="button" data-i18n="gotIt"></button></div>
+  </div>
+
+  <div class="modal" id="report" hidden>
+    <div class="report" role="dialog" aria-labelledby="repTitle">
+      <div class="rep-head">
+        <div><h2 id="repTitle">——</h2><div class="sub" id="repSub"></div></div>
+        <div class="stamp" id="repStamp"><b id="repGrade">A</b><span data-i18n="rating"></span></div>
+      </div>
+      <div class="rep-board board">
+        <div class="board-row" style="border:0;padding:0 0 4px"><span class="bl" data-i18n="avg"></span></div>
+        <div class="ba"><span class="led from" id="repBefore">0</span><span class="led to good" id="repAfter">0</span><span class="u" data-i18n="min"></span></div>
+        <div class="verdict" id="repLine"></div>
+      </div>
+      <div class="rep-grid" id="repGrid"></div>
+      <div class="hist-wrap">
+        <h3 data-i18n="hist"></h3>
+        <canvas id="histCanvas" width="600" height="190"></canvas>
+        <div class="legend"><span><i style="background:var(--ink-3)"></i><span data-i18n="without"></span></span><span><i style="background:var(--accent)"></i><span data-i18n="yours"></span></span><span style="margin-left:auto" data-i18n="minutesAxis"></span></div>
+      </div>
+      <div class="row"><button class="btn" id="repNew" type="button" data-i18n="newCity"></button><button class="btn primary" id="repClose" type="button" data-i18n="keep"></button></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
