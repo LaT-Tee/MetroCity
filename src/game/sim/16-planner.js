@@ -84,12 +84,18 @@ function planValidate(nodes,opt){
         else nodes.splice(k,0,ins);
         fixed=true; break; } }
     if(!fixed) break; }
-  if(new Set(nodes.filter(q=>q.id!=null).map(q=>q.id)).size!==nodes.filter(q=>q.id!=null).length) return null;
+  // opt.closed: a ring passed as [...stops, first stop] — the repeated first stop is the closure, not a duplicate
+  const body=opt.closed&&nodes.length>2&&nodes[nodes.length-1].id!=null&&nodes[nodes.length-1].id===nodes[0].id?nodes.slice(0,-1):nodes;
+  if(new Set(body.filter(q=>q.id!=null).map(q=>q.id)).size!==body.filter(q=>q.id!=null).length) return null;
   // touching another line: once only (twice = weaving round it; rings excepted), never on two stops in a row (= running alongside)
   const linesAt=q=>q.join!=null?[q.join]:q.id!=null?lines.filter(L=>L.id!==opt.skipLine&&L.stops.length>=2&&L.stops.includes(q.id)).map(L=>L.id):[];
   const lastAt=new Map();
-  for(let k=0;k<nodes.length;k++){ for(const li of linesAt(nodes[k])){ const L=lineById(li); if(lastAt.has(li)&&L&&!L.loop) return null; lastAt.set(li,k); }
-    if(k&&linesAt(nodes[k]).some(li=>linesAt(nodes[k-1]).includes(li))) return null; }
+  // a ring may meet a line twice (a line running straight through the ring crosses it on both sides), but only far apart
+  for(let k=0;k<body.length;k++){ for(const li of linesAt(body[k])){ const L=lineById(li);
+      if(lastAt.has(li)&&L&&!L.loop){ const j=lastAt.get(li), p=P(body[j]), q=P(body[k]); const gap=opt.closed?Math.min(k-j,body.length-(k-j)):k-j; if(!opt.loop||gap<3||dist(p.x,p.y,q.x,q.y)<12) return null; }
+      lastAt.set(li,k); }
+    if(k&&linesAt(body[k]).some(li=>linesAt(body[k-1]).includes(li))) return null; }
+  if(opt.closed&&body.length>2&&linesAt(body[body.length-1]).some(li=>linesAt(body[0]).includes(li))) return null;
   for(const q of nodes) if(q.join!=null&&q.nb==null){ const L=lineById(q.join); let nb=null, nd=1e9; for(const id of (L?L.stops:[])){ const o=stById(id); const d=o?dist(o.x,o.y,q.x,q.y):1e9; if(d<nd){ nd=d; nb=id; } } if(nb!=null&&nd<12){ q.nb=nb; q.nbT=nd*1.12/METRO_V+DWELL+1; } }
   // geometry: no turn sharper than ~75°, no winding (route at most 45 % longer than the straight line)
   const pts=[...(opt.lead||[]),...nodes.map(P)];

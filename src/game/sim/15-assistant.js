@@ -136,17 +136,30 @@ function assistJob(sugg){
     const mid=nodes.slice(1,-1); if(mid.some(q=>q.id!=null&&L.stops.includes(q.id))) return;
     const seq=[...L.stops.map(id=>({id})),...mid]; if(!assistTurnsOk([...seq,seq[0],seq[1]].map(P))) return;
     pushRes({type:'loop',line:L.id,nodes,mid,src},quickEstimate(base,[...seq,...seq])); }
-  // a ring through each radial line once, at a given distance from downtown, every crossing an interchange
-  function* ring(r,src){ yield; const M=G.centers[0], picks=[];
-    for(const L of lines){ if(L.stops.length<2||L.loop) continue; let best=null, bd=4.5; for(const id of L.stops){ const o=stById(id); if(!o) continue; const dd=Math.abs(dist(o.x,o.y,M.x,M.y)-r); if(dd<bd){ bd=dd; best=o; } } if(best&&!picks.includes(best)) picks.push(best); }
-    if(picks.length<4) return; picks.sort((a,b)=>Math.atan2(a.y-M.y,a.x-M.x)-Math.atan2(b.y-M.y,b.x-M.x));
-    let nodes=[]; for(let q=0;q<picks.length;q++){ const a=picks[q], b=picks[(q+1)%picks.length]; nodes.push({id:a.id});
-      let a0=Math.atan2(a.y-M.y,a.x-M.x), a1=Math.atan2(b.y-M.y,b.x-M.x); if(a1<=a0) a1+=Math.PI*2; if(a1-a0>Math.PI*0.9) return;   // a big gap: not a ring
-      const gap=(a1-a0)*r, nIn=Math.floor(gap/7.5);
-      for(let t=1;t<=nIn;t++){ const an=a0+(a1-a0)*t/(nIn+1), x=M.x+Math.cos(an)*r, y=M.y+Math.sin(an)*r; if(inB(x,y,1)&&!G.water[Math.round(y)*W+Math.round(x)]) nodes.push({x,y}); } }
-    if(lines.some(L=>L.loop&&L.stops.filter(id=>nodes.some(n=>n.id===id)).length>=3)) return;
-    const closed=planValidate([...nodes,nodes[0]],{ctx,loop:true}); if(!closed||closed[closed.length-1].id!==nodes[0].id) return; nodes=closed.slice(0,-1);
+  // a ring (or loop) line round downtown: it needn't be a circle. In a band around the given radius it picks, on every
+  // line it meets, the best station on each side (interchanges and dense spots first, close to the radius next), adds
+  // unserved destinations in the band, and threads a smooth closed curve through them. Every crossing is an interchange;
+  // a line running straight through downtown is met twice, once on each side.
+  function* ring(r,src){ yield; const M=G.centers[0], ang=o=>Math.atan2(o.y-M.y,o.x-M.x), inBand=o=>{ const d=dist(o.x,o.y,M.x,M.y); return d>=r*0.7&&d<=r*1.35; };
+    const score=o=>(lineCount.get(o.id)||0)*1.5+Math.min(1,G.D[Math.round(o.y)*W+Math.round(o.x)])-Math.abs(dist(o.x,o.y,M.x,M.y)-r)/r*3;
+    let picks=[];
+    for(const L of lines){ if(L.stops.length<2||L.loop) continue; const cand=L.stops.map(stById).filter(o=>o&&inBand(o)).sort((a,b)=>ang(a)-ang(b)); if(!cand.length) continue;
+      const sides=[[cand[0]]]; for(let q=1;q<cand.length;q++){ let d=ang(cand[q])-ang(cand[q-1]); if(d>0.6) sides.push([cand[q]]); else sides[sides.length-1].push(cand[q]); }
+      if(sides.length>1&&ang(sides[0][0])+Math.PI*2-ang(sides[sides.length-1][sides[sides.length-1].length-1])<0.6){ sides[0]=[...sides.pop(),...sides[0]]; }
+      for(const sd of sides){ const b=sd.reduce((x,y)=>score(y)>score(x)?y:x); if(!picks.includes(b)) picks.push(b); } }
+    picks.sort((a,b)=>score(b)-score(a)); const keep=[]; for(const o of picks) if(!keep.some(k=>dist(k.x,k.y,o.x,o.y)<6)) keep.push(o);
+    if(keep.length<4) return;
+    const wps=[...keep.map(o=>({id:o.id,a:ang(o)})),...anchors.filter(a=>!a.served&&a.st==null&&inBand(a)&&!keep.some(k=>dist(k.x,k.y,a.x,a.y)<8)).slice(0,4).map(a=>({x:a.x,y:a.y,a:ang(a)}))].sort((p,q)=>p.a-q.a);
+    for(let q=0;q<wps.length;q++){ const g=((wps[(q+1)%wps.length].a-wps[q].a)+Math.PI*2)%(Math.PI*2)||Math.PI*2; if(g>Math.PI*0.75) return; }   // a big gap: not a ring
+    const ws=wps.map(w=>w.id!=null?{id:w.id}:{x:w.x,y:w.y});
+    if(lines.some(L=>L.loop&&L.stops.filter(id=>ws.some(n=>n.id===id)).length>=3)) return;
+    const closed=planValidate(planChain([...ws,ws[0]]),{ctx,loop:true,closed:true}); if(!closed||closed[closed.length-1].id!==ws[0].id) return; const nodes=closed.slice(0,-1);
     if(nodes.length<6||!assistTurnsOk([...nodes,nodes[0],nodes[1]].map(P))) return;
+    // a ring answers a listed slow trip between two places on different sides of downtown that it passes near
+    if(!src) sugg.forEach((o,si)=>{ if(src) return; const pts=nodes.map(P);
+      if(o.type==='gap'||o.type==='proj'){ if(nodes.some(n=>n.id==null&&!n.join&&dist(n.x,n.y,o.x,o.y)<5)) src=si+1; return; }   // or a listed gap it puts a new stop in
+      if(o.type!=='slow'&&o.type!=='corr') return; const near=(x,y)=>pts.some(p=>dist(p.x,p.y,x,y)<9);
+      let da=Math.abs(Math.atan2(o.y-M.y,o.x-M.x)-Math.atan2(o.y2-M.y,o.x2-M.x)); if(da>Math.PI) da=Math.PI*2-da; if(near(o.x,o.y)&&near(o.x2,o.y2)&&da>0.8) src=si+1; });
     pushRes({type:'ring',nodes,src},quickEstimate(base,[...nodes,...nodes])); }
   // every sensible way of reaching a place: a stop on a line passing nearby, a line end already heading that way
   // (cost and direction decide), a radial from an interchange hub, or a diametric line through downtown
@@ -186,7 +199,7 @@ function assistJob(sugg){
       if(a.st!=null&&b.st!=null&&lines.some(L=>L.stops.includes(a.st)&&L.stops.includes(b.st))) continue; pairs.push({a,b,s:a.w*b.w/d}); }
     pairs.sort((p,q)=>q.s-p.s).slice(0,6).forEach(p=>tasks.push(()=>fresh(corridor(planWp(p.a),planWp(p.b),cst),0)));
     for(const L of lines) tasks.push(()=>close(L,0));
-    if(lines.length>=4){ const ds=stations.filter(o=>lineCount.get(o.id)).map(o=>dist(o.x,o.y,M0.x,M0.y)).sort((a,b)=>a-b), mid=ds[Math.floor(ds.length*0.45)]||20; for(const r of [mid*0.6,mid*0.9,mid*1.2]) if(r>=10) tasks.push(()=>ring(r,0)); }
+    if(lines.length>=4){ const ds=stations.filter(o=>lineCount.get(o.id)).map(o=>dist(o.x,o.y,M0.x,M0.y)).sort((a,b)=>a-b), mid=ds[Math.floor(ds.length*0.45)]||20; for(const r of [mid*0.5,mid*0.75,mid*1.0,mid*1.3]) if(r>=10) tasks.push(()=>ring(r,0)); }
   }
   let k=0, cur=null;
   const job={top:null,base,step(){
@@ -195,7 +208,11 @@ function assistJob(sugg){
     const val=r=>-r.dAvg*(1+40/(40+r.cost))*(r.type==='new'||r.type==='ring'?1:1.15), bySrc=new Map();
     for(const r of res) if(r.src){ const o=bySrc.get(r.src); if(!o||val(r)>val(o)) bySrc.set(r.src,r); }
     // 2) answers to suggestions first, by time saved; then the assistant's own ideas, by time saved
-    const ordered=[...[...bySrc.values()].sort((a,b)=>a.dAvg-b.dAvg),...res.filter(r=>!r.src).sort((a,b)=>a.dAvg-b.dAvg)]; const top=[];
+    //    — except that an own idea saving at least twice as much as the best answer (and a noticeable amount) goes first:
+    //    a ring that fixes the whole network shouldn't hide behind a small fix for one listed trip
+    const ans=[...bySrc.values()].sort((a,b)=>a.dAvg-b.dAvg), own=res.filter(r=>!r.src).sort((a,b)=>a.dAvg-b.dAvg);
+    const lead=own.length&&own[0].dAvg<-0.3&&(!ans.length||own[0].dAvg<ans[0].dAvg*2)?[own.shift()]:[];
+    const ordered=[...lead,...ans,...own]; const top=[];
     for(const r of ordered){ if(top.length>=3) break; const pr=r.nodes.map(P);
       if(top.some(o=>{ if(o.type==='exp'||r.type==='exp') return o.type===r.type&&o.line===r.line; if((o.type==='ins'||o.type==='xfer')&&(r.type==='ins'||r.type==='xfer')) return o.line===r.line&&dist(o.nodes[0].x,o.nodes[0].y,r.nodes[0].x,r.nodes[0].y)<6;
         const po=o.nodes.map(P); return pr.filter(p=>po.some(q=>dist(p.x,p.y,q.x,q.y)<5)).length>pr.length/3; })) continue; top.push(r); }
