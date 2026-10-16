@@ -124,29 +124,54 @@ const ICONS={
   extend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17c3 0 4-8 8-8s4 5 8 5"/><path d="M19 10v8M15 14h8"/></svg>',
   del:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>'
 };
-const lineName=L=>LANG==='ja'&&L.stops.length>=2?jaLineNames().get(L.id)||t('lineName',{n:L.num}):t('lineName',{n:L.num});
-/* Japanese lines are named, not numbered, the way Tokyo's are: by what they do (環状線, 空港線), by direction through the
-   centre (東西線, 南北線, 中央線), after the outer terminus of a radial (〇〇線), or by one character from each end, the
-   central end first (京葉線 = 東京 + 千葉). Names are handed out in line-number order and never repeat. */
-let jaNamesKey='', jaNamesMap=new Map();
-function jaLineNames(){
-  const key=netVersion+'|'+lines.map(L=>L.id+':'+L.stops.length+(L.loop?'o':'')).join(','); if(key===jaNamesKey) return jaNamesMap; jaNamesKey=key;
-  const M=G.centers[0], out=new Map(), taken=new Set(), DIRC='新北南東西上下中大小', jn=st=>nm(st.name,'ja');
-  const head=s=>{ const c=[...s]; if(c.length>2&&DIRC.includes(c[0])) c.shift(); return c[0]||''; };
-  const give=(L,cands)=>{ for(const c of cands){ if(c&&!taken.has(c)){ taken.add(c); out.set(L.id,c); return true; } } return false; };
-  for(const L of lines.filter(L=>L.stops.length>=2).sort((a,b)=>a.num-b.num)){
-    const ss=L.stops.map(stById).filter(Boolean), a=ss[0], b=ss[ss.length-1], dc=s=>dist(s.x,s.y,M.x,M.y), cands=[];
-    if(L.loop){ const far=ss.reduce((x,y)=>dc(y)>dc(x)?y:x); cands.push('環状線','外環状線',head(jn(far))+'環状線'); }
-    else {
-      const ap=ss.some(s=>/^st_airport/.test(s.name.k)||s.name.k==='air2'), [inner,outer]=dc(a)<=dc(b)?[a,b]:[b,a];
-      const thru=ss.slice(1,-1).some(s=>dc(s)<6), radial=dc(inner)<6, ang=Math.abs(Math.atan2(b.y-a.y,b.x-a.x)), ew=ang<Math.PI*0.28||ang>Math.PI*0.72, ns=ang>Math.PI*0.36&&ang<Math.PI*0.64;
-      if(ap&&(dc(a)>15||dc(b)>15)) cands.push('空港線');
-      if(thru){ if(ew) cands.push('東西線'); if(ns) cands.push('南北線'); cands.push('中央線'); if(ew) cands.push('新東西線'); if(ns) cands.push('新南北線'); }
-      if(radial) cands.push(jn(outer).replace(/(駅|空港)$/,'')+'線');
-      const h1=head(jn(inner)), h2=head(jn(outer)); if(h1&&h2&&h1!==h2) cands.push(h1+h2+'線');
-      cands.push(jn(outer).replace(/(駅|空港)$/,'')+'線', jn(inner).replace(/(駅|空港)$/,'')+'線'); }
-    give(L,cands)||give(L,[t('lineName',{n:L.num})]); }
-  jaNamesMap=out; return out;
+const lineName=L=>LANG==='ja'&&L.stops.length>=2?jaLineName(L)||t('lineName',{n:L.num}):t('lineName',{n:L.num});
+/* Japanese lines are named, not numbered, and the way a line is named depends on what it is, as in real Japanese cities:
+   - loops:                     環状線 / 外環状線 / 〇〇環状線                       (大阪環状線)
+   - airport links:             空港線 / 〇〇空港線 / 空港アクセス線                  (福岡空港線)
+   - along the shore:           臨海線 / 湾岸線                                       (りんかい線)
+   - subway lines through the centre: by direction (東西線, 南北線), after the big place they pass (銀座線, 御堂筋線 style),
+                                中央線, or 副都心線 when they serve a sub-centre
+   - radials and suburban lines: after the outer terminus (目黒線), one character from each end with the central end
+                                first (京葉線 = 東京 + 千葉), or under a private railway company that serves that side of
+                                the city: 〇〇本線 for its first line, then company + terminus (東急田園都市線, 西武池袋線)
+   Which of the fitting styles a line gets is decided by the city seed and the line number. The name is given once,
+   when the line is first finished, and stored on the line: extending it or moving stations never renames it. */
+function jaLineName(L){
+  if(L.jaName) return L.jaName;
+  const taken=new Set(lines.filter(o=>o!==L&&o.jaName).map(o=>o.jaName)), name=jaNameFor(L,taken);
+  const building=(stroke&&stroke.L===L&&!stroke.done)||(tool==='build'&&activeLineId===L.id);   // still being drawn: name it once it is finished
+  if(name&&!building) L.jaName=name; return name;
+}
+// the place a facility stop stands in (the nearest district, town or village; never another station)
+function jaArea(x,y){ let best={k:'downtown'}, bd=1e9; for(const p of [...G.centers,...G.plazas,...G.inds,...G.villages]){ if(p.name.s==null) continue; const d=dist(p.x,p.y,x,y); if(d<bd){ bd=d; best={s:p.name.s,k:'plain'}; } } return best; }
+function jaNameFor(L,taken){
+  const ss=L.stops.map(stById).filter(Boolean); if(ss.length<2) return null;
+  const M=G.centers[0], dc=s=>dist(s.x,s.y,M.x,M.y), jn=st=>{ const o=KEY_ST.has(st.name.k)||/^(st_|air|rail|coach)/.test(st.name.k)?jaArea(st.x,st.y):st.name; return nm(o,'ja').replace(/(駅|空港|バスターミナル前?|中央|三丁目)$/,'')||nm(o,'ja'); };   // a facility stop is named after the area it is in
+  const DIRC='新北南東西上下中大小', head=s=>{ const c=[...s]; if(c.length>2&&DIRC.includes(c[0])) c.shift(); return c[0]||''; };
+  const city=cityRoot(G.citySeed,'ja'), h=k=>hashInt(G.citySeed*131+L.num*17+k);
+  const a=ss[0], b=ss[ss.length-1], [inner,outer]=dc(a)<=dc(b)?[a,b]:[b,a], mid=ss.slice(1,-1);
+  const hIn=dc(inner)<6?head(city):head(jn(inner)), hOut=head(jn(outer)), ini=hIn&&hOut&&hIn!==hOut?hIn+hOut+'線':null;   // 京葉線: the central end stands for the city itself (京 of 東京)
+  const thru=mid.some(s=>dc(s)<6), radial=!thru&&dc(inner)<7, ang=Math.abs(Math.atan2(b.y-a.y,b.x-a.x)), ew=ang<Math.PI*0.27||ang>Math.PI*0.73, ns=ang>Math.PI*0.35&&ang<Math.PI*0.65;
+  const airport=ss.some(s=>/^st_airport/.test(s.name.k)||s.name.k==='air2'||s.name.k==='airport');
+  const seaShare=ss.filter(s=>{ for(let dy=-4;dy<=4;dy+=2) for(let dx=-4;dx<=4;dx+=2){ const x=Math.round(s.x)+dx, y=Math.round(s.y)+dy; if(x>=0&&y>=0&&x<W&&y<H&&G.water[y*W+x]===1) return true; } return false; }).length/ss.length;
+  const sub=G.centers.slice(1).find(c=>dist(c.x,c.y,M.x,M.y)>10&&mid.some(s=>dist(s.x,s.y,c.x,c.y)<5));
+  const cnt=lineCounts(), big=mid.filter(s=>dc(s)>=3).sort((p,q)=>stopScore(q.id,cnt)-stopScore(p.id,cnt))[0];
+  // a private railway company per side of the city (eight sectors), so lines heading the same way share an operator
+  const sector=Math.round((Math.atan2(outer.y-M.y,outer.x-M.x)+Math.PI)/(Math.PI/4))%8;
+  const CO1=['西','北','北','東','東','南','南','西'][sector], CO2='急武王鉄成葉浜阪総相電'[hashInt(G.citySeed*7+sector)%11];
+  const co=(hashInt(G.citySeed+sector)%3===0?head(city):CO1)+CO2, coHas=lines.some(o=>o!==L&&o.jaName&&o.jaName.startsWith(co));
+  const pick=list=>{ const ok=list.filter(Boolean); if(!ok.length) return []; const k=h(1)%ok.length; return [...ok.slice(k),...ok.slice(0,k)]; };   // the seed chooses among fitting styles, the rest are fallbacks
+  let cands=[];
+  if(L.loop) cands=pick(['環状線',city+'環状線',head(jn(ss.reduce((x,y)=>dc(y)>dc(x)?y:x)))+'環状線']).concat(['外環状線','新環状線']);
+  else {
+    if(airport&&dc(outer)>12) cands.push(...pick(['空港線',co+'空港線','空港アクセス線']));
+    if(seaShare>0.5) cands.push(...pick(['臨海線','湾岸線',city+'臨海線']));
+    if(thru) cands.push(...pick([ew&&'東西線',ns&&'南北線',big&&jn(big)+'線','中央線',sub&&'副都心線']));
+    else if(radial) cands.push(...pick([jn(outer)+'線',ini,coHas?co+jn(outer)+'線':co+'本線']));
+    else cands.push(...pick([coHas?co+jn(outer)+'線':co+'本線',ini,big&&jn(big)+'線',jn(outer)+'線']));
+    cands.push(ew&&'東西線',ns&&'南北線','中央線',big&&jn(big)+'線',jn(outer)+'線',co+jn(outer)+'線',jn(inner)+jn(outer)+'線');
+    cands.push(...['新','第二'].flatMap(p=>[ew&&p+'東西線',ns&&p+'南北線'])); }
+  return cands.find(c=>c&&!taken.has(c))||null;
 }
 function cycleSvc(L){
   if(L.loop){ toast(t('svcLoop')); return; }
@@ -159,7 +184,7 @@ function cycleSvc(L){
   netVersion++; changed();
 }
 function renderLines(){
-  renderStripe();
+  renderStripe(); for(const L of lines) if(L.stops.length>=2&&!L.jaName) jaLineName(L);   // every finished line gets its Japanese name now, whatever the language shown
   const box=$('#lineList'); $('#lineCount').textContent=lines.length?' '+activeLineCount():'';
   if(!lines.length){ box.innerHTML=`<div class="empty">${t('empty')}</div>`; return; }
   box.innerHTML=lines.map(L=>{
