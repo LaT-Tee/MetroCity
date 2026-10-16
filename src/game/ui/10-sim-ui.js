@@ -21,7 +21,7 @@ function showImpact(before){
   flashCanvas=gridCanvas(i=>{ if(bn[i]<0.6) return null; const v=bs[i]/bn[i]; if(Math.abs(v)<0.3) return null; const a=Math.min(230,Math.abs(v)/6*230); return v>0?[30,200,110,a]:[230,60,60,a]; });
   flashAt=performance.now();
 }
-let lastSugg=[], prevSuggKeys=new Set(), listHover=null, pinHover=null;
+let lastSugg=[], prevSuggKeys=new Set(), listHover=null, pinHover=null, suggMinH=0, suggHKey='';
 const SUGG_COL={xfer:'#2b62e8',gap:'#e0812e',corr:'#d3384a',slow:'#b0479a',busy:'#6b4fd8',weak:'#8a90a2',exp:'#c7323f',proj:'#c08a12'};
 const SVC_COL=['','#2f8f5b','#e07b1f','#d0303e'];
 const hoverSugg=()=>pinHover!=null?pinHover:listHover;
@@ -50,7 +50,11 @@ function renderSuggestions(){
     o.text=tx; o.how=how; const fresh=prevSuggKeys.size>0&&!prevSuggKeys.has(keys[i]); how+=assistTag(i,list);
     return `<button type="button" data-sg="${i}" class="${fresh?'fresh':''}${hoverSugg()===i?' hot':''}"><i style="background:${col[o.type]}">${i+1}</i><span>${fresh?`<span class="nb">${t('newBadge')}</span>`:''}${tx}<span class="how">${how}</span></span></button>`; }).join('');
   const key=LANG+activeLineCount()+html; if(key===suggKey) return; suggKey=key;
-  $('#suggList').innerHTML=(activeLineCount()?'':`<div class="none">${t('sugStart')}</div>`)+(html||`<div class="none">${t('sugNone')}</div>`);
+  // the box never shrinks between refreshes (so the line list below doesn't jump up and down); it is re-measured only
+  // when the network itself changes, the language changes or the panel is resized
+  const el=$('#suggList'), hk=LANG+netVersion+'|'+el.clientWidth; if(hk!==suggHKey){ suggHKey=hk; suggMinH=0; }
+  el.innerHTML=(activeLineCount()?'':`<div class="none">${t('sugStart')}</div>`)+(html||`<div class="none">${t('sugNone')}</div>`);
+  el.style.minHeight=''; suggMinH=Math.max(suggMinH,el.offsetHeight); el.style.minHeight=suggMinH+'px';
   prevSuggKeys=new Set(keys);
 }
 function pinPos(o){ const q=toScreen(o.x,o.y); return o.type==='proj'?[q[0]+17,q[1]-24]:q; }
@@ -120,14 +124,38 @@ const ICONS={
   extend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17c3 0 4-8 8-8s4 5 8 5"/><path d="M19 10v8M15 14h8"/></svg>',
   del:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>'
 };
-const lineName=L=>t('lineName',{n:L.num});
+const lineName=L=>LANG==='ja'&&L.stops.length>=2?jaLineNames().get(L.id)||t('lineName',{n:L.num}):t('lineName',{n:L.num});
+/* Japanese lines are named, not numbered, the way Tokyo's are: by what they do (環状線, 空港線), by direction through the
+   centre (東西線, 南北線, 中央線), after the outer terminus of a radial (〇〇線), or by one character from each end, the
+   central end first (京葉線 = 東京 + 千葉). Names are handed out in line-number order and never repeat. */
+let jaNamesKey='', jaNamesMap=new Map();
+function jaLineNames(){
+  const key=netVersion+'|'+lines.map(L=>L.id+':'+L.stops.length+(L.loop?'o':'')).join(','); if(key===jaNamesKey) return jaNamesMap; jaNamesKey=key;
+  const M=G.centers[0], out=new Map(), taken=new Set(), DIRC='新北南東西上下中大小', jn=st=>nm(st.name,'ja');
+  const head=s=>{ const c=[...s]; if(c.length>2&&DIRC.includes(c[0])) c.shift(); return c[0]||''; };
+  const give=(L,cands)=>{ for(const c of cands){ if(c&&!taken.has(c)){ taken.add(c); out.set(L.id,c); return true; } } return false; };
+  for(const L of lines.filter(L=>L.stops.length>=2).sort((a,b)=>a.num-b.num)){
+    const ss=L.stops.map(stById).filter(Boolean), a=ss[0], b=ss[ss.length-1], dc=s=>dist(s.x,s.y,M.x,M.y), cands=[];
+    if(L.loop){ const far=ss.reduce((x,y)=>dc(y)>dc(x)?y:x); cands.push('環状線','外環状線',head(jn(far))+'環状線'); }
+    else {
+      const ap=ss.some(s=>/^st_airport/.test(s.name.k)||s.name.k==='air2'), [inner,outer]=dc(a)<=dc(b)?[a,b]:[b,a];
+      const thru=ss.slice(1,-1).some(s=>dc(s)<6), radial=dc(inner)<6, ang=Math.abs(Math.atan2(b.y-a.y,b.x-a.x)), ew=ang<Math.PI*0.28||ang>Math.PI*0.72, ns=ang>Math.PI*0.36&&ang<Math.PI*0.64;
+      if(ap&&(dc(a)>15||dc(b)>15)) cands.push('空港線');
+      if(thru){ if(ew) cands.push('東西線'); if(ns) cands.push('南北線'); cands.push('中央線'); if(ew) cands.push('新東西線'); if(ns) cands.push('新南北線'); }
+      if(radial) cands.push(jn(outer).replace(/(駅|空港)$/,'')+'線');
+      const h1=head(jn(inner)), h2=head(jn(outer)); if(h1&&h2&&h1!==h2) cands.push(h1+h2+'線');
+      cands.push(jn(outer).replace(/(駅|空港)$/,'')+'線', jn(inner).replace(/(駅|空港)$/,'')+'線'); }
+    give(L,cands)||give(L,[t('lineName',{n:L.num})]); }
+  jaNamesMap=out; return out;
+}
 function cycleSvc(L){
   if(L.loop){ toast(t('svcLoop')); return; }
-  let nx=((L.svc||0)+1)%4; if(nx&&L.stops.length<SVC_MIN[nx]){ if(!L.svc){ toast(t('svcNeed',{l:lineName(L),n:SVC_MIN[nx],s:t('svcName')[nx]})); return; } toast(t('svcNeed',{l:lineName(L),n:SVC_MIN[nx],s:t('svcName')[nx]})); nx=0; }
+  // upgrades only go up: at the top tier (or short of stations for the next) a click explains why and changes nothing
+  const cur=L.svc||0, nx=cur+1; if(nx>3){ toast(t('svcTop',{l:lineName(L),s:t('svcName')[cur]})); return; }
+  if(L.stops.length<SVC_MIN[nx]){ toast(t('svcNeed',{l:lineName(L),n:SVC_MIN[nx],s:t('svcName')[nx]})); return; }
   pushUndo(); L.svc=nx; refreshExpress(true);
-  if(nx&&(!L.xs||L.xs.length<nx)){ L.svc=L.xs?L.xs.length:0; }
-  if(!L.svc){ L.xs=null; toast(t('svcOff',{l:lineName(L)})); }
-  else { const [t0,t1,n]=svcTimes(L), a=stById(L.stops[0]), b=stById(L.stops[L.stops.length-1]); toast(t('svcUp',{l:lineName(L),s:t('svcName')[L.svc],a:nm(a.name),b:nm(b.name),m0:Math.round(t0),m1:Math.round(t1),n})); SFX.up(); }
+  if(!L.xs||L.xs.length<nx){ undoStack.pop(); L.svc=cur; refreshExpress(true); toast(t(cur?'svcTop':'svcNeed',{l:lineName(L),s:t('svcName')[cur||nx],n:SVC_MIN[nx]})); return; }   // no stops left to skip
+  { const [t0,t1,n]=svcTimes(L), a=stById(L.stops[0]), b=stById(L.stops[L.stops.length-1]); toast(t('svcUp',{l:lineName(L),s:t('svcName')[L.svc],a:nm(a.name),b:nm(b.name),m0:Math.round(t0),m1:Math.round(t1),n})); SFX.up(); }
   netVersion++; changed();
 }
 function renderLines(){
@@ -137,10 +165,10 @@ function renderLines(){
   box.innerHTML=lines.map(L=>{
     const km=(lineLength(L)*CELL_KM).toFixed(1), rd=sim&&sim.lineRide[L.id]!=null?fmtN(sim.lineRide[L.id]):null;
     const first=stById(L.stops[0]), last=stById(L.stops[L.stops.length-1]);
-    const title=L.stops.length<2?lineName(L):L.loop?t('loopTitle',{a:nm(first.name)}):t('lineTitle',{a:nm(first.name),b:nm(last.name)});
+    const title=L.stops.length<2?lineName(L):LANG==='ja'?lineName(L)+(L.loop?'':'　'+t('lineTitle',{a:nm(first.name),b:nm(last.name)})):L.loop?t('loopTitle',{a:nm(first.name)}):t('lineTitle',{a:nm(first.name),b:nm(last.name)});   // Japanese lines go by their names
     const sub=L.stops.length<2?t('building'):t('lineSub',{n:`<b>${L.stops.length}</b>`,km:`<b>${km}</b>`})+(rd!=null?t('lineRide',{r:`<b>${rd}</b>`}):'');
     const lv=L.svc||0, xr=lv&&sim&&sim.expRide&&sim.expRide[L.id]?t('expRide',{r:`<b>${fmtN(sim.expRide[L.id])}</b>`}):'';
-    const svc=L.stops.length>=2&&!L.loop?`<div class="svc-row"><button class="svc-btn" type="button" data-act="svc" data-lv="${lv}" title="${t('svcTip')}">${lv?t('svcName').slice(1,lv+1).join(' · '):'+ '+t('svcShort')[1]}</button><span class="xr">${xr}</span></div>`:'';
+    const svc=L.stops.length>=2&&!L.loop?`<div class="svc-row"><button class="svc-btn" type="button" data-act="svc" data-lv="${lv}" title="${t('svcTip')}">${lv?t('svcName')[lv]:'+ '+t('svcShort')[1]}</button><span class="xr">${xr}</span></div>`:'';
     return `<div class="line-item${L.id===activeLineId?' active':''}" data-id="${L.id}" role="button" tabindex="0">
       <span class="swatch" style="background:${lineColor(L)}"></span><span class="lnum">${L.num}</span>
       <div class="info"><div class="t">${title}</div><div class="s">${sub}</div>${svc}</div>

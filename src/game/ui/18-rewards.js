@@ -98,7 +98,7 @@ function exportMap(){
     if(used.length){ x0=Math.min(...used.map(s=>s.x))-26; x1=Math.max(...used.map(s=>s.x))+26; y0=Math.min(...used.map(s=>s.y))-30; y1=Math.max(...used.map(s=>s.y))+22;
       let bw=x1-x0, bh=y1-y0; const cxm=(x0+x1)/2, cym=(y0+y1)/2; if(bw<bh*1.25) bw=bh*1.25; if(bh<bw/1.7) bh=bw/1.7; bw=Math.max(bw,90); bh=Math.max(bh,60);
       x0=clamp(cxm-bw/2,0,W-Math.min(W,bw)); x1=Math.min(W,x0+bw); y0=clamp(cym-bh/2,0,H-Math.min(H,bh)); y1=Math.min(H,y0+bh); }
-    const cw=x1-x0, ch=y1-y0, P=clamp(2600/cw,5,16), out=document.createElement('canvas'), cx=out.getContext('2d');
+    const cw=x1-x0, ch=y1-y0, P=clamp(4400/cw,7,22), out=document.createElement('canvas'), cx=out.getContext('2d');
     out.width=Math.round(cw*P); out.height=Math.round(ch*P);
     const job=baseSetup({ox:x0,oy:y0,cw,ch,ppc:P,pal:LIGHT_PAL,ctx:cx,urban:true}); baseRows(job,job.bh); cx.putImageData(job.img,0,0);
     const ink='#1a1f2e', u=P/5;
@@ -107,9 +107,9 @@ function exportMap(){
     strokeRoads(cx,u*px*2,{edge:'#d3d6e4',core:'#fff',hwy:'#bfc3cd'},1,0.8);
     cx.strokeStyle='#a9adb7'; cx.lineWidth=2.6*u*px*2; cx.stroke(P2.rail); cx.setLineDash([6*u*px*2,6*u*px*2]); cx.strokeStyle='#fbfbf8'; cx.lineWidth=1.2*u*px*2; cx.stroke(P2.rail); cx.setLineDash([]);
     cx.fillStyle='#e9ebf1'; cx.fill(P2.apron); cx.fillStyle='#9ea4b0'; cx.fill(P2.runways);
-    const lw=Math.max(0.55,3.2*u*px*1.6); geomKey=''; lineGeometry(lw);
+    const LWpx=clamp(out.width/480,6,11), lw=LWpx/P; geomKey='';   // line width fixed in pixels: on a large map the lines don't swallow the city lineGeometry(lw);
     const built=lines.filter(L=>L.stops.length>=2);
-    for(const L of built){ cx.strokeStyle='#ffffff'; cx.lineWidth=lw+2*u*px*1.6; cx.stroke(L._path); }
+    for(const L of built){ cx.strokeStyle='#ffffff'; cx.lineWidth=lw+3/P; cx.stroke(L._path); }
     for(const L of built){ cx.strokeStyle=LINE_COLORS[L.ci]; cx.lineWidth=lw; cx.stroke(L._path); }
     const cnt=new Map(); built.forEach(L=>L.stops.forEach(id=>cnt.set(id,(cnt.get(id)||0)+1)));
     for(const st of used){ const tr=(cnt.get(st.id)||0)>1, r=tr?lw*0.95:lw*0.6; cx.beginPath(); cx.arc(st.x,st.y,r,0,Math.PI*2); cx.fillStyle='#fff'; cx.fill(); cx.lineWidth=tr?lw*0.34:lw*0.3; cx.strokeStyle=tr?ink:LINE_COLORS[built.find(L=>L.stops.includes(st.id)).ci]; cx.stroke(); }
@@ -117,27 +117,27 @@ function exportMap(){
     // labels in pixel space
     cx.setTransform(1,0,0,1,0,0); const fam=FONT(), boxes=[];
     const lab=(text,X,Y,size,weight,color)=>{ cx.font=`${weight} ${size}px ${fam}`; const w=cx.measureText(text).width+6, b=[X-w/2,Y-size/2-2,X+w/2,Y+size/2+2]; if(boxes.some(o=>b[0]<o[2]&&b[2]>o[0]&&b[1]<o[3]&&b[3]>o[1])) return; boxes.push(b); cx.textAlign='center'; cx.textBaseline='middle'; cx.lineWidth=Math.max(3,size*0.28); cx.strokeStyle='rgba(255,255,255,.95)'; cx.lineJoin='round'; cx.strokeText(text,X,Y); cx.fillStyle=color; cx.fillText(text,X,Y); };
-    const S=(x,y)=>[(x-x0)*P,(y-y0)*P], fs=clamp(P*1.25,11,19);
+    const S=(x,y)=>[(x-x0)*P,(y-y0)*P], fs=clamp(out.width/210,14,22);
     const order=used.slice().sort((a,b)=>(cnt.get(b.id)||0)-(cnt.get(a.id)||0));
     for(const st of order){ const [X,Y]=S(st.x,st.y), tr=(cnt.get(st.id)||0)>1; lab(nm(st.name),X,Y-lw*P-fs*0.75,tr?fs*1.06:fs*0.92,tr?700:500,ink); }
     for(const c of G.centers){ const [X,Y]=S(c.x,c.y-c.s*0.3); if(X>0&&Y>0&&X<out.width&&Y<out.height) lab(nm(c.name),X,Y,fs*1.1,700,'#7a8095'); }
     // title block
-    const pad=Math.round(out.width*0.025), tsz=Math.round(out.width*0.03);
+    const pad=Math.round(out.width*0.02), tsz=Math.round(out.width*0.022);
     cx.textAlign='left'; cx.textBaseline='alphabetic';
     const title=t('exportTitle',{c:nm({k:'city'})}), km=(built.reduce((a,L)=>a+lineLength(L),0)*CELL_KM).toFixed(0);
     const stats=t('exportStats',{l:built.length,s:used.length,km,r:fmtN(sim?sim.riders:0)});
     cx.font=`900 ${tsz}px ${fam}`; const tw=cx.measureText(title).width; cx.font=`500 ${Math.round(tsz*0.42)}px ${fam}`; const sw=cx.measureText(stats).width;
     cx.fillStyle='rgba(255,255,255,.92)'; cx.fillRect(pad*0.6,pad*0.6,Math.max(tw,sw)+pad*0.9,tsz*1.95);
     cx.fillStyle=ink; cx.font=`900 ${tsz}px ${fam}`; cx.fillText(title,pad,pad*0.6+tsz*1.05); cx.fillStyle='#545b70'; cx.font=`500 ${Math.round(tsz*0.42)}px ${fam}`; cx.fillText(stats,pad,pad*0.6+tsz*1.7);
-    // legend in two columns, bottom-left, like a printed system map
-    if(built.length){ const rh=Math.round(tsz*0.62), sw2=Math.round(rh*1.6), cols=Math.min(4,Math.max(1,Math.ceil(built.length/10))), rows=Math.ceil(built.length/cols);
-      cx.font=`700 ${Math.round(rh*0.82)}px "Barlow Condensed", ${fam}`; const nmW=Math.max(...built.map(L=>{ const a=stById(L.stops[0]), b=stById(L.stops[L.stops.length-1]); cx.font=`500 ${Math.round(rh*0.62)}px ${fam}`; return cx.measureText(L.loop?t('loopTitle',{a:nm(a.name)}):t('lineTitle',{a:nm(a.name),b:nm(b.name)})).width; }));
-      const colW=sw2+rh*1.6+nmW+rh, bw2=cols*colW+rh, bh2=rows*rh*1.25+rh*0.8, bx=pad*0.6, by=out.height-pad*0.6-bh2;
-      cx.fillStyle='rgba(255,255,255,.92)'; cx.fillRect(bx,by,bw2,bh2);
-      built.forEach((L,i)=>{ const col=Math.floor(i/rows), row=i%rows, X=bx+rh*0.6+col*colW, Y=by+rh*0.55+row*rh*1.25;
-        cx.fillStyle=LINE_COLORS[L.ci]; cx.fillRect(X,Y,sw2,rh*0.7);
-        cx.fillStyle=ink; cx.textBaseline='middle'; cx.font=`700 ${Math.round(rh*0.95)}px "Barlow Condensed", ${fam}`; cx.fillText(String(L.num),X+sw2+rh*0.3,Y+rh*0.38);
-        const a=stById(L.stops[0]), b=stById(L.stops[L.stops.length-1]); cx.font=`500 ${Math.round(rh*0.62)}px ${fam}`; cx.fillStyle='#545b70'; cx.fillText(L.loop?t('loopTitle',{a:nm(a.name)}):t('lineTitle',{a:nm(a.name),b:nm(b.name)}),X+sw2+rh*1.6,Y+rh*0.38); });
+    // legend: just each line's name on its colour, in compact rows along the bottom-left, like a printed system map
+    if(built.length){ const rh=Math.round(tsz*0.6), sw2=Math.round(rh*1.5), f1=`700 ${Math.round(rh*0.78)}px "Barlow Condensed", ${fam}`, f2=`600 ${Math.round(rh*0.66)}px ${fam}`;
+      cx.font=f2; const nmW=Math.max(...built.map(L=>cx.measureText(lineName(L)).width)), colW=sw2+rh*0.45+nmW+rh*0.9;
+      const cols=Math.max(1,Math.min(built.length,Math.floor(out.width*0.62/colW))), rows=Math.ceil(built.length/cols);
+      const bw2=cols*colW+rh*0.6, bh2=rows*rh*1.2+rh*0.6, bx=pad*0.6, by=out.height-pad*0.6-bh2;
+      cx.fillStyle='rgba(255,255,255,.92)'; cx.fillRect(bx,by,bw2,bh2); cx.textBaseline='middle';
+      built.forEach((L,i)=>{ const col=i%cols, row=Math.floor(i/cols), X=bx+rh*0.5+col*colW, Y=by+rh*0.3+row*rh*1.2, mid=Y+rh*0.42;
+        cx.fillStyle=LINE_COLORS[L.ci]; cx.fillRect(X,Y,sw2,rh*0.84); cx.fillStyle='#fff'; cx.textAlign='center'; cx.font=f1; cx.fillText(String(L.num),X+sw2/2,mid);
+        cx.textAlign='left'; cx.fillStyle=ink; cx.font=f2; cx.fillText(lineName(L),X+sw2+rh*0.45,mid); });
       cx.textBaseline='alphabetic'; }
     cx.textAlign='right'; cx.fillStyle='#8a90a2'; cx.font=`500 ${Math.round(tsz*0.36)}px ${fam}`; cx.fillText('地铁织城   '+t('year',{y:Math.floor(months/12)+1,m:months%12+1}),out.width-pad*0.8,out.height-pad*0.7);
     out.toBlob(b=>{ if(!b) return; const url=URL.createObjectURL(b); img.src=url; img.alt=title; const a=$('#exSave'); a.href=url; a.download=nm({k:'city'},'en').replace(/\s+/g,'-')+'-metro-map.png'; $('#exSub').textContent=stats; },'image/png');

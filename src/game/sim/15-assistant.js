@@ -81,10 +81,29 @@ function assistJob(sugg){
     for(const p of L.paths) for(let q=1;q<p.length;q++){ const a=p[q-1], b=p[q], m=Math.max(1,Math.ceil(dist(a[0],a[1],b[0],b[1]))), ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
       for(let t=0;t<=m;t++){ const x=Math.round(lerp(a[0],b[0],t/m)), y=Math.round(lerp(a[1],b[1],t/m)); for(let dy=-6;dy<=6;dy++) for(let dx=-6;dx<=6;dx++){ const xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=W||yy>=H) continue; const i2=yy*W+xx, r2=G.D[i2]>0.9?10:37; if(dx*dx+dy*dy<=r2){ lm[i2]=1; la[i2]=ang; } } }   // ~450 m in the dense core, ~900 m elsewhere
       const key=Math.floor((a[1]+b[1])/16)*1000+Math.floor((a[0]+b[0])/16); const bkt=ctx.bk.get(key); const sg={a,b,line:L.id}; if(bkt) bkt.push(sg); else ctx.bk.set(key,[sg]); } }
-  const pushRes=(r,e)=>{ if(!e||!(e.dAvg<(r.type==='xfer'?-0.002:-0.03))) return;   /* every crossing should be an interchange: even a small gain is worth it */ const pts=r.nodes.map(P), newSt=r.nodes.filter(n=>n.id==null).length; r.dAvg=e.dAvg; r.dRiders=e.dRiders;
+  const pushRes=(r,e)=>{ if(!e||!(e.dAvg<(r.type==='xfer'?-0.002:-0.03))) return;   /* every crossing should be an interchange: even a small gain is worth it */
+    const L0=r.type==='ext'?lineById(r.line):null, full=L0?[...(r.atStart?L0.stops.slice().reverse():L0.stops).slice(0,-1).map(id=>({id})),...r.nodes]:r.nodes;
+    if(spends(r)&&used>=2&&e.dAvg>-0.15) return; r.w=budgetW(r)*roomW(r,full); if(!(r.w>0)) return;
+    const pts=r.nodes.map(P), newSt=r.nodes.filter(n=>n.id==null).length; r.dAvg=e.dAvg; r.dRiders=e.dRiders;
     r.cost=r.type==='ring'?r.nodes.filter(n=>n.id==null).length*ST_COST+plen([...pts,pts[0]].map(p=>[p.x,p.y]))*TRACK_COST:r.type==='xfer'||r.type==='ins'?ST_COST:r.type==='exp'?lineLength(lineById(r.line))*TRACK_COST*0.12:newSt*ST_COST+plen(pts.map(p=>[p.x,p.y]))*TRACK_COST; res.push(r); };
   const retraces=nodes=>{ for(let q=1;q<nodes.length;q++){ const a=nodes[q-1].id, b=nodes[q].id; if(a!=null&&b!=null&&lines.some(L=>{ const i=L.stops.indexOf(a); return i>=0&&(L.stops[i+1]===b||L.stops[i-1]===b); })) return true; } return false; };
-  const tooLong=(L,nodes)=>lineLength(L)+plen(nodes.map(xy))>270||L.stops.length+nodes.length>42;
+  const LEN_CAP=220, STOP_CAP=34, tooLong=(L,nodes)=>lineLength(L)+plen(nodes.map(xy))>LEN_CAP||L.stops.length+nodes.length>STOP_CAP;
+  // the line budget is finite: every new line or ring spends one of MAX_LINES. Extending a line reaches more people and
+  // more trips without spending one, so once the first couple of lines exist a new line has to save several times what an
+  // extension would — and a clearly noticeable amount on its own; the last few lines are kept for real gaps
+  const used=activeLineCount(), left=MAX_LINES-used, spends=r=>r.type==='new'||r.type==='ring';
+  const budgetW=r=>!spends(r)?1.2:left<=0?0:used<2?1:0.5*12/(12+used)*Math.min(1,left/8);
+  // room to grow: a line end is open when there is land ahead of it (inside the map as it will be after every expansion)
+  const finalB=STAGES[STAGES.length-1], onLand=(x,y)=>x>=finalB[0]+1&&y>=finalB[1]+1&&x<finalB[2]-1&&y<finalB[3]-1&&!G.water[Math.round(y)*W+Math.round(x)];
+  const openEnd=(a,b)=>{ const h=Math.atan2(b.y-a.y,b.x-a.x); for(const da of [0,-0.45,0.45]){ let land=0, n=0; for(let t=6;t<=24;t+=3){ n++; if(onLand(b.x+Math.cos(h+da)*t,b.y+Math.sin(h+da)*t)) land++; } if(land>=n*0.6) return true; } return false; };
+  // headroom for growth: a new line stays well inside the length and stop limits (so it can be extended as the city grows)
+  // and has at least one open end; it must also be long enough, eventually, for semi-fast and express services
+  const roomW=(r,full)=>{ const pts=full.map(P); if(pts.length<2) return 1; const len=plen(pts.map(p=>[p.x,p.y])), f=Math.max(len/LEN_CAP,pts.length/STOP_CAP);
+    if(r.type==='new'){ const ends=(openEnd(pts[1],pts[0])?1:0)+(openEnd(pts[pts.length-2],pts[pts.length-1])?1:0); if(f>0.6||!ends) return 0; return (ends>1?1:0.9)*(pts.length>=SVC_MIN[1]?1:0.92); }
+    if(r.type==='ext'){ const S=lineById(r.line).stops, n=S.length, o=(r.atStart?[S[n-2],S[n-1]]:[S[1],S[0]]).map(stById);   // the far end, which the extension leaves alone
+      const ends=(openEnd(pts[pts.length-2],pts[pts.length-1])?1:0)+(o[0]&&o[1]&&openEnd(o[0],o[1])?1:0);
+      return (f>0.6?1-0.6*Math.min(1,(f-0.6)/0.4):1)*(ends?1:0.85); }   // a long line is slow end to end: past ~20 km each extra stretch counts for less
+    return 1; };
   // option builders
   // ---- planner-based builders: lines between real destinations, validated like a planner would ----
   const lineCount=new Map(); for(const L of lines) for(const id of new Set(L.stops)) lineCount.set(id,(lineCount.get(id)||0)+1);
@@ -110,7 +129,7 @@ function assistJob(sugg){
     for(const q of nodes.slice(1)){ const p=P(q), a=((p.x-e.x)*hx+(p.y-e.y)*hy)/hl; if(a<along-1) return; along=Math.max(along,a); }
     pushRes({type:'ext',line:L.id,atStart,nodes,src},quickEstimate(base,[...ids.slice(0,-1).map(id=>({id})),...nodes])); }
   function* fresh(wps,src){ yield; if(!wps||wps.length<2||!once('n'+wkey(wps))) return; const nodes=planValidate(planChain(wps),{ctx});
-    if(!nodes||nodes.length<3||plen(nodes.map(xy))>250||retraces(nodes)) return;
+    if(!nodes||nodes.length<3||plen(nodes.map(xy))>LEN_CAP*0.6||retraces(nodes)) return;
     pushRes({type:'new',nodes,src},quickEstimate(base,nodes));
     // starting or ending at a line's terminus: build it as that line's extension instead (no change of trains, no extra line)
     for(const flip of [false,true]){ const ns=flip?nodes.slice().reverse():nodes, first=ns[0]; if(first.id==null) continue;
@@ -169,7 +188,7 @@ function assistJob(sugg){
     if(T.id!=null&&lineCount.get(T.id)) return;   // already a station on a line
     const beyond=from=>{ const hx=pt.x-from.x, hy=pt.y-from.y, hl=Math.hypot(hx,hy)||1; let b=null, bs=0;
       for(const a of anchors){ const d=dist(a.x,a.y,pt.x,pt.y); if(d<8||d>30) continue; const c=((a.x-pt.x)*hx+(a.y-pt.y)*hy)/(d*hl); if(c<0.7) continue; const s=a.w*c/d; if(s>bs){ bs=s; b=a; } } return b?planWp(b):null; };
-    const ends=[]; for(const L of lines){ if(L.loop||L.stops.length<2||L.stops.length>=36||lineLength(L)>=240) continue;
+    const ends=[]; for(const L of lines){ if(L.loop||L.stops.length<2||L.stops.length>=STOP_CAP-3||lineLength(L)>=LEN_CAP*0.9) continue;
       for(const atStart of [false,true]){ const ids=atStart?L.stops.slice().reverse():L.stops, e=stById(ids[ids.length-1]), pr=stById(ids[ids.length-2]); if(!e||!pr) continue;
         const d=dist(e.x,e.y,pt.x,pt.y); if(d<5||d>55) continue; const dx=e.x-pr.x, dy=e.y-pr.y, cosA=((pt.x-e.x)*dx+(pt.y-e.y)*dy)/(d*(Math.hypot(dx,dy)||1)); if(cosA<(d<15?0.15:0.55)) continue;   /* a short hop may bend a little, a long extension must keep the line heading */ ends.push({L,atStart,e,score:d*(1.6-cosA)}); } }
     ends.sort((a,b)=>a.score-b.score).slice(0,3).forEach(o=>{ const w=corridor({id:o.e.id},T); if(!w) return; tasks.push(()=>ext(o.L,o.atStart,w.slice(1),src)); const bn=beyond(o.e); if(bn) tasks.push(()=>ext(o.L,o.atStart,cleanWps([...w.slice(1),bn]),src)); });
@@ -205,13 +224,14 @@ function assistJob(sugg){
   const job={top:null,base,step(){
     if(cur||k<tasks.length){ if(!cur) cur=tasks[k++](); if(cur.next().done) cur=null; return false; }
     // 1) for each listed suggestion, its best answer — value for money decides between ways of doing the same job
-    const val=r=>-r.dAvg*(1+40/(40+r.cost))*(r.type==='new'||r.type==='ring'?1:1.15), bySrc=new Map();
+    //    (r.w weighs in the line budget and the room left to grow: extending usually beats spending a new line)
+    const gain=r=>-r.dAvg*r.w, val=r=>gain(r)*(1+40/(40+r.cost)), bySrc=new Map();
     for(const r of res) if(r.src){ const o=bySrc.get(r.src); if(!o||val(r)>val(o)) bySrc.set(r.src,r); }
-    // 2) answers to suggestions first, by time saved; then the assistant's own ideas, by time saved
+    // 2) answers to suggestions first, by (weighted) time saved; then the assistant's own ideas, likewise
     //    — except that an own idea saving at least twice as much as the best answer (and a noticeable amount) goes first:
     //    a ring that fixes the whole network shouldn't hide behind a small fix for one listed trip
-    const ans=[...bySrc.values()].sort((a,b)=>a.dAvg-b.dAvg), own=res.filter(r=>!r.src).sort((a,b)=>a.dAvg-b.dAvg);
-    const lead=own.length&&own[0].dAvg<-0.3&&(!ans.length||own[0].dAvg<ans[0].dAvg*2)?[own.shift()]:[];
+    const ans=[...bySrc.values()].sort((a,b)=>gain(b)-gain(a)), own=res.filter(r=>!r.src).sort((a,b)=>gain(b)-gain(a));
+    const lead=own.length&&gain(own[0])>0.3&&(!ans.length||gain(own[0])>gain(ans[0])*2)?[own.shift()]:[];
     const ordered=[...lead,...ans,...own]; const top=[];
     for(const r of ordered){ if(top.length>=3) break; const pr=r.nodes.map(P);
       if(top.some(o=>{ if(o.type==='exp'||r.type==='exp') return o.type===r.type&&o.line===r.line; if((o.type==='ins'||o.type==='xfer')&&(r.type==='ins'||r.type==='xfer')) return o.line===r.line&&dist(o.nodes[0].x,o.nodes[0].y,r.nodes[0].x,r.nodes[0].y)<6;
