@@ -21,6 +21,9 @@ function assistName(r){ const P=n=>n.id!=null?stById(n.id):n, a=P(r.nodes[0]), b
   if(r.type==='exp') return t('assistExpT',{l:ln,s:t('svcName')[r.tier]});
   if(r.type==='loop') return t('assistLoop',{l:ln});
   if(r.type==='ring') return t('assistRing',{n:r.nodes.length});
+  if(r.type==='thru'){ const L2=lineById(r.line2); return t('assistThru',{a:ln,b:L2?lineName(L2):''})+'：'+na+' → '+nb; }
+  if(r.type==='rapid') return t('assistRapid',{l:ln});
+  if(r.kind==='rapid') return t('kindRapid')+'：'+na+' → '+nb;
   return t('assistNew')+'：'+na+' → '+nb; }
 function renderAssist(){
   const el=$('#assistCard'); if(!assistOn){ el.hidden=true; return; }
@@ -29,13 +32,14 @@ function renderAssist(){
   else if(!assist.top.length) h+=`<div class="none">${t('assistNone')}</div>`;
   else { h+=assist.top.map((r,i)=>`<button type="button" class="row${i===assist.focus?' on':''}" data-as="${i}" style="--c:${ASSIST_COL[i]}"><i>${i+1}</i><span class="nm">${assistName(r)}</span><span class="g">${t('assistGain',{m:fmtMin(r.dAvg)})}</span><span class="sub">${r.src?`<b class="src">${t('assistFrom',{n:r.src})}</b> `:''}${t('assistSub',{n:r.nodes.length,r:fmtN(r.dRiders),h:fmtN(-r.dAvg*G.popTotal*0.55*2/60),c:fmtMoney(r.cost)})}</span></button>`).join('');
     h+=`<div class="ft"><span>${t('assistClose')}</span><button type="button" class="btn primary" data-as-go="1">${t('assistAdopt')} ↵</button></div>`; }
-  el.innerHTML=h; el.hidden=false;
+  setHTML(el,h); el.hidden=false;
 }
 function adoptAssist(i){
   const r=assist.top[i==null?assist.focus:i]; if(!r) return;
   const mk=(n,L)=>{ if(n.id!=null) return stById(n.id); return stations.find(o=>dist(o.x,o.y,n.x,n.y)<1)||newStation(n.x,n.y); };
   let L=null;
   if(r.type==='exp'){ L=lineById(r.line); if(!L) return; pushUndo(); L.svc=r.tier; refreshExpress(true); netVersion++; }
+  else if(r.type==='rapid'){ L=lineById(r.line); if(!L) return; pushUndo(); L.kind='rapid'; L.svc=0; L.xs=null; netVersion++; }
   else if(r.type==='ins'){ L=lineById(r.line); if(!L) return; pushUndo(); const n=r.nodes[0], st=newStation(n.x,n.y), nr=nearestOnLine(L,st.x,st.y); if(!isFinite(nr.d)){ undo(); return; } splitInsert(L,nr.seg,nr.sub,st); joinCrossing(st,L); }
   else if(r.type==='xfer'){ L=lineById(r.line); const L2=lineById(r.line2); if(!L||!L2) return; pushUndo(); const n=r.nodes[0], st=newStation(n.x,n.y);
     for(const M of [L,L2]){ const nr=nearestOnLine(M,st.x,st.y); if(isFinite(nr.d)&&!M.stops.includes(st.id)) splitInsert(M,nr.seg,nr.sub,st); } }
@@ -46,7 +50,7 @@ function adoptAssist(i){
   else if(r.type==='ring'){ if(activeLineCount()>=MAX_LINES){ toast(t('toastMax',{n:MAX_LINES})); return; } pushUndo(); L=newLine(); const made=[];
     for(const n of r.nodes){ const st=mk(n,L); if(st&&!L.stops.includes(st.id)){ L.stops.push(st.id); if(n.id==null) made.push(st); } }
     if(L.stops.length<4){ undo(); return; } L.loop=true; smoothThrough(L); made.forEach(st=>joinCrossing(st,L,1.6)); }
-  else if(r.type==='ext'){ L=lineById(r.line); if(!L||L.loop) return; pushUndo(); if(r.atStart) reverseLine(L);
+  else if(r.type==='ext'||r.type==='thru'){ L=lineById(r.line); if(!L||L.loop) return; pushUndo(); if(r.atStart) reverseLine(L);
     const add=[]; for(const n of r.nodes.slice(1)){ const st=mk(n,L); if(st&&!L.stops.includes(st.id)) add.push(st); }
     const pts=[...L.stops.slice(-2).map(stById),...add].map(p=>[p.x,p.y]), off=pts.length-add.length-1, Pn=k=>pts[clamp(k,0,pts.length-1)];
     add.forEach((st,q)=>{ const k=off+q; L.stops.push(st.id); L.paths.push(catmullSeg(Pn(k-1),Pn(k),Pn(k+1),Pn(k+2),Math.max(2,Math.ceil(dist(Pn(k)[0],Pn(k)[1],Pn(k+1)[0],Pn(k+1)[1])/1.5)))); });
@@ -54,7 +58,7 @@ function adoptAssist(i){
   else { if(activeLineCount()>=MAX_LINES){ toast(t('toastMax',{n:MAX_LINES})); return; }
     pushUndo(); L=newLine(); const made=[];
     for(const n of r.nodes){ const st=mk(n,L); if(st&&!L.stops.includes(st.id)){ L.stops.push(st.id); if(n.id==null) made.push(st); } }
-    if(L.stops.length<2){ undo(); return; } smoothThrough(L); made.forEach(st=>joinCrossing(st,L,1.6)); }
+    if(L.stops.length<2){ undo(); return; } if(r.kind==='rapid') L.kind='rapid'; smoothThrough(L); made.forEach(st=>joinCrossing(st,L,1.6)); }
   activeLineId=L.id; changed(); updateBuildHint();
   toast(t('assistAdopted',{l:assistName(r),m:fmtMin(r.dAvg)})); SFX.line(); burst(50,vw/2,vh*0.4,1.4);
   assist.top=[]; assist.key=''; renderAssist();
@@ -67,6 +71,7 @@ function drawAssist(lw){
 }
 function drawGhost(r,i,lw,px,a){
   const pts=r.nodes.map(n=>n.id!=null?stById(n.id):n).filter(Boolean); if(!pts.length) return;
+  if(r.type==='rapid'){ const L=lineById(r.line); if(L&&L._path){ ctx.save(); ctx.globalAlpha=a*0.8; ctx.strokeStyle=ASSIST_COL[i]; ctx.lineWidth=lw*1.9; ctx.setLineDash([lw*0.6,lw*0.9]); ctx.stroke(L._path); ctx.restore(); } return; }
   if(r.type==='ins'||r.type==='exp'||r.type==='xfer'){ const pulse=0.5+0.5*Math.sin(performance.now()/260); ctx.save(); ctx.globalAlpha=a; ctx.strokeStyle=ASSIST_COL[i]; ctx.lineWidth=lw*0.35;
     for(const p of pts){ ctx.beginPath(); ctx.arc(p.x,p.y,lw*(1.1+pulse*0.5),0,Math.PI*2); ctx.stroke(); if(r.type!=='exp'){ ctx.beginPath(); ctx.arc(p.x,p.y,lw*(r.type==='xfer'?0.95:0.62),0,Math.PI*2); ctx.fillStyle=C['card-solid']; ctx.fill(); ctx.stroke(); } }
     ctx.restore(); return; }

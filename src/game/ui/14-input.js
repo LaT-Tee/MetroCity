@@ -19,22 +19,26 @@ cvs.addEventListener('pointermove',e=>{ lastInteract=performance.now();
     if(!drag.moved&&Math.hypot(dx,dy)>5){ drag.moved=true; $('#tip').hidden=true;
       if(stroke){ if(stroke.invalid){ toast(whyNot(...stroke.at)); stroke=null; } else stroke.drawing=true; }
       if(drag.pan) cvs.classList.add('dragging'); }
-    if(drag.moved&&drag.pan){ cam.x=drag.cx-dx/cam.s; cam.y=drag.cy-dy/cam.s; clampCam(); return; }
+    if(drag.moved&&drag.pan){ if(watch.on) watch.user=performance.now(); cam.x=drag.cx-dx/cam.s; cam.y=drag.cy-dy/cam.s; clampCam(); return; }
     if(stroke&&stroke.drawing) strokeMove(mx,my,false);
   }
   const ph=(stroke&&stroke.drawing)?null:pinAt(mx,my); if(ph!==pinHover){ pinHover=ph; markHot(); }
-  if(pinHover!=null){ const o=lastSugg[pinHover], el=$('#tip'); el.innerHTML=`<div class="f" style="text-align:left;background:none;font-size:12.5px;color:var(--ink)">${o.text}<br><span style="color:var(--ink-3)">${o.how}</span></div>`; el.hidden=false; const w=el.offsetWidth,h=el.offsetHeight; el.style.left=clamp(mx+16,8,vw-w-8)+'px'; el.style.top=clamp(my-h-12,8,vh-h-8)+'px'; hoverWorld=toWorld(mx,my); return; }
+  if(pinHover!=null){ const o=lastSugg[pinHover], el=$('#tip'); setHTML(el,`<div class="f" style="text-align:left;background:none;font-size:12.5px;color:var(--ink)">${o.text}<br><span style="color:var(--ink-3)">${o.how}</span></div>`); el.hidden=false; const w=el.offsetWidth,h=el.offsetHeight; el.style.left=clamp(mx+16,8,vw-w-8)+'px'; el.style.top=clamp(my-h-12,8,vh-h-8)+'px'; hoverWorld=toWorld(mx,my); return; }
   hoverWorld=toWorld(mx,my); hover=stationAt(...hoverWorld); hoverFlow=(heatMode==='demand'&&!stroke&&!hover)?flowAt(...hoverWorld):null; showTip(mx,my);
 });
 const endPtr=e=>{
   pointers.delete(e.pointerId); cvs.classList.remove('dragging');
   if(pinch){ if(pointers.size<2) pinch=null; drag=null; return; }
   const [sx,sy]=rel(e), [wx,wy]=toWorld(sx,sy);
+  if(watch.on){ if(drag&&!drag.moved) watchTap(wx,wy); drag=null; return; }
   if(stroke&&!stroke.drawing&&drag&&!drag.moved&&pinAt(sx,sy)!=null){ stroke=null; focusSuggestion(lastSugg[pinAt(sx,sy)]); drag=null; return; }
   if(stroke){ if(stroke.drawing) endStroke(); else { stroke=null; if(drag&&!drag.moved){ const Lh=lineAt(wx,wy), SLc=lineById(activeLineId); hoverWorld=[wx,wy];
         if(SLc&&SLc.stops.length>=2&&(Lh===SLc||(stationAt(wx,wy)&&snapTarget()&&snapTarget().kind==='xfer'))) spaceInsert();
         else if(Lh&&Lh.id!==activeLineId&&!stationAt(wx,wy)) selectLine(Lh); else buildClick(wx,wy); } } drag=null; return; }
   if(drag&&!drag.moved&&drag.btn===0&&pinAt(sx,sy)!=null){ focusSuggestion(lastSugg[pinAt(sx,sy)]); drag=null; return; }
+  if(drag&&!drag.moved&&tool==='pan'&&e.pointerType==='touch'){   // double-tap zooms in where you tapped
+    const now=performance.now(), lt=endPtr.lastTap; endPtr.lastTap={t:now,x:sx,y:sy};
+    if(lt&&now-lt.t<320&&dist(lt.x,lt.y,sx,sy)<30){ endPtr.lastTap=null; const s1=Math.min(28,cam.s*1.9); camAnim={x0:cam.x,y0:cam.y,s0:cam.s,x1:wx+(cam.x-wx)*cam.s/s1,y1:wy+(cam.y-wy)*cam.s/s1,s1,t0:now,dur:320}; drag=null; return; } }
   if(drag&&!drag.moved){
     if(drag.btn===2){ if(tool==='build') finishLine(); }
     else if(tool==='erase') eraseClick(wx,wy);
@@ -46,21 +50,23 @@ const endPtr=e=>{
 cvs.addEventListener('pointerup',endPtr); cvs.addEventListener('pointercancel',endPtr);
 cvs.addEventListener('pointerleave',()=>{ if(!stroke){ hoverWorld=null; hover=null; } $('#tip').hidden=true; });
 cvs.addEventListener('contextmenu',e=>e.preventDefault());
-cvs.addEventListener('wheel',e=>{ lastInteract=performance.now();
+cvs.addEventListener('wheel',e=>{ lastInteract=performance.now(); if(watch.on) watch.user=performance.now();
   e.preventDefault(); camAnim=null; const [mx,my]=rel(e), [wx,wy]=toWorld(mx,my);
   cam.s=clamp(cam.s*Math.exp(-e.deltaY*0.0015),minS(),28); cam.x=wx-(mx-vw/2)/cam.s; cam.y=wy-(my-vh/2)/cam.s; clampCam();
   if(stroke&&stroke.drawing) strokeMove(stroke.sx,stroke.sy,true);
 },{passive:false});
 function showTip(mx,my){
   const el=$('#tip');
-  if(!hover&&hoverFlow&&!(stroke&&stroke.drawing)){ el.innerHTML=flowTipHTML(hoverFlow); el.hidden=false; const w=el.offsetWidth,h=el.offsetHeight; el.style.left=clamp(mx+16,8,vw-w-8)+'px'; el.style.top=clamp(my-h-12,8,vh-h-8)+'px'; return; }
+  if(!hover&&hoverFlow&&!(stroke&&stroke.drawing)){ setHTML(el,flowTipHTML(hoverFlow)); el.hidden=false; const w=el.offsetWidth,h=el.offsetHeight; el.style.left=clamp(mx+16,8,vw-w-8)+'px'; el.style.top=clamp(my-h-12,8,vh-h-8)+'px'; return; }
   if(!hover||(stroke&&stroke.drawing)){ el.hidden=true; return; }
   const ls=lines.filter(L=>L.stops.includes(hover.id)&&L.stops.length>=2), b=sim&&sim.stBoard[hover.id]!=null?sim.stBoard[hover.id]:0;
-  el.innerHTML=`<div class="n">${nm(hover.name)}</div><div class="lines-of">${ls.map(L=>`<span><i class="swatch" style="background:${lineColor(L)}"></i><span class="lnum">${L.num}</span></span>`).join('')}</div><div class="f">${ls.length>1?t('transfer')+'  ':''}${t('entries',{x:`<b>${fmtN(b)}</b>`})}<br>${t('catch',{n:`<b>${fmtN(catchment(hover))}</b>`})}${(()=>{ const sv=ls.filter(L=>L.svc&&L.xs&&L.xs.length).map(L=>{ const k=svcOf(L,hover.id); return `<span class="lnum" style="font-size:13px">${L.num}</span> ${t('svcName').slice(0,k+1).join('·')}`; }); return sv.length?'<br>'+t('svcStops',{s:sv.join('　')}):''; })()}</div>`;
+  setHTML(el,`<div class="n">${nm(hover.name)}</div><div class="lines-of">${ls.map(L=>`<span><i class="swatch" style="background:${lineColor(L)}"></i><span class="lnum">${L.num}</span></span>`).join('')}</div><div class="f">${ls.length>1?t('transfer')+'  ':''}${t('entries',{x:`<b>${fmtN(b)}</b>`})}<br>${t('catch',{n:`<b>${fmtN(catchment(hover))}</b>`})}${(()=>{ const sv=ls.filter(L=>L.svc&&L.xs&&L.xs.length).map(L=>{ const k=svcOf(L,hover.id); return `<span class="lnum" style="font-size:13px">${L.num}</span> ${t('svcName').slice(0,k+1).join('·')}`; }); return sv.length?'<br>'+t('svcStops',{s:sv.join('　')}):''; })()}</div>`);
   el.hidden=false; const w=el.offsetWidth, h=el.offsetHeight; el.style.left=clamp(mx+16,8,vw-w-8)+'px'; el.style.top=clamp(my-h-12,8,vh-h-8)+'px';
 }
 window.addEventListener('keydown',e=>{
   if(e.target.closest&&e.target.closest('input,textarea')) return;
+  if(watch.on){ if(e.key==='Escape'||e.key==='v'||e.key==='V'){ setWatch(false); return; } if(e.key==='n'||e.key==='N'){ nextSubject(); return; } if(e.key===' '||e.code==='Space'){ e.preventDefault(); togglePlay(); } return; }
+  if((e.key==='v'||e.key==='V')&&!e.ctrlKey&&!e.metaKey){ setWatch(true); return; }
   if(e.key===' '||e.code==='Space'){ e.preventDefault(); if(e.repeat) return; if(stroke&&stroke.drawing) strokePlace(stroke.pen[0],stroke.pen[1]); else if(tool!=='erase') spaceInsert(); return; }
   if((e.key==='a'||e.key==='A')&&!e.ctrlKey&&!e.metaKey){ setAssist(!assistOn); return; }
   if(e.key==='Tab'&&assistOn&&assist.top.length&&!(stroke&&stroke.drawing)){ e.preventDefault(); assist.focus=(assist.focus+(e.shiftKey?assist.top.length-1:1))%assist.top.length; renderAssist(); return; }

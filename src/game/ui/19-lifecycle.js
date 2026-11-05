@@ -1,6 +1,9 @@
 /* ---------- city lifecycle + persistence ---------- */
 function persist(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify({nameVer:2,seed:G.seed,stations,lines,nextSid,nextLineNum,months,unlocked:[...unlocked],prevLevel,yearStats,stage:G.stage,pop0:growth.pop0,places:placeState()},jsonRep)); }catch(e){} }
-function newCity(seed,saved){
+// saving serialises the whole network: during play it waits for a quiet moment instead of landing on a busy frame
+let persistT=null; function persistSoon(){ if(persistT) return; const go=()=>{ persistT=null; persist(); }; persistT=window.requestIdleCallback?requestIdleCallback(go,{timeout:4000}):setTimeout(go,1200); }
+addEventListener('pagehide',()=>{ if(persistT){ persistT=null; persist(); } }); document.addEventListener('visibilitychange',()=>{ if(document.hidden&&persistT){ persistT=null; persist(); } });
+function newCity(seed,saved){ bldCache=new Map(); bldVer++;
   jobs=[]; if(typeof assist!=='undefined'){ assist.job=null; assist.top=[]; assist.key=''; } G=generate(seed); initGrowth(); redoStack=[];
   if(saved){ for(let k=1;k<=(saved.stage||0);k++) setStage(k); applyPlaceState(saved.places); if(saved.pop0) growth.pop0=saved.pop0; } unlocked=new Set(saved&&saved.unlocked||[]); prevLevel=saved&&saved.prevLevel!=null?saved.prevLevel:-1; yearStats=saved&&saved.yearStats||null; progressReady=false; floats=[]; confetti=[]; achQueue=[]; stations=[]; lines=[]; nextSid=1; nextLineNum=1; activeLineId=null; undoStack=[]; sim=null; months=0; stroke=null; forceNew=false;
   if(saved){ stations=saved.stations||[]; lines=saved.lines||[]; nextSid=saved.nextSid||1; nextLineNum=saved.nextLineNum||(lines.reduce((m,l)=>Math.max(m,l.num),0)+1); months=saved.months||0;
@@ -13,7 +16,7 @@ function newCity(seed,saved){
   renderBase(); buildPaths(); fit(); netVersion++; geomKey='';
   refreshSign(); updatePop();
   uiShown={avg:sim.avg,share:sim.share*100,cover:sim.cover*100,riders:sim.riders,eff:efficiency()};
-  $('#mAvg').textContent=sim.avg.toFixed(1);
+  for(const k in tweens) delete tweens[k]; setHTML($('#mAvg'),sim.avg.toFixed(1));
   pendingImpact=null; flashCanvas=null; focus=null; commuteCanvas=null; suggKey=''; heatPrev=null;
   setTool('pan'); renderLines(); updateMetrics(); renderSuggestions(); if(heatMode==='commute') buildCommuteHeat(); persist();
 }
@@ -33,4 +36,4 @@ if(vw<760) $('#panel').classList.add('collapsed');
 { const ld=$('#loading'); ld.textContent=t('generating'); ld.hidden=false;
   setTimeout(()=>{ if(saved&&saved.seed) newCity(saved.seed,saved); else newCity(Math.floor(Math.random()*99999)+1);
     setLang(LANG); setAssist(assistOn,true); ld.hidden=true; requestAnimationFrame(frame); placeHelp(); if(document.fonts) document.fonts.ready.then(placeHelp); },30); }
-window.__mc={get ready(){ return !!(G&&G.rn&&sim); },get unlocked(){ return [...unlocked]; },adoptTop:()=>{ const job=assistJob(analyze()); while(!job.step()); assist.top=job.top; const r=job.top[0]; if(r){ adoptAssist(0); return r.type; } return null; },drawStats:()=>({ema:drawEMA.toFixed(1),lo:!!sceneLo,up:!!sceneUp,assistMs:(assist.ms||0).toFixed(1)+' / create '+(assist.msC||0).toFixed(1),est:stroke&&stroke.est,st:stroke?{d:stroke.drawing,inv:!!stroke.invalid,L:!!stroke.L}:null,tool}),newCity,fit,doGrowth:()=>doGrowth(true),cycleSvc,changed,selectLine,isLand,get sugg(){ return lastSugg; },get cam(){ return cam; }};
+window.__mc={get ready(){ return !!(G&&G.rn&&sim); },get unlocked(){ return [...unlocked]; },adoptTop:()=>{ const job=assistJob(analyze()); while(!job.step()); assist.top=job.top; const r=job.top[0]; if(r){ adoptAssist(0); return r.type; } return null; },drawStats:()=>({ema:drawEMA.toFixed(1),lo:!!sceneLo,up:!!sceneUp,assistMs:(assist.ms||0).toFixed(1)+' / create '+(assist.msC||0).toFixed(1),est:stroke&&stroke.est,st:stroke?{d:stroke.drawing,inv:!!stroke.invalid,L:!!stroke.L}:null,tool}),newCity,fit,doGrowth:()=>doGrowth(true),cycleSvc,changed,selectLine,isLand,get sugg(){ return lastSugg; },get cam(){ return cam; },dbg:{get watch(){ return watch; },get w3d(){ return w3d; },localAt:(x,y)=>{ const a=performance.now(); w3dLocal(x,y); return {ms:performance.now()-a,busy:!!w3d.lj}; },subjState:()=>subjState(),pickTrain:(a,b,c)=>pickTrain(a,b,c),pickRider:()=>pickRider()}};

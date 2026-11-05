@@ -37,7 +37,7 @@ function analyze(){
   for(const g of gaps){ if(pickedGaps.length>=2) break; if(pickedGaps.some(p=>dist(p.x,p.y,g.x,g.y)<20)) continue; pickedGaps.push(g); out.push({type:'gap',x:g.x,y:g.y,pop:g.pop,score:g.pop}); }
   // 3. long car commutes between the same two areas
   const CB=14, cw=Math.ceil(W/CB), wPer=G.popTotal*0.55/G.agents.length*2, corr=new Map();
-  for(const a of G.agents){ if(a.p>0.4||a.tr<30) continue; const h=Math.floor(a.hy/CB)*cw+Math.floor(a.hx/CB), w=Math.floor(a.wy/CB)*cw+Math.floor(a.wx/CB); if(h===w) continue;
+  for(const a of G.agents){ if(a.p>0.4||a.tr<30||isFar(a)) continue; const h=Math.floor(a.hy/CB)*cw+Math.floor(a.hx/CB), w=Math.floor(a.wy/CB)*cw+Math.floor(a.wx/CB); if(h===w) continue;
     const key=h+'>'+w; let c=corr.get(key); if(!c){ c={n:0,t:0,hx:0,hy:0,wx:0,wy:0}; corr.set(key,c); } c.n++; c.t+=a.tr; c.hx+=a.hx; c.hy+=a.hy; c.wx+=a.wx; c.wy+=a.wy; }
   const cs=[...corr.values()].filter(c=>c.n>=10).map(c=>({x:c.hx/c.n,y:c.hy/c.n,x2:c.wx/c.n,y2:c.wy/c.n,people:c.n*wPer,avg:c.t/c.n,score:c.n*c.t/c.n}));
   cs.sort((a,b)=>b.score-a.score);
@@ -47,13 +47,13 @@ function analyze(){
     for(const o of rk){ if(o.r<avg*0.35&&lineLength(o.L)*CELL_KM>2.5){ const pts=linePathPts(o.L), m=pts[Math.floor(pts.length/2)]; out.push({type:'weak',line:o.L.id,x:m[0],y:m[1],ratio:Math.round(o.r/avg*100),score:1}); } } }
   // 5. trips that still take too long, even where the metro exists
   if(sim&&sim.flows){ const lim=Math.max(38,sim.avg*1.15), picked=[];
-    const cand=sim.flows.map(f=>({...f,tt:f.share*(f.metro!=null?f.metro:f.car)+(1-f.share)*f.car})).filter(f=>f.tt>lim&&dist(f.x,f.y,f.x2,f.y2)>14).sort((a,b)=>b.people*b.tt-a.people*a.tt);
+    const cand=sim.flows.map(f=>({...f,tt:f.share*(f.metro!=null?f.metro:f.car)+(1-f.share)*f.car})).filter(f=>f.tt>lim&&dist(f.x,f.y,f.x2,f.y2)>14&&f.ideal<Math.min(f.tt*0.85,FAR_MIN)).sort((a,b)=>b.people*b.tt-a.people*a.tt);   // only trips some line could actually fix
     for(const f of cand){ if(picked.length>=3) break; if([...out,...picked].some(o=>(o.type==='corr'||o.type==='slow')&&dist(o.x,o.y,f.x,f.y)<14&&dist(o.x2,o.y2,f.x2,f.y2)<14)) continue;
-      picked.push({type:'slow',x:f.x,y:f.y,x2:f.x2,y2:f.y2,people:f.people,avg:f.tt,why:f.metro==null?'none':f.metro>f.car*0.9?'detour':'weak'}); }
+      picked.push({type:'slow',x:f.x,y:f.y,x2:f.x2,y2:f.y2,people:f.people,avg:f.tt,why:f.idealMetro>=Math.min(lim,f.tt*0.85)?'rapid':f.metro==null?'none':f.metro>f.car*0.9?'detour':'weak'}); }
     out.push(...picked); }
   // 6. long, busy lines where people ride far: an express would help
   if(sim){ const avgR=built.reduce((s,L)=>s+(sim.lineRide[L.id]||0),0)/Math.max(1,built.length);
-    for(const L of built){ const nx=(L.svc||0)+1; if(L.loop||nx>3||L.stops.length<SVC_MIN[nx]) continue; ensurePaths(L);
+    for(const L of built){ const nx=(L.svc||0)+1; if(L.loop||isRapid(L)||nx>3||L.stops.length<SVC_MIN[nx]) continue; ensurePaths(L);
       const seg=L.paths.map(p=>plen(p)/METRO_V), t0=seg.reduce((a,b)=>a+b,0)+(L.stops.length-1)*DWELL, r=sim.lineRide[L.id]||0;
       if(t0<20+nx*4||r<avgR*0.6) continue; const pts=linePathPts(L), m=pts[Math.floor(pts.length*0.6)];
       out.push({type:'exp',line:L.id,x:m[0],y:m[1],mins:t0,people:r*0.5,next:nx}); } }

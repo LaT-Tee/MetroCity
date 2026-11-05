@@ -74,6 +74,7 @@
     <button class="tool" type="button" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span class="tl" data-i18n="undo"></span></button>
     <button class="tool" type="button" id="redoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg><span class="tl" data-i18n="redo"></span></button>
     <button class="tool" type="button" id="assistBtn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z"/></svg><span class="tl" data-i18n="assist"></span><kbd>A</kbd></button>
+    <button class="tool" type="button" id="watchBtn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="14" rx="4"/><path d="M4 10h16M8 21l2-4M16 21l-2-4"/><circle cx="8.5" cy="13.5" r=".8" fill="currentColor"/><circle cx="15.5" cy="13.5" r=".8" fill="currentColor"/></svg><span class="tl" data-i18n="watch"></span><kbd>V</kbd></button>
     <span class="sep"></span>
     <div class="clock">
       <button class="icon-btn" id="playBtn" type="button" aria-label="pause"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
@@ -93,6 +94,18 @@
   <button class="fab" id="fab" type="button" hidden data-i18n="fab"></button>
   <div class="impact" id="impact" hidden></div>
   <div class="assist-card" id="assistCard" hidden></div>
+  <div class="cv3d" id="cv3d" hidden></div>
+  <div class="watch" id="watchBar" hidden>
+    <div class="wbar">
+      <div class="cap" id="watchCap"></div>
+      <div class="wbtns">
+        <button class="wb" type="button" id="wNext"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span data-i18n="wNext"></span></button>
+        <button class="wb" type="button" id="wWin" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="4"/><path d="M8 15l3-4 2 2 3-4"/></svg><span data-i18n="wWindow"></span></button>
+        <button class="wb" type="button" id="w3d" aria-pressed="false"><b>3D</b></button>
+        <button class="wb x" type="button" id="wExit" aria-label="exit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span data-i18n="wExit"></span></button>
+      </div>
+    </div>
+  </div>
   <div class="ach-pop" id="achPop" hidden></div>
   <div class="loading" id="loading" hidden></div>
   <div class="modal" id="exportModal" hidden>
@@ -128,8 +141,6 @@
         <div class="verdict" id="repLine"></div>
       </div>
       <div class="rep-grid" id="repGrid"></div>
-      <div class="rep-sec" id="repLines"></div>
-      <div class="rep-sec rep-two"><div id="repSt"></div><div id="repTodo"></div></div>
       <div class="hist-wrap">
         <h3 data-i18n="hist"></h3>
         <canvas id="histCanvas" width="600" height="190"></canvas>

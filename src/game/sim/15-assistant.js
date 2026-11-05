@@ -81,29 +81,10 @@ function assistJob(sugg){
     for(const p of L.paths) for(let q=1;q<p.length;q++){ const a=p[q-1], b=p[q], m=Math.max(1,Math.ceil(dist(a[0],a[1],b[0],b[1]))), ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
       for(let t=0;t<=m;t++){ const x=Math.round(lerp(a[0],b[0],t/m)), y=Math.round(lerp(a[1],b[1],t/m)); for(let dy=-6;dy<=6;dy++) for(let dx=-6;dx<=6;dx++){ const xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=W||yy>=H) continue; const i2=yy*W+xx, r2=G.D[i2]>0.9?10:37; if(dx*dx+dy*dy<=r2){ lm[i2]=1; la[i2]=ang; } } }   // ~450 m in the dense core, ~900 m elsewhere
       const key=Math.floor((a[1]+b[1])/16)*1000+Math.floor((a[0]+b[0])/16); const bkt=ctx.bk.get(key); const sg={a,b,line:L.id}; if(bkt) bkt.push(sg); else ctx.bk.set(key,[sg]); } }
-  const pushRes=(r,e)=>{ if(!e||!(e.dAvg<(r.type==='xfer'?-0.002:-0.03))) return;   /* every crossing should be an interchange: even a small gain is worth it */
-    const L0=r.type==='ext'?lineById(r.line):null, full=L0?[...(r.atStart?L0.stops.slice().reverse():L0.stops).slice(0,-1).map(id=>({id})),...r.nodes]:r.nodes;
-    if(spends(r)&&used>=2&&e.dAvg>-0.15) return; r.w=budgetW(r)*roomW(r,full); if(!(r.w>0)) return;
-    const pts=r.nodes.map(P), newSt=r.nodes.filter(n=>n.id==null).length; r.dAvg=e.dAvg; r.dRiders=e.dRiders;
-    r.cost=r.type==='ring'?r.nodes.filter(n=>n.id==null).length*ST_COST+plen([...pts,pts[0]].map(p=>[p.x,p.y]))*TRACK_COST:r.type==='xfer'||r.type==='ins'?ST_COST:r.type==='exp'?lineLength(lineById(r.line))*TRACK_COST*0.12:newSt*ST_COST+plen(pts.map(p=>[p.x,p.y]))*TRACK_COST; res.push(r); };
+  const pushRes=(r,e)=>{ if(!e||!(e.dAvg<(r.type==='xfer'?-0.002:-0.03))) return;   /* every crossing should be an interchange: even a small gain is worth it */ const pts=r.nodes.map(P), newSt=r.nodes.filter(n=>n.id==null).length; r.dAvg=e.dAvg; r.dRiders=e.dRiders;
+    r.cost=r.type==='ring'?r.nodes.filter(n=>n.id==null).length*ST_COST+plen([...pts,pts[0]].map(p=>[p.x,p.y]))*TRACK_COST:r.type==='xfer'||r.type==='ins'?ST_COST:r.type==='exp'?lineLength(lineById(r.line))*TRACK_COST*0.12:r.type==='rapid'?lineLength(lineById(r.line))*TRACK_COST*(RAPID_COST-1):newSt*ST_COST+plen(pts.map(p=>[p.x,p.y]))*TRACK_COST; res.push(r); };
   const retraces=nodes=>{ for(let q=1;q<nodes.length;q++){ const a=nodes[q-1].id, b=nodes[q].id; if(a!=null&&b!=null&&lines.some(L=>{ const i=L.stops.indexOf(a); return i>=0&&(L.stops[i+1]===b||L.stops[i-1]===b); })) return true; } return false; };
-  const LEN_CAP=220, STOP_CAP=34, tooLong=(L,nodes)=>lineLength(L)+plen(nodes.map(xy))>LEN_CAP||L.stops.length+nodes.length>STOP_CAP;
-  // the line budget is finite: every new line or ring spends one of MAX_LINES. Extending a line reaches more people and
-  // more trips without spending one, so once the first couple of lines exist a new line has to save several times what an
-  // extension would — and a clearly noticeable amount on its own; the last few lines are kept for real gaps
-  const used=activeLineCount(), left=MAX_LINES-used, spends=r=>r.type==='new'||r.type==='ring';
-  const budgetW=r=>!spends(r)?1.2:left<=0?0:used<2?1:0.5*12/(12+used)*Math.min(1,left/8);
-  // room to grow: a line end is open when there is land ahead of it (inside the map as it will be after every expansion)
-  const finalB=STAGES[STAGES.length-1], onLand=(x,y)=>x>=finalB[0]+1&&y>=finalB[1]+1&&x<finalB[2]-1&&y<finalB[3]-1&&!G.water[Math.round(y)*W+Math.round(x)];
-  const openEnd=(a,b)=>{ const h=Math.atan2(b.y-a.y,b.x-a.x); for(const da of [0,-0.45,0.45]){ let land=0, n=0; for(let t=6;t<=24;t+=3){ n++; if(onLand(b.x+Math.cos(h+da)*t,b.y+Math.sin(h+da)*t)) land++; } if(land>=n*0.6) return true; } return false; };
-  // headroom for growth: a new line stays well inside the length and stop limits (so it can be extended as the city grows)
-  // and has at least one open end; it must also be long enough, eventually, for semi-fast and express services
-  const roomW=(r,full)=>{ const pts=full.map(P); if(pts.length<2) return 1; const len=plen(pts.map(p=>[p.x,p.y])), f=Math.max(len/LEN_CAP,pts.length/STOP_CAP);
-    if(r.type==='new'){ const ends=(openEnd(pts[1],pts[0])?1:0)+(openEnd(pts[pts.length-2],pts[pts.length-1])?1:0); if(f>0.6||!ends) return 0; return (ends>1?1:0.9)*(pts.length>=SVC_MIN[1]?1:0.92); }
-    if(r.type==='ext'){ const S=lineById(r.line).stops, n=S.length, o=(r.atStart?[S[n-2],S[n-1]]:[S[1],S[0]]).map(stById);   // the far end, which the extension leaves alone
-      const ends=(openEnd(pts[pts.length-2],pts[pts.length-1])?1:0)+(o[0]&&o[1]&&openEnd(o[0],o[1])?1:0);
-      return (f>0.6?1-0.6*Math.min(1,(f-0.6)/0.4):1)*(ends?1:0.85); }   // a long line is slow end to end: past ~20 km each extra stretch counts for less
-    return 1; };
+  const tooLong=(L,nodes)=>lineLength(L)+plen(nodes.map(xy))>270||L.stops.length+nodes.length>42;
   // option builders
   // ---- planner-based builders: lines between real destinations, validated like a planner would ----
   const lineCount=new Map(); for(const L of lines) for(const id of new Set(L.stops)) lineCount.set(id,(lineCount.get(id)||0)+1);
@@ -127,9 +108,11 @@ function assistJob(sugg){
     if(!nodes||nodes.length<2||nodes[0].id!==e.id||nodes.slice(1).some(n=>n.id!=null&&L.stops.includes(n.id))||tooLong(L,nodes)) return;
     const hx=e.x-pr.x, hy=e.y-pr.y, hl=Math.hypot(hx,hy)||1; let along=0;   // keeps heading outwards: no hairpin at the old terminus
     for(const q of nodes.slice(1)){ const p=P(q), a=((p.x-e.x)*hx+(p.y-e.y)*hy)/hl; if(a<along-1) return; along=Math.max(along,a); }
-    pushRes({type:'ext',line:L.id,atStart,nodes,src},quickEstimate(base,[...ids.slice(0,-1).map(id=>({id})),...nodes])); }
-  function* fresh(wps,src){ yield; if(!wps||wps.length<2||!once('n'+wkey(wps))) return; const nodes=planValidate(planChain(wps),{ctx});
-    if(!nodes||nodes.length<3||plen(nodes.map(xy))>LEN_CAP*0.6||retraces(nodes)) return;
+    pushRes({type:'ext',line:L.id,atStart,nodes,src},quickEstimate(base,[...ids.slice(0,-1).map(id=>({id})),...nodes],{v:lineV(L),dwell:lineDwell(L),wait:lineWait(L)})); }
+  const RAPID_OPT={v:RAPID_V,dwell:RAPID_DWELL,wait:RAPID_WAIT};
+  function* fresh(wps,src,rapid){ yield; if(!wps||wps.length<2||!once((rapid?'r':'n')+wkey(wps))) return; const nodes=planValidate(planChain(wps,rapid?15:7.5),{ctx});
+    if(!nodes||nodes.length<3||plen(nodes.map(xy))>(rapid?330:250)||retraces(nodes)) return;
+    if(rapid){ pushRes({type:'new',kind:'rapid',nodes,src},quickEstimate(base,nodes,RAPID_OPT)); return; }
     pushRes({type:'new',nodes,src},quickEstimate(base,nodes));
     // starting or ending at a line's terminus: build it as that line's extension instead (no change of trains, no extra line)
     for(const flip of [false,true]){ const ns=flip?nodes.slice().reverse():nodes, first=ns[0]; if(first.id==null) continue;
@@ -140,7 +123,7 @@ function assistJob(sugg){
   function* ins(L,x,y,src){ ensurePaths(L); const nr=nearestOnLine(L,x,y); if(!isFinite(nr.d)||nr.d>7) return; const px=nr.px, py=nr.py;
     if(G.water[Math.round(py)*W+Math.round(px)]||L.stops.some(id=>{ const o=stById(id); return o&&dist(o.x,o.y,px,py)<3.5; })) return;
     const chain=[...L.stops.slice(0,nr.seg+1).map(id=>({id})),{x:px,y:py},...L.stops.slice(nr.seg+1).map(id=>({id}))]; pushRes({type:'ins',line:L.id,nodes:[{x:px,y:py}],src},quickEstimate(base,chain)); }
-  function* exp(L,src){ const nx=(L.svc||0)+1; if(L.loop||nx>3||L.stops.length<SVC_MIN[nx]) return; const xs=expStops({stops:L.stops,loop:false,svc:nx}); if(xs.length<nx) return; const ids=xs[nx-1]; ensurePaths(L);
+  function* exp(L,src){ const nx=(L.svc||0)+1; if(L.loop||isRapid(L)||nx>3||L.stops.length<SVC_MIN[nx]) return; const xs=expStops({stops:L.stops,loop:false,svc:nx}); if(xs.length<nx) return; const ids=xs[nx-1]; ensurePaths(L);
     const cumL=[0]; L.paths.forEach((p,k)=>cumL.push(cumL[k]+plen(p)/METRO_V)); const pos=ids.map(id=>L.stops.indexOf(id)), segT=[];
     for(let q=1;q<pos.length;q++) segT.push((cumL[pos[q]]-cumL[pos[q-1]])/SVC_SPEED[nx]+DWELL);
     pushRes({type:'exp',line:L.id,tier:nx,nodes:ids.map(id=>({id})),src},quickEstimate(base,ids.map(id=>({id})),{segT,wait:SVC_WAIT[nx]})); }
@@ -155,6 +138,23 @@ function assistJob(sugg){
     const mid=nodes.slice(1,-1); if(mid.some(q=>q.id!=null&&L.stops.includes(q.id))) return;
     const seq=[...L.stops.map(id=>({id})),...mid]; if(!assistTurnsOk([...seq,seq[0],seq[1]].map(P))) return;
     pushRes({type:'loop',line:L.id,nodes,mid,src},quickEstimate(base,[...seq,...seq])); }
+  // through-running: a line ending just short of another line's station, with that line carrying on the same way —
+  // one more stretch of track and its trains can run straight through, so riders don't change
+  function* thru(A,src){ yield; if(A.loop||A.stops.length<2) return;
+    for(const atStart of [false,true]){ const ids=atStart?A.stops.slice().reverse():A.stops, T=stById(ids[ids.length-1]), Pv=stById(ids[ids.length-2]); if(!T||!Pv) continue;
+      const hx=T.x-Pv.x, hy=T.y-Pv.y, hl=Math.hypot(hx,hy)||1;
+      for(const B of lines){ if(B===A||B.stops.length<3||B.stops.includes(T.id)) continue;
+        B.stops.forEach((sid,kb)=>{ const S=stById(sid); if(!S||A.stops.includes(sid)) return; const d=dist(T.x,T.y,S.x,S.y); if(d<3.5||d>10) return;
+          if(((S.x-T.x)*hx+(S.y-T.y)*hy)/(d*hl)<0.5) return;
+          for(const dir of [1,-1]){ let kn=kb+dir; if(B.loop) kn=(kn+B.stops.length)%B.stops.length; else if(kn<0||kn>=B.stops.length) continue; const N=stById(B.stops[kn]); if(!N||A.stops.includes(N.id)) continue;
+            if(((N.x-S.x)*(S.x-T.x)+(N.y-S.y)*(S.y-T.y))/((dist(S.x,S.y,N.x,N.y)||1)*d)<0.35) continue;
+            const nodes=planValidate([{id:T.id},{id:sid}],{ctx,own:new Set(A.stops),skipLine:A.id,lead:[Pv]}); if(!nodes||nodes.length!==2) continue;
+            const run=[]; for(let k=kb,g=0;g<B.stops.length;g++){ run.push({id:B.stops[k]}); k+=dir; if(B.loop) k=(k+B.stops.length)%B.stops.length; else if(k<0||k>=B.stops.length) break; }
+            pushRes({type:'thru',line:A.id,line2:B.id,atStart,nodes,src},quickEstimate(base,[...ids.map(id=>({id})),...run],{v:lineV(A),dwell:lineDwell(A)})); } }); } } }
+  // a long line with stations far apart: run it as a regional rapid line (faster trains, a little less often)
+  function* rapidConv(L,src){ yield; if(L.loop||isRapid(L)||L.stops.length<4) return; const len=lineLength(L); if(len<70||len/(L.stops.length-1)<7) return;
+    const e=quickEstimate(base,L.stops.map(id=>({id})),RAPID_OPT); if(e) e.dAvg*=0.6;   // the estimate can't see the longer waits on short trips: be cautious
+    pushRes({type:'rapid',line:L.id,nodes:L.stops.map(id=>({id})),src},e); }
   // a ring (or loop) line round downtown: it needn't be a circle. In a band around the given radius it picks, on every
   // line it meets, the best station on each side (interchanges and dense spots first, close to the radius next), adds
   // unserved destinations in the band, and threads a smooth closed curve through them. Every crossing is an interchange;
@@ -188,7 +188,7 @@ function assistJob(sugg){
     if(T.id!=null&&lineCount.get(T.id)) return;   // already a station on a line
     const beyond=from=>{ const hx=pt.x-from.x, hy=pt.y-from.y, hl=Math.hypot(hx,hy)||1; let b=null, bs=0;
       for(const a of anchors){ const d=dist(a.x,a.y,pt.x,pt.y); if(d<8||d>30) continue; const c=((a.x-pt.x)*hx+(a.y-pt.y)*hy)/(d*hl); if(c<0.7) continue; const s=a.w*c/d; if(s>bs){ bs=s; b=a; } } return b?planWp(b):null; };
-    const ends=[]; for(const L of lines){ if(L.loop||L.stops.length<2||L.stops.length>=STOP_CAP-3||lineLength(L)>=LEN_CAP*0.9) continue;
+    const ends=[]; for(const L of lines){ if(L.loop||L.stops.length<2||L.stops.length>=36||lineLength(L)>=240) continue;
       for(const atStart of [false,true]){ const ids=atStart?L.stops.slice().reverse():L.stops, e=stById(ids[ids.length-1]), pr=stById(ids[ids.length-2]); if(!e||!pr) continue;
         const d=dist(e.x,e.y,pt.x,pt.y); if(d<5||d>55) continue; const dx=e.x-pr.x, dy=e.y-pr.y, cosA=((pt.x-e.x)*dx+(pt.y-e.y)*dy)/(d*(Math.hypot(dx,dy)||1)); if(cosA<(d<15?0.15:0.55)) continue;   /* a short hop may bend a little, a long extension must keep the line heading */ ends.push({L,atStart,e,score:d*(1.6-cosA)}); } }
     ends.sort((a,b)=>a.score-b.score).slice(0,3).forEach(o=>{ const w=corridor({id:o.e.id},T); if(!w) return; tasks.push(()=>ext(o.L,o.atStart,w.slice(1),src)); const bn=beyond(o.e); if(bn) tasks.push(()=>ext(o.L,o.atStart,cleanWps([...w.slice(1),bn]),src)); });
@@ -206,11 +206,14 @@ function assistJob(sugg){
       else if(o.type==='xfer') tasks.push(()=>xfer(o,src));
       else if(o.type==='gap'||o.type==='proj') reach(o.x,o.y,src);
       else if(o.type==='slow'||o.type==='corr'){ const A=snapWp(o.x,o.y), B=snapWp(o.x2,o.y2);
-        if(A&&B){ tasks.push(()=>fresh(corridor(A,B),src)); if(cst) tasks.push(()=>fresh(corridor(A,B,cst),src)); }
+        if(A&&B){ tasks.push(()=>fresh(corridor(A,B),src)); if(cst) tasks.push(()=>fresh(corridor(A,B,cst),src));
+          if(o.why==='rapid'||dist(o.x,o.y,o.x2,o.y2)>45){ tasks.push(()=>fresh(corridor(A,B),src,true)); if(cst) tasks.push(()=>fresh(corridor(A,B,cst),src,true));
+            for(const L of lines){ const near=(x,y)=>L.stops.some(id=>{ const q=stById(id); return q&&dist(q.x,q.y,x,y)<10; }); if(near(o.x,o.y)&&near(o.x2,o.y2)) tasks.push(()=>rapidConv(L,src)); } } }
         reach(o.x2,o.y2,src); reach(o.x,o.y,src);
         for(const L of lines){ const near=(x,y)=>L.stops.some(id=>{ const q=stById(id); return q&&dist(q.x,q.y,x,y)<9; }); if(near(o.x,o.y)&&near(o.x2,o.y2)) tasks.push(()=>exp(L,src)); } } });
     // 2) its own ideas: express trains, unserved destinations, diametric/tangential links between big destinations, loops and rings
     for(const L of lines) if(!sugg.some(o=>o.type==='exp'&&o.line===L.id)) tasks.push(()=>exp(L,0));
+    for(const L of lines){ tasks.push(()=>thru(L,0)); tasks.push(()=>rapidConv(L,0)); }
     for(const a of anchors.filter(a=>!a.served).slice(0,6)) reach(a.x,a.y,0);
     for(const c of assistCorridors()){ const A=snapWp(c.a[0],c.a[1]), B=snapWp(c.b[0],c.b[1]); if(A&&B) tasks.push(()=>fresh(corridor(A,B,cst),0)); }
     const big=anchors.slice(0,10), pairs=[];
@@ -224,17 +227,16 @@ function assistJob(sugg){
   const job={top:null,base,step(){
     if(cur||k<tasks.length){ if(!cur) cur=tasks[k++](); if(cur.next().done) cur=null; return false; }
     // 1) for each listed suggestion, its best answer — value for money decides between ways of doing the same job
-    //    (r.w weighs in the line budget and the room left to grow: extending usually beats spending a new line)
-    const gain=r=>-r.dAvg*r.w, val=r=>gain(r)*(1+40/(40+r.cost)), bySrc=new Map();
+    const val=r=>-r.dAvg*(1+40/(40+r.cost))*(r.type==='new'||r.type==='ring'?1:1.15), bySrc=new Map();
     for(const r of res) if(r.src){ const o=bySrc.get(r.src); if(!o||val(r)>val(o)) bySrc.set(r.src,r); }
-    // 2) answers to suggestions first, by (weighted) time saved; then the assistant's own ideas, likewise
+    // 2) answers to suggestions first, by time saved; then the assistant's own ideas, by time saved
     //    — except that an own idea saving at least twice as much as the best answer (and a noticeable amount) goes first:
     //    a ring that fixes the whole network shouldn't hide behind a small fix for one listed trip
-    const ans=[...bySrc.values()].sort((a,b)=>gain(b)-gain(a)), own=res.filter(r=>!r.src).sort((a,b)=>gain(b)-gain(a));
-    const lead=own.length&&gain(own[0])>0.3&&(!ans.length||gain(own[0])>gain(ans[0])*2)?[own.shift()]:[];
+    const ans=[...bySrc.values()].sort((a,b)=>a.dAvg-b.dAvg), own=res.filter(r=>!r.src).sort((a,b)=>a.dAvg-b.dAvg);
+    const lead=own.length&&own[0].dAvg<-0.3&&(!ans.length||own[0].dAvg<ans[0].dAvg*2)?[own.shift()]:[];
     const ordered=[...lead,...ans,...own]; const top=[];
     for(const r of ordered){ if(top.length>=3) break; const pr=r.nodes.map(P);
-      if(top.some(o=>{ if(o.type==='exp'||r.type==='exp') return o.type===r.type&&o.line===r.line; if((o.type==='ins'||o.type==='xfer')&&(r.type==='ins'||r.type==='xfer')) return o.line===r.line&&dist(o.nodes[0].x,o.nodes[0].y,r.nodes[0].x,r.nodes[0].y)<6;
+      if(top.some(o=>{ if(o.type==='exp'||r.type==='exp'||o.type==='rapid'||r.type==='rapid') return o.type===r.type&&o.line===r.line; if((o.type==='ins'||o.type==='xfer')&&(r.type==='ins'||r.type==='xfer')) return o.line===r.line&&dist(o.nodes[0].x,o.nodes[0].y,r.nodes[0].x,r.nodes[0].y)<6;
         const po=o.nodes.map(P); return pr.filter(p=>po.some(q=>dist(p.x,p.y,q.x,q.y)<5)).length>pr.length/3; })) continue; top.push(r); }
     job.top=top; job.all=res; job.bySrc=bySrc; return true; }};
   return job;

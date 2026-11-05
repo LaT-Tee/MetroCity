@@ -6,6 +6,7 @@ $('#newLineBtn').addEventListener('click',()=>{ if(activeLineCount()>=MAX_LINES)
 $('#lineList').addEventListener('click',e=>{
   const item=e.target.closest('.line-item'); if(!item) return; const L=lineById(item.dataset.id); if(!L) return; const act=e.target.closest('[data-act]')?.dataset.act;
   if(act==='svc'){ cycleSvc(L); return; }
+  if(act==='kind'){ toggleKind(L); return; }
   if(act==='del'){ pushUndo(); lines=lines.filter(l=>l!==L); if(activeLineId===L.id) activeLineId=null; toast(t('toastLineDel',{l:lineName(L)})); changed(); updateBuildHint(); return; }
   if(tool==='erase') setTool('build');
   if(L.stops.length>=2) selectLine(L); else { activeLineId=L.id; renderLines(); updateBuildHint(); }

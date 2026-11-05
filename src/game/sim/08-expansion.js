@@ -51,7 +51,7 @@ function applyPlaceState(ps){
   G.fac2=(ps.fac2||[]).slice();
   G.projects=(ps.pj||[]).map(([t,x,y,s,m0,d])=>({t,x,y,s,m0,done:!!d})); G.lastProj=ps.lp||0;
 }
-function setStage(stage){
+function setStage(stage){ if(typeof bldBump==="function") bldBump();
   const prev=G.bounds.slice(); G.stage=stage; G.bounds=STAGES[stage].slice();
   let added=0; const B=G.bounds; for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++) if(!(x>=prev[0]&&x<prev[2]&&y>=prev[1]&&y<prev[3])) added+=growth.D0[y*W+x];
   growth.pop0+=added*900; G.popTotal=popIn()*900;

@@ -20,6 +20,7 @@ function smoothPath(raw,a,b){
   return pts.map(p=>[Math.round(p[0]*100)/100,Math.round(p[1]*100)/100]);
 }
 function catmullSeg(p0,p1,p2,p3,k){ const o=[]; for(let i=0;i<=k;i++){ const tt=i/k,t2=tt*tt,t3=t2*tt; const f=(a,b,c,d)=>0.5*((2*b)+(-a+c)*tt+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3); o.push([f(p0[0],p1[0],p2[0],p3[0]),f(p0[1],p1[1],p2[1],p3[1])]); } return o; }
+const isRapid=L=>L&&L.kind==='rapid', lineV=L=>isRapid(L)?RAPID_V:METRO_V, lineWait=L=>isRapid(L)?RAPID_WAIT:WAIT, lineDwell=L=>isRapid(L)?RAPID_DWELL:DWELL;
 function segCount(L){ return L.stops.length<2?0:(L.loop?L.stops.length:L.stops.length-1); }
 function smoothThrough(L){
   const s=L.stops.map(stById).map(p=>[p.x,p.y]), n=s.length;
@@ -36,7 +37,7 @@ function removeStop(L,k){
   else { L.paths.splice(k-1,2,L.paths[k-1].concat(L.paths[k].slice(1))); L.stops.splice(k,1); }
 }
 function linePathPts(L){ ensurePaths(L); const o=[]; L.paths.forEach((p,i)=>{ for(let j=i?1:0;j<p.length;j++) o.push(p[j]); }); return o; }
-function totalCost(){ let c=stations.length*ST_COST; for(const L of lines){ ensurePaths(L); let lc=0; for(const p of L.paths) lc+=pathCost(p); c+=lc*(1+0.12*(L.svc||0)); } return c; }
+function totalCost(){ let c=stations.length*ST_COST; for(const L of lines){ ensurePaths(L); let lc=0; for(const p of L.paths) lc+=pathCost(p); c+=lc*(1+0.12*(L.svc||0))*(isRapid(L)?RAPID_COST:1); } return c; }
 function lineLength(L){ ensurePaths(L); return L.paths.reduce((s,p)=>s+plen(p),0); }
 
 function nameStation(x,y){

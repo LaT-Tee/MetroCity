@@ -23,13 +23,13 @@ function planVia(anchors,a,b,skip){ const dx=b.x-a.x, dy=b.y-a.y, l2=dx*dx+dy*dy
   for(const c of anchors){ if(skip&&skip(c)) continue; const t=((c.x-a.x)*dx+(c.y-a.y)*dy)/l2; if(t<0.15||t>0.85) continue; if(dist(a.x+dx*t,a.y+dy*t,c.x,c.y)<Math.min(7,Math.sqrt(l2)*0.18)) out.push({c,t}); }
   return out.sort((p,q)=>p.t-q.t).map(o=>o.c); }
 // evenly spaced stops along a smooth curve through the waypoints
-function planChain(wps){
+function planChain(wps,spacing){
   const P=n=>n.id!=null?stById(n.id):n, pts=wps.map(P), n=pts.length, Pc=i=>{ const p=pts[clamp(i,0,n-1)]; return [p.x,p.y]; }, nodes=[wps[0]], used=new Set(wps.filter(w=>w.id!=null).map(w=>w.id));
   const touched=new Set(); for(const w of wps) if(w.id!=null) for(const L of lines) if(L.stops.includes(w.id)) touched.add(L.id);
   const fresh=s=>!lines.some(L=>touched.has(L.id)&&L.stops.includes(s.id));   // a station of a line the route already meets would make it touch that line twice
   for(let i=0;i<n-1;i++){
     const seg=catmullSeg(Pc(i-1),Pc(i),Pc(i+1),Pc(i+2),24), cum=[0]; for(let k=1;k<seg.length;k++) cum.push(cum[k-1]+dist(seg[k-1][0],seg[k-1][1],seg[k][0],seg[k][1]));
-    const len=cum[cum.length-1], m=Math.max(1,Math.round(len/7.5));
+    const len=cum[cum.length-1], m=Math.max(1,Math.round(len/(spacing||7.5)));
     for(let j=1;j<m;j++){ const target=len*j/m; let k=1; while(k<cum.length-1&&cum[k]<target) k++; const [qx,qy]=seg[k];
       let ex=null, ed=4; for(const s of stations){ if(used.has(s.id)||!fresh(s)) continue; const d=dist(s.x,s.y,qx,qy); if(d<ed){ ed=d; ex=s; } }
       if(ex){ used.add(ex.id); for(const L of lines) if(L.stops.includes(ex.id)) touched.add(L.id); nodes.push({id:ex.id}); continue; }

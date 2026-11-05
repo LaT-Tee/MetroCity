@@ -11,7 +11,7 @@ const FONT=()=>LANG==='ja'?'"Noto Sans JP","Hiragino Sans",sans-serif':'"Noto Sa
 
 function readColors(){
   const cs=getComputedStyle(document.documentElement), v=k=>cs.getPropertyValue('--'+k).trim();
-  const keys=['sea','sea-shallow','land','urban','park','forest','hill','street','arterial','arterial-edge','highway','rail','runway','ink','ink-2','ink-3','halo','accent','card-solid','bad','good','warn'];
+  const keys=['bld-roof','bld-roof2','bld-wall','bld-side','bld-shadow','sea','sea-shallow','land','urban','park','forest','hill','street','arterial','arterial-edge','highway','rail','runway','ink','ink-2','ink-3','halo','accent','card-solid','bad','good','warn'];
   const o={}; keys.forEach(k=>o[k]=v(k));
   const tmp=document.createElement('canvas').getContext('2d');
   o.rgb=k=>{ tmp.fillStyle='#000'; tmp.fillStyle=o[k]; const s=tmp.fillStyle; if(s[0]==='#') return [parseInt(s.slice(1,3),16),parseInt(s.slice(3,5),16),parseInt(s.slice(5,7),16)]; const m=s.match(/[\d.]+/g); return [+m[0],+m[1],+m[2]]; };

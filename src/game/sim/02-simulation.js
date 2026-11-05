@@ -1,20 +1,50 @@
 /* ================= simulation ================= */
 function buildGraph(){
   const S=stations.length, idx=new Map(); stations.forEach((s,i)=>idx.set(s.id,i));
-  const nodes=[], adj=[];
+  const nodes=[], adj=[], plat=new Map(), TR=throughRunning();
   for(let i=0;i<S;i++){ nodes.push({st:i,line:-1}); adj.push([]); }
   lines.forEach((L,li)=>{
     if(L.stops.length<2) return; ensurePaths(L);
-    const ids=L.stops.map((id,k)=>{ const q=nodes.length; nodes.push({st:idx.get(id),line:li,k}); adj.push([]); return q; });
-    ids.forEach(q=>{ const hub=nodes[q].st; adj[hub].push([q,WAIT]); adj[q].push([hub,ALIGHT]); });
-    for(let k=0;k<segCount(L);k++){ const a=ids[k], b=ids[(k+1)%ids.length]; const tt=plen(L.paths[k])/METRO_V+DWELL; adj[a].push([b,tt]); adj[b].push([a,tt]); }
+    const ids=L.stops.map((id,k)=>{ const q=nodes.length; nodes.push({st:idx.get(id),line:li,k}); adj.push([]); return q; }); plat.set(L.id,ids);
+    // trains come twice as often on track shared with another line
+    ids.forEach((q,k)=>{ const hub=nodes[q].st; adj[hub].push([q,lineWait(L)*(TR.shared.has(L.id+'@'+L.stops[k])?0.65:1)]); adj[q].push([hub,ALIGHT]); });
+    for(let k=0;k<segCount(L);k++){ const a=ids[k], b=ids[(k+1)%ids.length]; const tt=plen(L.paths[k])/lineV(L)+lineDwell(L); adj[a].push([b,tt]); adj[b].push([a,tt]); }
     // faster services: own platform nodes, longer headways, skip the smaller stops
     if(L.svc&&L.xs&&!L.loop){ const seg=L.paths.map(p=>plen(p)/METRO_V);
       L.xs.forEach((sids,ti)=>{ const tr=ti+1, pos=sids.map(id=>L.stops.indexOf(id));
         const q=sids.map((id,j)=>{ const v=nodes.length; nodes.push({st:idx.get(id),line:li,k:pos[j],svc:tr}); adj.push([]); const hub=idx.get(id); adj[hub].push([v,SVC_WAIT[tr]]); adj[v].push([hub,ALIGHT]); return v; });
         for(let j=0;j<q.length-1;j++){ let run=0; for(let k=pos[j];k<pos[j+1];k++) run+=seg[k]; const tt=run/SVC_SPEED[tr]+DWELL; adj[q[j]].push([q[j+1],tt]); adj[q[j+1]].push([q[j],tt]); } }); }
   });
+  // through-running: a train reaching the end of one line carries on along the other, so nobody has to change
+  for(const t of TR.thru){ const A=lineById(t.a), B=lineById(t.b), pa=plat.get(t.a), pb=plat.get(t.b); if(!A||!B||!pa||!pb) continue;
+    const u=pa[A.stops.indexOf(t.st)], v=pb[B.stops.indexOf(t.next)], kb=B.stops.indexOf(t.st), seg=t.dir>0?kb:(kb-1+B.stops.length)%B.stops.length;
+    if(u==null||v==null||!B.paths[seg]) continue; const tt=plen(B.paths[seg])/lineV(B)+lineDwell(B); adj[u].push([v,tt]); adj[v].push([u,tt]); }
+  // shared track: changing between the two lines is across the platform
+  for(const k of TR.pairs){ const [ia,ib,id]=k; const pa=plat.get(ia), pb=plat.get(ib), A=lineById(ia), B=lineById(ib); if(!pa||!pb) continue;
+    const u=pa[A.stops.indexOf(id)], v=pb[B.stops.indexOf(id)]; if(u==null||v==null) continue; adj[u].push([v,XFER_CROSS]); adj[v].push([u,XFER_CROSS]); }
   return {S,nodes,adj};
+}
+/* Through-running (直通运转), found automatically:
+   - shared track: two lines with consecutive stops in common run on the same track there;
+   - through service: where a line ends at a station of another line and the other line carries on roughly the same way,
+     its trains continue onto that line (the way subway lines run through onto suburban railways). */
+function throughRunning(){
+  const key=lines.map(L=>L.id+':'+L.stops.join('.')+(L.loop?'o':'')).join('|')+'#'+stations.length;
+  if(throughRunning.key===key) return throughRunning.res;
+  const built=lines.filter(L=>L.stops.length>=2), shared=new Set(), pairs=[], thru=[], adjOf=(L,id)=>{ const k=L.stops.indexOf(id), n=L.stops.length, o=[]; if(k<0) return o; if(k>0||L.loop) o.push(L.stops[(k-1+n)%n]); if(k<n-1||L.loop) o.push(L.stops[(k+1)%n]); return o; };
+  for(let i=0;i<built.length;i++) for(let j=i+1;j<built.length;j++){ const A=built[i], B=built[j];
+    for(const id of A.stops){ if(!B.stops.includes(id)) continue; const na=adjOf(A,id), nb=adjOf(B,id); if(!na.some(x=>nb.includes(x))) continue;
+      shared.add(A.id+'@'+id); shared.add(B.id+'@'+id); pairs.push([A.id,B.id,id]); } }
+  for(const A of built){ if(A.loop) continue;
+    for(const end of [0,1]){ const n=A.stops.length, st=end?A.stops[n-1]:A.stops[0], pr=end?A.stops[n-2]:A.stops[1], s=stById(st), p=stById(pr); if(!s||!p) continue;
+      let best=null;
+      for(const B of built){ if(B===A) continue; const kb=B.stops.indexOf(st); if(kb<0) continue;
+        for(const dir of [1,-1]){ let kn=kb+dir; if(B.loop) kn=(kn+B.stops.length)%B.stops.length; else if(kn<0||kn>=B.stops.length) continue;
+          const nx=B.stops[kn], q=stById(nx); if(!q||A.stops.includes(nx)) continue;
+          const c=((s.x-p.x)*(q.x-s.x)+(s.y-p.y)*(q.y-s.y))/((dist(p.x,p.y,s.x,s.y)||1)*(dist(s.x,s.y,q.x,q.y)||1));
+          if(c>=0.35&&(!best||c>best.c)) best={a:A.id,b:B.id,st,next:nx,dir,c}; } }
+      if(best) thru.push(best); } }
+  throughRunning.key=key; throughRunning.res={shared,pairs,thru}; return throughRunning.res;
 }
 // compact adjacency (CSR) + typed binary heap: no per-edge allocations
 function toCSR(adj){ const V=adj.length; let m=0; for(const a of adj) m+=a.length; const off=new Int32Array(V+1), to=new Int32Array(m), w=new Float32Array(m); let k=0;
@@ -29,10 +59,13 @@ function dijkstra(g,src){
   while(HPQ.n){ const u=hqPop(); if(done[u]) continue; done[u]=1; const du=d[u]; for(let k=off[u];k<off[u+1];k++){ const v=to[k], nd=du+w[k]; if(nd<d[v]){ d[v]=nd; pv[v]=u; hqPush(nd,v); } } }
   return {d,pv};
 }
+// the quickest a commute could ever be by rail: walk to a station and wait, then ride a straight line with few stops
+function idealRail(d,metroOnly){ return metroOnly?6+d*(1.1/METRO_V+DWELL/7.5):7+d*(1.08/RAPID_V+RAPID_DWELL/14); }
+function isFar(a){ const fk=a.hx*1e6+a.hy*1e3+a.wx+a.wy*1e-3; if(a._fk!==fk){ a._fk=fk; a._far=idealRail(dist(a.hx,a.hy,a.wx,a.wy))>FAR_MIN; } return a._far; }
 function runSim(){
   refreshExpress();
   // travel times through the network only change when the network does: reuse all shortest paths month to month
-  const gsig=stations.length+'#'+lines.map(L=>L.id+':'+L.stops.join('.')+':'+(L.loop?1:0)+':'+(L.svc||0)+':'+(L.xs?L.xs.map(x=>x.join('.')).join('/'):'')+':'+Math.round(lineLength(L)*100)).join('|');
+  const gsig=stations.length+'#'+lines.map(L=>L.id+':'+L.stops.join('.')+':'+(L.loop?1:0)+':'+(L.kind||'')+':'+(L.svc||0)+':'+(L.xs?L.xs.map(x=>x.join('.')).join('/'):'')+':'+Math.round(lineLength(L)*100)).join('|');
   let gr, sp;
   if(runSim.gsig===gsig&&runSim.sp){ gr=runSim.gr; sp=runSim.sp; }
   else { gr=buildGraph(); const csr=toCSR(gr.adj); sp=[]; for(let o=0;o<gr.S;o++) sp.push(dijkstra(csr,o)); runSim.gr=gr; runSim.sp=sp; runSim.gsig=gsig; runSim.reach=null; runSim.ids=stations.map(s=>s.id); }
@@ -58,10 +91,11 @@ function runSim(){
     let s=0; for(const a of A){ const tr=roadTime(a,load); a.p=isFinite(a.tm)?1/(1+Math.exp((a.tm-tr)/3.5)):0; s+=a.p; }
     share=s/A.length; load=1-share*0.95;
   }
-  let sumT=0, sumT0=0, sumF=0, sumF0=0; const wPer=G.popTotal*0.55/A.length;
+  let sumT=0, sumT0=0, sumF=0, sumF0=0, sumTn=0, sumT0n=0, nN=0, nFar=0; const wPer=G.popTotal*0.55/A.length;
   const lineRide=new Float64Array(lines.length), expRide=new Float64Array(lines.length), stBoard=new Float64Array(S), stAl=new Float64Array(S);
   for(const a of A){
     a.tr=roadTime(a,load); a.t=a.p*a.tm+(1-a.p)*a.tr; if(!isFinite(a.t)) a.t=a.tr; sumT+=a.t; sumT0+=a.t0;
+    if(isFar(a)) nFar++; else { sumTn+=a.t; sumT0n+=a.t0; nN++; }
     sumF+=1+CONG*a.dens*load; sumF0+=1+CONG*a.dens;
     if(a.p>0.01&&a.bo>=0){
       stBoard[a.bo]+=a.p*wPer*2; if(a.bd>=0) stAl[a.bd]+=a.p*wPer*2;
@@ -71,13 +105,13 @@ function runSim(){
   }
   let cov=0, sumD=0; const cm=coverageMask(Math.sqrt(29)-1e-6);
   const Bc=G.bounds; for(let y=Bc[1];y<Bc[3];y++) for(let x=Bc[0];x<Bc[2];x++){ const i=y*W+x, d=G.D[i]; if(d<0.01) continue; sumD+=d; if(cm[i]) cov+=d; }
-  baseline={avg:sumT0/A.length,jam:sumF0/A.length};
+  baseline={avg:sumT0/A.length,jam:sumF0/A.length,avgN:nN?sumT0n/nN:sumT0/A.length};
   const ZB=22, zw=Math.ceil(W/ZB), fm=new Map(), wP=G.popTotal*0.55/A.length;
   for(const a of A){ const h=Math.floor(a.hy/ZB)*zw+Math.floor(a.hx/ZB), w=Math.floor(a.wy/ZB)*zw+Math.floor(a.wx/ZB); if(h===w) continue;
     const k=h+'>'+w; let f=fm.get(k); if(!f){ f={n:0,tr:0,tm:0,nm:0,p:0,hx:0,hy:0,wx:0,wy:0}; fm.set(k,f); }
     f.n++; f.tr+=a.tr; f.p+=a.p; f.hx+=a.hx; f.hy+=a.hy; f.wx+=a.wx; f.wy+=a.wy; if(isFinite(a.tm)){ f.tm+=a.tm; f.nm++; } }
-  const flows=[...fm.values()].filter(f=>f.n>=8).sort((a,b)=>b.n-a.n).slice(0,32).map(f=>({x:f.hx/f.n,y:f.hy/f.n,x2:f.wx/f.n,y2:f.wy/f.n,people:f.n*wP,car:f.tr/f.n,metro:f.nm>f.n*0.3?f.tm/f.nm:null,share:f.p/f.n}));
-  return {avg:sumT/A.length,share,load,cover:sumD?cov/sumD:0,riders:A.reduce((s,a)=>s+a.p,0)*wPer*2,
+  const flows=[...fm.values()].filter(f=>f.n>=8).sort((a,b)=>b.n-a.n).slice(0,32).map(f=>{ const x=f.hx/f.n, y=f.hy/f.n, x2=f.wx/f.n, y2=f.wy/f.n; return {x,y,x2,y2,people:f.n*wP,car:f.tr/f.n,metro:f.nm>f.n*0.3?f.tm/f.nm:null,share:f.p/f.n,ideal:idealRail(dist(x,y,x2,y2)),idealMetro:idealRail(dist(x,y,x2,y2),true)}; });
+  return {avg:sumT/A.length,avgN:nN?sumTn/nN:sumT/A.length,farPeople:nFar*wPer,share,load,cover:sumD?cov/sumD:0,riders:A.reduce((s,a)=>s+a.p,0)*wPer*2,
     lineRide:Object.fromEntries(lines.map((L,i)=>[L.id,lineRide[i]])),expRide:Object.fromEntries(lines.map((L,i)=>[L.id,expRide[i]])),stBoard:Object.fromEntries(stations.map((s,i)=>[s.id,stBoard[i]])),stAlight:Object.fromEntries(stations.map((s,i)=>[s.id,stAl[i]])),
     jam:sumF/A.length,cost:(runSim.costSig===gsig?runSim.cost:(runSim.costSig=gsig,runSim.cost=totalCost())),flows,stReach};
 }

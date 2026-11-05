@@ -18,7 +18,7 @@ function quickEstimate(base,chain,opt){
   const n=P.length, cum=new Float64Array(n), hub=new Int32Array(n), hub2=new Int32Array(n).fill(-1), add2=new Float64Array(n);
   for(let k=0;k<n;k++){ hub[k]=chain[k].id!=null&&base.hub.has(chain[k].id)?base.hub.get(chain[k].id):-1;
     if(chain[k].nb!=null&&base.hub.has(chain[k].nb)){ hub2[k]=base.hub.get(chain[k].nb); add2[k]=chain[k].nbT||0; }   // a new interchange: reach the crossed line through its nearest station
-    if(k) cum[k]=cum[k-1]+(opt.segT?opt.segT[k-1]:dist(P[k-1].x,P[k-1].y,P[k].x,P[k].y)*1.12/METRO_V+DWELL); }
+    if(k) cum[k]=cum[k-1]+(opt.segT?opt.segT[k-1]:dist(P[k-1].x,P[k-1].y,P[k].x,P[k].y)*1.12/(opt.v||METRO_V)+(opt.dwell!=null?opt.dwell:DWELL)); }
   const R2=WALK_R*WALK_R, sp=base.sp, f=new Float64Array(n), g=new Float64Array(n); let dT=0, dP=0, dKc=0;
   for(const a of base.ag){
     for(let k=0;k<n;k++){

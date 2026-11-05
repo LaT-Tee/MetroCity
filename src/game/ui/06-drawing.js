@@ -1,4 +1,5 @@
 /* ---------- drawing ---------- */
+let lastCamK='', upHard='', upSoft='', upAt=0, upStamp=0, upProg=null, upSpare=null;
 function drawLower(){
   screenT(); ctx.fillStyle=C.sea; ctx.fillRect(0,0,vw,vh);
   worldT(); ctx.imageSmoothingEnabled=true; ctx.drawImage(base,0,0,W,H);
@@ -6,22 +7,35 @@ function drawLower(){
   const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
   ctx.strokeStyle=C.sea; for(const r of P2.rivers){ ctx.lineWidth=Math.max(r.w,1.4*px); ctx.stroke(r.p); }
 }
-function drawUpper(){
+function drawUpper(){ const pf=window.__mcProf, t0=performance.now(); drawUpper0(); if(pf) pf.push(['upper',Math.round(performance.now()-t0)]); }
+function drawUpper0(){
   worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
   ctx.fillStyle=C.urban; ctx.fill(P2.apron); ctx.strokeStyle=C['arterial-edge']; ctx.lineWidth=px; ctx.stroke(P2.apron);
   ctx.fillStyle=C.runway; ctx.fill(P2.runways); ctx.fillStyle=C['ink-3']; ctx.fill(P2.terminal);
   strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},0,smooth(cam.s,1.3,3),'old');
   ctx.strokeStyle=C.rail; ctx.lineWidth=Math.max(0.7,2.6*px); ctx.stroke(P2.rail);
   ctx.setLineDash([Math.max(1,6*px),Math.max(1,6*px)]); ctx.strokeStyle=C.land; ctx.lineWidth=Math.max(0.35,1.2*px); ctx.stroke(P2.rail); ctx.setLineDash([]);
+  drawBuildings2D();
   { const B=G.bounds, fog=new Path2D(); fog.rect(-50,-50,W+100,H+100); fog.rect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.fillStyle=C['card-solid']; ctx.globalAlpha=0.62; ctx.fill(fog,'evenodd'); ctx.globalAlpha=1;
     ctx.setLineDash([6*px,5*px]); ctx.strokeStyle=C['ink-3']; ctx.lineWidth=1.5*px; ctx.strokeRect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.setLineDash([]); }
 }
 // Static layers are rendered once into screen-sized canvases and reused while the camera rests.
 // A layer is cached on the second frame with the same key, so continuous panning never pays for the copy.
-function cachedLayer(which,key,paint,canCache){
+function cachedLayer(which,key,paint,canCache,rest){
   const isLo=which==='lo', cur=isLo?loKey:upKey, prev=isLo?prevLoKey:prevUpKey;
   if(isLo) prevLoKey=key; else prevUpKey=key;
-  if(canCache&&(cur===key||prev===key)){
+  // same view, new content (streets, buildings): repaint in bands over a few frames while the old picture stays up
+  if(!isLo&&canCache&&rest&&cur!==key&&sceneUp&&cur&&cur.split('|')[0]===key.split('|')[0]){
+    if(!upProg||upProg.key!==key){ const c=upSpare&&upSpare!==sceneUp?upSpare:document.createElement('canvas'); if(c.width!==cvs.width||c.height!==cvs.height){ c.width=cvs.width; c.height=cvs.height; }
+      const g=c.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,c.width,c.height); upProg={key,c,i:0,n:5}; }
+    const P=upProg, g=P.c.getContext('2d'), h=vh/P.n, y0=P.i*h;
+    g.save(); g.setTransform(1,0,0,1,0,0); g.beginPath(); g.rect(0,Math.floor(y0*dpr),P.c.width,Math.ceil(h*dpr)+1); g.clip();
+    const m=ctx; ctx=g; bldBand=[y0,y0+h]; try{ paint(); } finally { bldBand=null; ctx=m; g.restore(); }
+    if(++P.i>=P.n){ upSpare=sceneUp; sceneUp=P.c; upKey=key; upProg=null; }
+    ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(sceneUp,0,0); return; }
+  if(!isLo) upProg=null;
+  // with the camera at rest a changed layer goes straight into the cache, so it is painted once, not twice
+  if(canCache&&(cur===key||prev===key||rest)){
     let c=isLo?sceneLo:sceneUp;
     if(cur!==key){ if(!c) c=document.createElement('canvas'); if(c.width!==cvs.width||c.height!==cvs.height){ c.width=cvs.width; c.height=cvs.height; }
       const g=c.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,c.width,c.height); const m=ctx; ctx=g; paint(); ctx=m;
@@ -32,24 +46,32 @@ function cachedLayer(which,key,paint,canCache){
 }
 function draw(){
   if(G.rn&&P2.rdVer!==G.rn.ver) buildRoadPaths();
-  const camK=cam.x+','+cam.y+','+cam.s+','+cvs.width+','+cvs.height+','+layerVer;
-  cachedLayer('lo',camK,drawLower,!baseFadeAt);
+  const camK=cam.x+','+cam.y+','+cam.s+','+cvs.width+','+cvs.height+','+layerVer, rest=camK===lastCamK; lastCamK=camK;
+  cachedLayer('lo',camK,drawLower,!baseFadeAt,rest);
+  // the street and building layer: while the camera rests, monthly street and building changes are folded in at most
+  // every 12 s (new streets show on top meanwhile); a moving camera repaints anyway and takes everything at once
+  { const now=performance.now(), hard=P2.ver+'|'+G.bounds.join(','), soft=P2.rdVer+'|'+bldVer+'|'+bldRoadDirty;
+    if(hard!==upHard||(soft!==upSoft&&(!rest||now-upAt>12000))){ upHard=hard; upSoft=soft; upAt=now; if(P2.upMonth!==months){ P2.upMonth=months; buildRoadPaths(); } upStamp++; } }
   worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.imageSmoothingEnabled=true;
   const hf=heatPrev?clamp((performance.now()-heatFadeAt)/(2800/speedMul),0,1):1;
   if(urbCanvas){ if(urbPrev&&hf<1){ ctx.globalAlpha=1-hf; ctx.drawImage(urbPrev,0,0,W,H); ctx.globalAlpha=Math.max(hf,0.15); } ctx.drawImage(urbCanvas,0,0,W,H); ctx.globalAlpha=1; }
-  if(heatMode==='pop'&&heatCanvas){ if(heatPrev&&hf<1){ ctx.globalAlpha=0.58*(1-hf); ctx.drawImage(heatPrev,0,0,W,H); } ctx.globalAlpha=0.58*(heatPrev&&hf<1?Math.max(hf,0.15):1); ctx.drawImage(heatCanvas,0,0,W,H); ctx.globalAlpha=1; }
+  const ha=0.58*(1-0.55*smooth(cam.s,9,16));   /* lighter heat at street zoom, where the buildings carry the picture */
+  if(heatMode==='pop'&&heatCanvas&&!watch.on){ if(heatPrev&&hf<1){ ctx.globalAlpha=ha*(1-hf); ctx.drawImage(heatPrev,0,0,W,H); } ctx.globalAlpha=ha*(heatPrev&&hf<1?Math.max(hf,0.15):1); ctx.drawImage(heatCanvas,0,0,W,H); ctx.globalAlpha=1; }
   if(hf>=1){ heatPrev=null; urbPrev=null; }
   if(heatMode==='commute'&&commuteCanvas){ ctx.globalAlpha=0.6; ctx.drawImage(commuteCanvas,0,0,W,H); ctx.globalAlpha=1; }
   if(flashCanvas){ const a=1-(performance.now()-flashAt)/4500; if(a>0){ ctx.globalAlpha=Math.min(1,a*1.4)*0.85; ctx.drawImage(flashCanvas,0,0,W,H); ctx.globalAlpha=1; } else flashCanvas=null; }
-  cachedLayer('up',camK+'|'+P2.rdVer+'|'+P2.ver+'|'+G.bounds.join(','),drawUpper,true);
+  cachedLayer('up',camK+'|'+upStamp,drawUpper,true,rest);
   worldT(); ctx.lineCap='round'; ctx.lineJoin='round';
+  if(P2.rdHasPend) strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},1,smooth(cam.s,1.3,3),'pend');
   if(P2.rdHasNew){ const a=clamp((performance.now()-P2.rdAt)/(1600/speedMul),0,1); strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},a,smooth(cam.s,1.3,3),'new'); }
   if(tool==='build'&&stations.length){ const p=new Path2D(); for(const s of stations){ p.moveTo(s.x+5.4,s.y); p.arc(s.x,s.y,5.4,0,Math.PI*2); } ctx.fillStyle=C.accent; ctx.globalAlpha=0.07; ctx.fill(p); ctx.globalAlpha=1; }
   // metro lines
   const lw=clamp(cam.s*0.9,2.6,8)*px; lineGeometry(lw);
   for(const L of lines){ if(!L._path||L.stops.length<2) continue; ctx.strokeStyle=C.halo; ctx.globalAlpha=0.85; ctx.lineWidth=lw+2.4*px; ctx.stroke(L._path); ctx.globalAlpha=1; }
   const ordered=lines.slice().sort((a,b)=>(a.id===activeLineId)-(b.id===activeLineId));
-  for(const L of ordered){ if(!L._path||L.stops.length<2) continue; const sel=L.id===activeLineId, dim=activeLineId&&!sel; if(sel){ ctx.strokeStyle=C.halo; ctx.lineWidth=lw*1.15+3*px; ctx.stroke(L._path); } ctx.globalAlpha=dim?0.42:1; ctx.strokeStyle=lineColor(L); ctx.lineWidth=sel?lw*1.15:lw; ctx.stroke(L._path); ctx.globalAlpha=1; }
+  for(const L of ordered){ if(!L._path||L.stops.length<2) continue; const sel=L.id===activeLineId, dim=activeLineId&&!sel; if(sel){ ctx.strokeStyle=C.halo; ctx.lineWidth=lw*1.15+3*px; ctx.stroke(L._path); } ctx.globalAlpha=dim?0.42:1; ctx.strokeStyle=lineColor(L); ctx.lineWidth=sel?lw*1.15:lw; ctx.stroke(L._path);
+    if(isRapid(L)){ ctx.strokeStyle=C['card-solid']; ctx.lineWidth=(sel?lw*1.15:lw)*0.3; ctx.setLineDash([lw*1.6,lw*1.1]); ctx.stroke(L._path); ctx.setLineDash([]); }   // rapid lines: a railway-style dashed core
+    ctx.globalAlpha=1; }
   // stroke preview
   if(stroke&&stroke.drawing){
     const L=stroke.L, col=L?lineColor(L):LINE_COLORS[(nextLineNum-1)%LINE_COLORS.length];
@@ -59,7 +81,7 @@ function draw(){
     ctx.globalAlpha=1; ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.stroke();
     if(from.isNew){ ctx.beginPath(); ctx.arc(from.x,from.y,lw*0.62,0,Math.PI*2); ctx.fillStyle=C['card-solid']; ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=lw*0.3; ctx.stroke(); }
   }
-  drawTrains(lw); drawAssist(lw);
+  drawTrains(lw); if(watch.on) drawWatch(lw); else drawAssist(lw);
   // stations
   if(stCache.v!==netVersion){ const c=new Map(), fl=new Map(); lines.forEach(L=>L.stops.forEach(id=>{ c.set(id,(c.get(id)||0)+1); if(!fl.has(id)) fl.set(id,L); })); stCache={v:netVersion,cnt:c,fl}; }
   const cnt=stCache.cnt;
@@ -101,7 +123,7 @@ function drawTrains(lw){
     if(L.stops.length<2) continue;
     if(L._tgV!==netVersion||!L._tg){ const pts=linePathPts(L), cum=new Float64Array(pts.length); for(let i=1;i<pts.length;i++) cum[i]=cum[i-1]+dist(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); L._tg={pts,cum}; L._tgV=netVersion; }
     const {pts,cum}=L._tg, len=cum[cum.length-1]; if(len<1) continue;
-    const n=Math.max(2,Math.round(len/16)), per=L.loop?len:len*2, v=METRO_V*0.85;
+    const n=Math.max(2,Math.round(len/16)), per=L.loop?len:len*2, v=lineV(L)*0.85;
     for(let k=0;k<n;k++){
       let u=(trainT*v+k*per/n)%per, dir=1; if(!L.loop&&u>len){ u=per-u; dir=-1; }
       let i=trainSeg(cum,u);

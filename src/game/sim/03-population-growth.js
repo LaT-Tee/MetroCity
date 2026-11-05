@@ -6,7 +6,9 @@ function initGrowth(){
     S[i]=(1-0.92*park)*(1-0.85*hill)*(ad<14?smooth(ad,10,14):1); }
   growth={S,U:new Float32Array(n),D0:Float32Array.from(G.D),J0:Float32Array.from(G.J),pop0:G.popTotal,lastBaseD:Float32Array.from(G.D),lastBaseT:0,boosts:[]};
 }
-function growthTick(){
+function growthTick(){ const g=growthGen(); let r; while(!(r=g.next()).done); return r.value; }
+// the same month as steps, so the frame loop can spread it over a few frames
+function* growthGen(){
   const U=growth.U; U.fill(0);
   // how far people will live from a station grows over the years (walk → bus → bike: ~30 min becomes acceptable)
   // each station's pull is a Gaussian; instead of evaluating exp() around every station we drop impulses and
@@ -22,10 +24,11 @@ function growthTick(){
     U[y0*W+x0]+=v*(1-fx)*(1-fy); U[y0*W+x0+1]+=v*fx*(1-fy); U[(y0+1)*W+x0]+=v*(1-fx)*fy; U[(y0+1)*W+x0+1]+=v*fx*fy; anyS=true;
   }
   if(anyS){ const r=Math.max(1,Math.round((Math.sqrt(4*sig*sig+1)-1)/2)), B=G.bounds, m=3*r+2; for(let k=0;k<3;k++) boxBlur(U,r,Math.max(0,B[0]-m),Math.max(0,B[1]-m),Math.min(W,B[2]+m),Math.min(H,B[3]+m)); }
+  yield;
   const D=G.D, J=G.J, D0=growth.D0, J0=growth.J0, S=growth.S, B=G.bounds, lb=growth.lastBaseD;
   if(!growth.TG) growth.TG=new Float32Array(W*H);
-  if(!growth.roadAcc||growth.roadN!==rnAccKey()) updateRoadAccess();
-  const blur=blurD(), RA=growth.roadAcc, Wt=growth.TG, PA=placeAttr(); let pool=0, sw=0;
+  if(!growth.roadAcc||growth.roadN!==rnAccKey()){ updateRoadAccess(); yield; }
+  const blur=blurD(); yield; const RA=growth.roadAcc, Wt=growth.TG, PA=placeAttr(); let pool=0, sw=0;
   // remote places with neither metro nor roads slowly empty out
   for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++){ const i=y*W+x; if(U[i]<0.05&&RA[i]<0.15&&D[i]>0.05){ const out=D[i]*0.002; D[i]-=out; pool+=out; } }
   // the city grows on its own; a good metro makes it grow faster
@@ -35,6 +38,7 @@ function growthTick(){
     if(!G.water[i]&&S[i]>0.05){ const cap=S[i]*(1+0.6*Math.min(1,blur[i])+1.2*Math.min(1,U[i]/2.5)+0.5*Math.min(1,PA[i])); const room=cap-D[i];
       if(room>0) w=room*(0.12*RA[i]+0.55*Math.min(blur[i],1)+0.9*Math.min(U[i],1.2)+0.6*Math.min(PA[i],1))*(0.3+0.7*RA[i]); }
     Wt[i]=w; sw+=w; }
+  yield;
   let delta=0, sinceBase=0;
   for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++){ const i=y*W+x;
     if(sw>0&&Wt[i]>0){ const cap=S[i]*(1+0.6*Math.min(1,blur[i])+1.2*Math.min(1,U[i]/2.5)+0.5*Math.min(1,PA[i])); const dd=Math.min(pool*Wt[i]/sw,(cap-D[i])*0.15); if(dd>0){ D[i]+=dd; delta+=dd; } }

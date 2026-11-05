@@ -24,12 +24,12 @@ function expStops(L){
   }
   return out;
 }
-function refreshExpress(force){ for(const L of lines){ if(!L.svc||L.loop){ L.xs=null; continue; } const key=L.stops.join(',')+'|'+L.svc;
+function refreshExpress(force){ for(const L of lines){ if(!L.svc||L.loop||isRapid(L)){ L.xs=null; continue; } const key=L.stops.join(',')+'|'+L.svc;
   if(force||L.xsKey!==key||months-(L.xsM||0)>=12||!L.xs){ L.xs=expStops(L); L.xsKey=key; L.xsM=months; } } }
 function svcOf(L,id){ let t=0; (L.xs||[]).forEach((ids,i)=>{ if(ids.includes(id)) t=i+1; }); return t; }
 // end-to-end minutes for the all-stations train and for the fastest service
 function svcTimes(L){
-  ensurePaths(L); const seg=L.paths.map(p=>plen(p)/METRO_V), tot=seg.reduce((a,b)=>a+b,0), t0=tot+(L.stops.length-1)*DWELL;
+  ensurePaths(L); const seg=L.paths.map(p=>plen(p)/lineV(L)), tot=seg.reduce((a,b)=>a+b,0), t0=tot+(L.stops.length-1)*lineDwell(L);
   const xs=L.xs||[]; if(!xs.length) return [t0,t0,L.stops.length];
   const top=xs.length, ids=xs[top-1]; return [t0,tot/SVC_SPEED[top]+(ids.length-1)*DWELL,ids.length];
 }

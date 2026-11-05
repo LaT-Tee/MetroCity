@@ -18,14 +18,16 @@ function buildHeat(){
 function mkPath(pieces){ const p=new Path2D(); for(const pts of pieces){ p.moveTo(pts[0][0],pts[0][1]); for(let k=1;k<pts.length;k++) p.lineTo(pts[k][0],pts[k][1]); } return p; }
 // the street web: one path per road class, plus the newest streets so they can fade in
 function buildRoadPaths(){
-  const R=G.rn; P2.rd=[0,1,2,3,4].map(()=>new Path2D()); P2.rdNew=[0,1,2,3,4].map(()=>new Path2D()); P2.rdVer=R?R.ver:-1; if(!R) return;
-  const fresh=months; let nf=0;
-  for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e], p=(R.et[e]>=fresh&&months>0)?(nf++,P2.rdNew[R.ec[e]]):P2.rd[R.ec[e]]; p.moveTo(R.x[a],R.y[a]); p.lineTo(R.x[b],R.y[b]); }
-  P2.rdAt=performance.now(); P2.rdHasNew=nf>0;
+  // three sets: streets already in the cached map layer, streets added since that layer was painted (drawn on top
+  // until the next repaint, so the layer need not be redrawn every month) and this month's streets, which fade in
+  const R=G.rn, mk5=()=>[0,1,2,3,4].map(()=>new Path2D()); P2.rd=mk5(); P2.rdNew=mk5(); P2.rdPend=mk5(); P2.rdVer=R?R.ver:-1; if(!R) return;
+  const fresh=months, up=P2.upMonth==null?-1e9:P2.upMonth; let nf=0, np=0;
+  for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e], p=(R.et[e]>=fresh&&months>0)?(nf++,P2.rdNew[R.ec[e]]):R.et[e]>=up?(np++,P2.rdPend[R.ec[e]]):P2.rd[R.ec[e]]; p.moveTo(R.x[a],R.y[a]); p.lineTo(R.x[b],R.y[b]); }
+  P2.rdAt=performance.now(); P2.rdHasNew=nf>0; P2.rdHasPend=np>0;
 }
 const RD_W=[[0.9,0],[1.5,0.55],[2.1,1.0],[2.6,1.35],[2.8,0]];   // casing / centre widths in screen px
 function strokeRoads(c,px,col,alphaNew,lanesA,which){
-  const rd=P2.rd; if(!rd) return; const sets=which==='old'?[rd]:which==='new'?[P2.rdNew]:[rd,P2.rdNew];
+  const rd=P2.rd; if(!rd) return; const sets=which==='old'?[rd]:which==='new'?[P2.rdNew]:which==='pend'?[P2.rdPend]:[rd,P2.rdPend,P2.rdNew];
   for(let k=0;k<5;k++){ for(const set of sets){ const p=set[k], a=set===rd?1:alphaNew; if(a<=0.01) continue;
       if(k===0){ if(lanesA<=0.02) continue; c.globalAlpha=a*lanesA*0.85; c.strokeStyle=col.edge; c.lineWidth=Math.max(0.12,RD_W[0][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
       if(k===4){ c.globalAlpha=a; c.strokeStyle=col.hwy; c.lineWidth=Math.max(0.85,RD_W[4][0]*px); c.stroke(p); c.globalAlpha=1; continue; }

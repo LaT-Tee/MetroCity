@@ -46,3 +46,6 @@ function rdp(pts,eps){ if(pts.length<3) return pts; const keep=new Uint8Array(pt
 function angDiff(a,b){ let d=a-b; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; return d; }
 function hpush(h,it){ h.push(it); let i=h.length-1; while(i>0){ const p=(i-1)>>1; if(h[p][0]<=h[i][0]) break; const t=h[p]; h[p]=h[i]; h[i]=t; i=p; } }
 function hpop(h){ const top=h[0], last=h.pop(); if(h.length){ h[0]=last; let i=0; for(;;){ const l=2*i+1, r=l+1; let m=i; if(l<h.length&&h[l][0]<h[m][0]) m=l; if(r<h.length&&h[r][0]<h[m][0]) m=r; if(m===i) break; const t=h[m]; h[m]=h[i]; h[i]=t; i=m; } } return top; }
+
+// write markup only when it actually changed: rebuilding unchanged DOM costs layout and style work for nothing
+function setHTML(el,html){ if(!el) return; if(el._h!==html){ el.innerHTML=html; el._h=html; } }
