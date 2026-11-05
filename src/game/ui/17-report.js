@@ -13,7 +13,22 @@ function openReport(){
   const carKmCut=G.agents.reduce((s,a)=>s+a.p*a.dRoad,0)/G.agents.length*CELL_KM*G.popTotal*0.55*2;
   const dp=Math.max(0,G.popTotal-growth.pop0);
   const cells=[[t('cSaved'),fmtN(saved),t('hours')],[t('cShare'),(sim.share*100).toFixed(1),'%'],[t('cRiders'),fmtN(sim.riders),t('trips')],[t('cWalk'),(sim.cover*100).toFixed(0),t('ofPop')],[t('cNew'),fmtN(dp),t('people')],[t('cCarbon'),fmtN(carKmCut*0.17/1000),t('tons')]];
+  // the network itself: interchanges, stop spacing, how hard each kilometre of track works
+  const built=lines.filter(L=>L.stops.length>=2), cnt=lineCounts(), xfer=[...cnt.values()].filter(n=>n>1).length;
+  const kmAll=built.reduce((s,L)=>s+lineLength(L),0)*CELL_KM, gaps=built.reduce((s,L)=>s+L.stops.length-(L.loop?0:1),0);
+  const ride=L=>sim.lineRide[L.id]||0;
+  cells.push([t('cXfer'),fmtN(xfer),t('stations')],[t('cSpacing'),gaps?(kmAll/gaps).toFixed(2):'—','km'],[t('cPerKm'),kmAll?fmtN(built.reduce((s,L)=>s+ride(L),0)/kmAll):'—',t('people')]);
   $('#repGrid').innerHTML=cells.map(([k,v,u])=>`<div><div class="k">${k}</div><div class="v">${v}<small>${u}</small></div></div>`).join('');
+  // every line: ends, stops, length, riders, riders per km, end-to-end time on its fastest train, service
+  $('#repLines').innerHTML=built.length?`<h3>${t('repLinesT')}</h3><table class="rep-tbl"><thead><tr><th>${t('colLine')}</th><th>${t('colSt')}</th><th>${t('colKm')}</th><th>${t('colRide')}</th><th class="hide-s">${t('colPerKm')}</th><th>${t('colTime')}</th><th class="hide-s">${t('colSvc')}</th></tr></thead><tbody>${
+    built.slice().sort((a,b)=>ride(b)-ride(a)).map(L=>{ const a=stById(L.stops[0]), b=stById(L.stops[L.stops.length-1]), km=lineLength(L)*CELL_KM, [t0,t1]=L.loop?[0,0]:svcTimes(L);
+      const ends=L.loop?t('loopTitle',{a:nm(a.name)}):t('lineTitle',{a:nm(a.name),b:nm(b.name)});
+      return `<tr><td><span class="swatch" style="background:${lineColor(L)}"></span>${lineName(L)}<small>${ends}</small></td><td>${L.stops.length}</td><td>${km.toFixed(1)}</td><td>${fmtN(ride(L))}</td><td class="hide-s">${km?fmtN(ride(L)/km):'—'}</td><td>${L.loop?'—':Math.round(L.svc?t1:t0)+t('minU')}</td><td class="svc hide-s">${t('svcName')[L.loop?0:L.svc||0]}</td></tr>`; }).join('')}</tbody></table>`:'';
+  // the busiest stations (boardings plus alightings) and what the suggestions still point at
+  const busy=stations.filter(s=>cnt.get(s.id)).map(s=>({s,n:(sim.stBoard[s.id]||0)+(sim.stAlight[s.id]||0)})).sort((a,b)=>b.n-a.n).slice(0,6);
+  $('#repSt').innerHTML=busy.length?`<h3>${t('repStT')}</h3><ol>${busy.map(o=>`<li>${nm(o.s.name)} <b>${fmtN(o.n)}</b>${(cnt.get(o.s.id)||0)>1?`<small>${t('xferMark')} · ${[...lines].filter(L=>L.stops.length>=2&&L.stops.includes(o.s.id)).map(lineName).join(t('sep'))}</small>`:''}</li>`).join('')}</ol>`:'';
+  const todo=(lastSugg||[]).filter(o=>o.text).slice(0,4);
+  $('#repTodo').innerHTML=built.length?`<h3>${t('repTodoT')}</h3>${todo.length?`<ol>${todo.map(o=>`<li>${o.text}</li>`).join('')}</ol>`:`<ol style="list-style:none;padding:0"><li>${t('repTodoNone')}</li></ol>`}`:'';
   $('#report').hidden=false; drawHist();
 }
 function drawHist(){
