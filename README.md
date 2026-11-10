@@ -1,36 +1,97 @@
-# 地铁织城 Metro City
+<div align="center">
 
-A procedural city where you draw the metro and the city grows around it.
+# 地铁织城 · Metro City
 
-## Commands
+**画一条线，看一座城长出来。**
+
+A procedural city where you draw the metro — and the city grows around it.
+
+### [▶ 立即游玩 · Play now](https://metrocitygame.pages.dev/)
+
+`中文` · `English` · `日本語` &nbsp;|&nbsp; 浏览器直接运行，无需安装
+
+</div>
+
+---
+
+## 这是什么
+
+每个种子生成一座独一无二的城市：海岸、河流、山丘、老城和卫星镇，还有每天要通勤的几百万居民。
+一开始所有人都堵在路上。你的工作只有一件——**修地铁**。
+
+线路修得好，通勤时间下降、客流上涨，人们搬到车站周围，街道向外延伸，农田变成街区，城市升级，地图解锁更大的范围。
+
+## 玩法
+
+| | |
+|---|---|
+| **画线** | 按住拖动即可画出线路，松手落站；也可以逐站点击。接到已有车站上就是换乘。 |
+| **换乘** | 新线穿过旧线时会自动形成换乘站：附近有站就拐过去停靠，没有就在交叉点新建。 |
+| **读图** | 人口、通勤时间、出行需求三种热力图，告诉你下一条线该修在哪。 |
+| **助手** | 打开规划助手，它会按当前客流给出新线、延伸和环线的建议，一键采纳。 |
+| **快线与直通** | 市郊快线站少车快；两条线首尾相接且方向一致时，列车自动直通运转。 |
+| **成长** | 每月结算一次：人口流向车站周边，街道生长，繁忙的街道拓宽，两岸建成后架桥。 |
+| **成就与报告** | 26 项成就、年度回顾、可导出的线路图和规划报告。 |
+
+## 观景模式
+
+按 `V` 坐上一位通勤者的座位，跟着 TA 上车、换乘、到站。电脑上可以切到 **3D 视角**：
+
+- **窗边座位**：第一人称看窗外的城市掠过，进了隧道就是隧道。
+- **跟随镜头**：在楼顶上方绕着列车缓缓运镜；列车入地后，它与镜头之间的地面和建筑会变成半透明，让你始终看得到车和前方的线路。
+- **城市是从游戏本身长出来的**：沿街排布的住宅、公寓、写字楼和塔楼，公园、广场、游乐场、球场、学校、教堂和商场，郊外的农田与山丘。
+- **线路有高低**：密集的市中心走隧道，出了城上高架，中间是坡道；每条线都是双轨，多线大站是并排的股道和分层的站台。
+
+## 操作
+
+| 按键 | 作用 |
+|---|---|
+| `1` `2` `3` | 浏览 / 画线 / 拆除 |
+| `空格` | 画线时落站；选中线路时在线上加站 |
+| `E` | 给选中的线路加开快车 |
+| `[` `]` | 切换选中的线路 |
+| `A` | 规划助手（`Tab` 切换建议，`Enter` 采纳） |
+| `V` | 观景模式（`N` 换一位乘客） |
+| `P` | 暂停 / 继续 |
+| `Ctrl+Z` / `Ctrl+Y` | 撤销 / 重做 |
+
+手机和平板上用触摸操作：单指拖动画线，停顿片刻落站，双指缩放。
+
+## 本地运行
 
 ```bash
 npm install
-npm run dev      # dev server, reloads on save
-npm run build    # → dist/index.html: one minified, self-contained file (~250 KB, ~90 KB gzip)
-npm run check    # headless test of the game logic in Node (city generation, simulation, assistant)
+npm run dev      # 开发服务器，保存即刷新
+npm run build    # 生成 dist/index.html：单个自包含文件，可直接双击打开或丢到任何静态托管
+npm run check    # 无浏览器的逻辑自检（城市生成、通勤模拟、规划助手）
 ```
 
-`dist/index.html` runs on its own: double-click it, or upload it to any static host.
+线上版本由 Cloudflare Pages 从 `main` 自动构建发布。3D 视角首次打开时会从 CDN 加载 three.js，其余全部内联在那一个文件里。
 
-## Layout
+## 代码结构
 
 ```
-index.html              page shell (panels, toolbar, dialogs)
-src/main.js             entry: styles + game
-src/styles.css          all styles
+index.html              页面骨架（面板、工具栏、弹窗）
+src/main.js             入口：样式 + 游戏
+src/styles.css          全部样式
 src/game/
-  core/                 constants, zh/en/ja text, utilities, city generation
-  sim/                  network, commute simulation, population growth, suggestions, achievements,
-                        expansion, facilities and projects, express trains, road web,
-                        quick estimate, build assistant, line planner
-  ui/                   canvas rendering, camera, drawing lines, input, panels, report, rewards, save/load
-scripts/game-scope.js   Vite plugin: joins src/game into one module
-scripts/smoke.mjs       headless check used by `npm run check`
+  core/                 常量、三语文案、工具函数、城市生成（地形、河流、道路骨架、人口）
+  sim/                  线网与换乘、通勤模拟、人口迁移、街道网生长、设施与项目、
+                        快线、规划助手与线路规划器
+  ui/                   地图绘制与图层缓存、相机、画线与输入、面板与报告、成就、存档、
+                        建筑生成、观景模式、3D 视角
+scripts/game-scope.js   Vite 插件：把 src/game 拼成一个模块
+scripts/smoke.mjs       npm run check 用的自检脚本
 ```
 
-The game files share one scope (the city, the network and the simulation are read and written everywhere),
-so `scripts/game-scope.js` joins them into a single ES module in folder order (core → sim → ui), then by
-the number at the start of each file name. To add a file, give it a number that places it after everything it uses.
+游戏的各个文件共享同一个作用域（城市、线网和模拟处处要读写），所以 `game-scope.js` 按文件夹顺序（core → sim → ui）、再按文件名开头的编号，把它们拼成一个 ES 模块。新增文件时，给它一个排在所有依赖之后的编号即可。
 
-`window.__mc` exposes a small debugging API in the browser console (`__mc.newCity(seed)`, `__mc.adoptTop()`, …).
+浏览器控制台里有一个小调试接口 `window.__mc`（`__mc.newCity(seed)`、`__mc.adoptTop()` 等）。
+
+---
+
+<div align="center">
+
+**[metrocitygame.pages.dev](https://metrocitygame.pages.dev/)**
+
+</div>
