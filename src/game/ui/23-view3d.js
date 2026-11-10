@@ -20,7 +20,7 @@ async function w3dStart(){
   const S=new T.Scene(), cam3=new T.PerspectiveCamera(60,1,0.0015,120);
   const hemi=new T.HemisphereLight(0xd6e6ff,0x8e8d88,0.9), sun=new T.DirectionalLight(0xfff0dc,2.6); sun.castShadow=true; sun.shadow.mapSize.set(4096,4096);
   Object.assign(sun.shadow.camera,{left:-W3D_SH,right:W3D_SH,top:W3D_SH,bottom:-W3D_SH,near:0.5,far:50}); sun.shadow.bias=-0.00025; sun.shadow.normalBias=0.0035; sun.shadow.radius=1.6; S.add(hemi,sun,sun.target);
-  Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null});
+  Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null}); w3d.see=w3d.see||{value:new T.Vector4(0,0,0,0)};
   R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; });
   R.domElement.addEventListener('pointerup',e=>{ if(!w3d.down||Math.hypot(e.clientX-w3d.down[0],e.clientY-w3d.down[1])>6) return; w3dTap(e.clientX,e.clientY); });
   w3dBuild(); }
@@ -106,7 +106,7 @@ function w3dRoofGeo(ax){ const T=w3d.T, g=new T.BufferGeometry(), v=ax===0
     ?[0,0,0, 1,1,0.5, 1,0,0, 0,0,0, 0,1,0.5, 1,1,0.5,  0,0,1, 1,0,1, 1,1,0.5, 0,0,1, 1,1,0.5, 0,1,0.5,  0,0,0, 0,0,1, 0,1,0.5,  1,0,0, 1,1,0.5, 1,0,1]
     :[0,0,0, 0,0,1, 0.5,1,1, 0,0,0, 0.5,1,1, 0.5,1,0,  1,0,0, 0.5,1,1, 1,0,1, 1,0,0, 0.5,1,0, 0.5,1,1,  0,0,0, 0.5,1,0, 1,0,0,  0,0,1, 1,0,1, 0.5,1,1];
   g.setAttribute('position',new T.Float32BufferAttribute(v,3)); g.computeVertexNormals(); return g; }
-function w3dMats(){ if(w3d.mats) return w3d.mats; const T=w3d.T; w3dTextures(); const keep=m=>{ m.userData.keep=true; return m; }, M={};
+function w3dMats(){ if(w3d.mats) return w3d.mats; const T=w3d.T; w3dTextures(); const keep=m=>{ m.userData.keep=true; return w3dSee(m); }, M={};
   for(const k in W3D_KIND){ const o=W3D_KIND[k]; M[k]=keep(w3dFacadeMat(w3d[o[0]],o[4])); }
   M.cyl=keep(new T.MeshStandardMaterial({roughness:0.1,metalness:0.45})); M.roof=keep(new T.MeshStandardMaterial({color:0xbdbab3,roughness:0.92})); M.plain=keep(new T.MeshStandardMaterial({roughness:0.6,metalness:0.15}));
   M.houseWall=keep(new T.MeshStandardMaterial({roughness:0.9})); M.houseRoof=keep(new T.MeshStandardMaterial({roughness:0.75,side:T.DoubleSide}));
@@ -201,7 +201,7 @@ function* w3dGroundGen(){ w3dTerrain();
     (g,x0,y0,w,h,k)=>{ g.fillStyle='#f0f0f0'; g.fillRect(0,0,g.canvas.width,g.canvas.height); g.setTransform(k,0,0,k,-x0*k,-y0*k); g.fillStyle='#262626';
       for(let y=Math.max(B[1],Math.floor(y0));y<Math.min(B[3],y0+h+1);y++) for(let x=Math.max(B[0],Math.floor(x0));x<Math.min(B[2],x0+w+1);x++) if(G.water[y*W+x]) g.fillRect(x-0.5,y-0.5,1,1);
       g.strokeStyle='#262626'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18); g.stroke(r.p); } },
-    (tx,rt)=>new T.MeshStandardMaterial({map:tx,roughnessMap:rt,roughness:1,metalness:0.02,...w3dCut()}),m=>{ m.renderOrder=-5; out.push(m); });
+    (tx,rt)=>w3dSee(new T.MeshStandardMaterial({map:tx,roughnessMap:rt,roughness:1,metalness:0.02,...w3dCut()})),m=>{ m.renderOrder=-5; out.push(m); });
   // swap in the finished ground; the old one goes after the next frame, once the new one has been drawn
   return ()=>{ w3d.groundCanvas=c; out.forEach(m=>w3d.S.add(m)); w3dTrash(w3d.gnd); w3d.gnd=out; }; }
 // the world rectangle (x0,y0,w,h) as n×n ground tiles at ppc pixels a cell: each tile is painted, uploaded and placed on its own step
@@ -225,6 +225,15 @@ function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, a
     const m=new T.Mesh(geo,mat(tx,rt)); m.rotation.x=-Math.PI/2; m.position.set(tx0+tw/2,y,ty0+th/2); m.receiveShadow=true; put(m); yield; } }
 // material settings for anything lying on the ground: it is left out where a cutting has been marked (see the mask in w3dBuild)
 function w3dCut(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:1,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
+/* Seeing the train through whatever is in the way. Every material that can stand between the camera and the train
+   (ground, streets, buildings, trees, tunnel walls, station roofs) gets a few lines in its shader: a fragment that is
+   nearer than the train and falls inside a circle round the train on the screen is thinned out in a fine dither, most
+   at the centre and not at all at the rim. The thing stays there, lit and shadowed, but the train shows through it,
+   with no hole cut in the ground and no sorting of transparent surfaces. uSee = (centre x, y in pixels, train depth, radius). */
+function w3dSee(m){ const prev=m.onBeforeCompile, key=m.customProgramCacheKey?m.customProgramCacheKey():'';
+  m.onBeforeCompile=(sh,r)=>{ if(prev) prev(sh,r); sh.uniforms.uSee=w3d.see;
+    sh.fragmentShader='uniform vec4 uSee;\n'+sh.fragmentShader.replace('void main() {','void main() {\n\tif(uSee.w>0.0&&gl_FragCoord.z<uSee.z){ float seeR=length(gl_FragCoord.xy-uSee.xy)/uSee.w; if(seeR<1.0){ float seeK=mix(0.2,1.0,smoothstep(0.45,1.0,seeR)); if(fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))))>seeK) discard; } }'); };
+  m.customProgramCacheKey=()=>key+'|see'; return m; }
 function w3dTrash(list){ if(list&&list.length) (w3d.trash||(w3d.trash=[])).push(...list); }
 function w3dEmpty(){ if(w3d.trash&&w3d.trash.length){ w3dClear(w3d.trash); } }
 
@@ -292,11 +301,13 @@ function w3dBuild(){
   for(const pc of cuts){ const flat=pc.map(q=>[q[0],q[1]]), mk=new T.Mesh(w3dRibbon(flat,TUN_W-0.0006,0.0012,0),new T.MeshBasicMaterial({colorWrite:false,depthWrite:false,stencilWrite:true,stencilRef:1,stencilFunc:T.AlwaysStencilFunc,stencilFail:T.ReplaceStencilOp,stencilZFail:T.ReplaceStencilOp,stencilZPass:T.ReplaceStencilOp}));
     mk.renderOrder=-10; w3dAdd(mk); const tr=w3dAdd(new T.Mesh(w3dTrough(pc,TUN_W,0.011),new T.MeshStandardMaterial({color:0xb9b6ae,roughness:0.9,side:T.DoubleSide}))); tr.receiveShadow=true; }
   if(tubes.length){ const B=G.bounds, ep=new T.Mesh(new T.PlaneGeometry(B[2]-B[0]+40,B[3]-B[1]+40),new T.MeshBasicMaterial({color:0x17181b,fog:false})); ep.rotation.x=Math.PI/2; ep.position.set((B[0]+B[2])/2,-0.0015,(B[1]+B[3])/2); w3dAdd(ep); }
-  if(tubes.length){ w3dTunnelTex(); for(const pc of tubes) w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H),new T.MeshBasicMaterial({map:w3d.tunTex,vertexColors:true,side:T.DoubleSide,fog:false}))); }
+  if(tubes.length){ w3dTunnelTex(); const tm=w3dSee(new T.MeshBasicMaterial({map:w3d.tunTex,vertexColors:true,side:T.DoubleSide,fog:false})); for(const pc of tubes){ w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[0]),tm)); w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[2,4,6]),tm)); }
+    // deep earth under everything, seen through the thinned ground round a train underground
+    const B=G.bounds, ef=new T.Mesh(new T.PlaneGeometry(B[2]-B[0]+40,B[3]-B[1]+40),new T.MeshBasicMaterial({color:0x4d463d,fog:false})); ef.rotation.x=-Math.PI/2; ef.position.set((B[0]+B[2])/2,UGY*2.9,(B[1]+B[3])/2); w3dAdd(ef); }
   // stations: platforms beside the outermost tracks, a canopy over all of them with the line colours on its edge,
   // columns, name boards, benches and a concourse under the viaduct; lines running side by side share one station.
   // Underground the same platforms stand in a lit hall, with an entrance pavilion on the street above.
-  { const parts=[], uparts=[], hall=[], spots=[]; const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
+  { const parts=[], uparts=[], hall=[], hallX=[], spots=[]; const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
     for(const st of stations){ const here=[]; for(const L of lines){ if(L.stops.length<2||!L._p3||!L._p3.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const u=L._p3.sU[k], p=polyAt(L._p3.pts,L._p3.cum,u), h=polyHead(L._p3.pts,L._p3.cum,u,0.2); here.push({L,p,h,y:w3dHAt(L._p3,u)}); }
       const groups=[]; for(const o of here){ const g=groups.find(g=>Math.abs(g[0].h[0]*o.h[0]+g[0].h[1]*o.h[1])>0.85&&dist(g[0].p[0],g[0].p[1],o.p[0],o.p[1])<0.3&&(g[0].y<0)===(o.y<0)); if(g) g.push(o); else groups.push([o]); }
       if(here.length) w3d.stY.set(st.id,Math.max(...here.map(o=>o.y)));
@@ -315,14 +326,14 @@ function w3dBuild(){
           if(under) B(Lp,0.004,0.0012,0,TRK+0.022,z+sd*(PW/2-0.0008),lc);                                                         // a band in the line colour along the wall
           else B(Lp*0.82,0.004,0.0016,0,TRK+0.0385,z+sd*(PW/2),lc); }                                                              // fascia in the line colour
         if(under){ // the hall round the platforms, dark where the tunnels leave it; and the way up to the street
-          const Hh=mk(hall,dy), hl=Lp+0.1, z0=lo-PW-0.003, z1=hi+PW+0.003, POST=[0xd9534f,0x3f7fbf,0xe0a030,0x4f9e62,0x7a5aa6,0xe8e4da];
-          Hh(hl,0.002,z1-z0,0,TRK-0.0022,mid,0x77746e); Hh(hl,0.002,z1-z0,0,TRK+0.05,mid,0xd6d3cc);                                     // track bed and ceiling
+          const Hh=mk(hall,dy), Hx=mk(hallX,dy), hl=Lp+0.1, z0=lo-PW-0.003, z1=hi+PW+0.003, POST=[0xd9534f,0x3f7fbf,0xe0a030,0x4f9e62,0x7a5aa6,0xe8e4da];
+          Hh(hl,0.002,z1-z0,0,TRK-0.0022,mid,0x77746e); Hx(hl,0.002,z1-z0,0,TRK+0.05,mid,0xd6d3cc);                                     // track bed and ceiling
           for(const sd of [-1,1]){ const zw=sd<0?z0:z1, zp=sd<0?lo-PW/2:hi+PW/2, edge=sd<0?lo:hi;
-            Hh(hl,0.052,0.002,0,TRK+0.024,zw,0xcbc8c0); Hh(hl,0.012,0.0006,0,TRK+0.0135,zw-sd*0.0014,0xa7a39a);                         // wall and dado
-            Hh(Lp,0.0075,0.0006,0,TRK+0.00375,edge-sd*0.0002,0x97938b); Hh(Lp*0.94,0.0006,0.005,0,TRK+0.0488,zp,0xffffff);               // platform edge, strip lights
-            for(let x=-Lp/2+0.07,q=0;x<Lp/2-0.05;x+=0.115,q++){ if(q%3===1) continue; Hh(0.04,0.016,0.0006,x,TRK+0.034,zw-sd*0.0016,POST[(q+st.id)%POST.length]); } }      // posters
+            Hx(hl,0.052,0.002,0,TRK+0.024,zw,0xcbc8c0); Hx(hl,0.012,0.0006,0,TRK+0.0135,zw-sd*0.0014,0xa7a39a);                         // wall and dado
+            Hh(Lp,0.0075,0.0006,0,TRK+0.00375,edge-sd*0.0002,0x97938b); Hx(Lp*0.94,0.0006,0.005,0,TRK+0.0488,zp,0xffffff);               // platform edge, strip lights
+            for(let x=-Lp/2+0.07,q=0;x<Lp/2-0.05;x+=0.115,q++){ if(q%3===1) continue; Hx(0.04,0.016,0.0006,x,TRK+0.034,zw-sd*0.0016,POST[(q+st.id)%POST.length]); } }      // posters
           { const iv=offs.map(o=>[o-TUN_W,o+TUN_W]).sort((p,q)=>p[0]-q[0]); let zc=z0; const gaps=[]; for(const [a,b] of iv){ if(a>zc+0.001) gaps.push([zc,a]); zc=Math.max(zc,b); } if(zc<z1-0.001) gaps.push([zc,z1]);
-            for(const ex of [-1,1]){ for(const [a,b] of gaps) Hh(0.002,0.052,b-a,ex*hl/2,TRK+0.024,(a+b)/2,0xbfbcb4); Hh(0.002,0.052-TUN_H,z1-z0,ex*hl/2,TRK+TUN_H-0.002+(0.052-TUN_H)/2,mid,0xbfbcb4); } }                         // end walls, open where the tunnels leave
+            for(const ex of [-1,1]){ for(const [a,b] of gaps) Hx(0.002,0.052,b-a,ex*hl/2,TRK+0.024,(a+b)/2,0xbfbcb4); Hx(0.002,0.052-TUN_H,z1-z0,ex*hl/2,TRK+TUN_H-0.002+(0.052-TUN_H)/2,mid,0xbfbcb4); } }                         // end walls, open where the tunnels leave
           const ez=mid+span/2+0.045; S(0.07,0.02,0.035,0,0.01,ez,glass); S(0.082,0.003,0.045,0,0.0215,ez,cano); S(0.082,0.004,0.0015,0,0.0185,ez+0.022,lc); S(0.012,0.012,0.012,0.06,0.03,ez,lc); S(0.0018,0.026,0.0018,0.06,0.013,ez,col);
           spots.push({x:cx+nx*ez,y:cy+ny*ez,hx,hy,len:0.2,half:0.05}); continue; }
         B(Lp*0.82,0.0022,span+0.006,0,TRK+0.0405,mid,cano);                                    // canopy
@@ -331,9 +342,10 @@ function w3dBuild(){
         spots.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp+0.1,half:span/2+0.05}); }
       // an interchange where lines meet at an angle: one concourse building joining their platforms
       const up=groups.filter(g=>g[0].y>=0); if(up.length>=2){ const cx=up.reduce((a,g)=>a+g[0].p[0],0)/up.length, cy=up.reduce((a,g)=>a+g[0].p[1],0)/up.length; parts.push(w3dBox(0.2,TRK-0.02,0.2,cx,(TRK-0.02)/2,cy,0xdcd8cf),w3dBox(0.21,0.004,0.21,cx,TRK-0.018,cy,0xeeeeea),w3dBox(0.17,0.03,0.202,cx,0.02,cy,0x9fb4c2),w3dBox(0.202,0.03,0.17,cx,0.02,cy,0x9fb4c2)); spots.push({x:cx,y:cy,hx:1,hy:0,len:0.3,half:0.15}); } }
-    w3d.stSpots=spots; if(parts.length){ const sm=new T.Mesh(w3dMerge(parts),new T.MeshStandardMaterial({vertexColors:true,roughness:0.6,metalness:0.05})); sm.castShadow=true; sm.receiveShadow=true; w3dAdd(sm); }
+    w3d.stSpots=spots; if(parts.length){ const sm=new T.Mesh(w3dMerge(parts),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.6,metalness:0.05}))); sm.castShadow=true; sm.receiveShadow=true; w3dAdd(sm); }
     if(uparts.length) w3dAdd(new T.Mesh(w3dMerge(uparts),new T.MeshBasicMaterial({vertexColors:true,fog:false})));
-    if(hall.length) w3dAdd(new T.Mesh(w3dMerge(hall),new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide}))); }
+    if(hall.length) w3dAdd(new T.Mesh(w3dMerge(hall),new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide})));
+    if(hallX.length) w3dAdd(new T.Mesh(w3dMerge(hallX),w3dSee(new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide})))); }
   // the rider's own train (seen from outside in the chase view)
   w3d.myTrain=null; const L0=lines.find(l=>l.stops.length>=2); if(L0){ const tr=w3d.trains[0]; w3d.myTrain=w3dAdd(new T.InstancedMesh(tr.geo,new T.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.35}),W3D_CARS)); w3d.myTrain.castShadow=true; w3d.myTrain.frustumCulled=false; }
   w3d.bcStale=true; w3d.labels.forEach(l=>l.el.remove()); w3d.labels=[]; }
@@ -357,11 +369,11 @@ function w3dTrough(pc,hw,top){ const T=w3d.T, n=pc.length, pos=[], idx=[];
     pos.push(x+nx,y0,z+nz, x-nx,y0,z-nz,  x+nx,y0,z+nz, x+nx,top,z+nz,  x-nx,y0,z-nz, x-nx,top,z-nz); }
   for(let i=0;i<n-1;i++){ const o=i*6, q=o+6; for(const k of [0,2,4]) idx.push(o+k,q+k,o+k+1, o+k+1,q+k,q+k+1); }
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals(); return g; }
-function w3dTube(pc,hw,h){ const T=w3d.T, n=pc.length, pos=[], uv=[], col=[], idx=[]; let d=0;
+function w3dTube(pc,hw,h,faces){ const T=w3d.T, n=pc.length, pos=[], uv=[], col=[], idx=[]; let d=0;
   for(let i=0;i<n;i++){ const a=pc[Math.max(0,i-1)], b=pc[Math.min(n-1,i+1)]; let dx=b[0]-a[0], dz=b[1]-a[1]; const l=Math.hypot(dx,dz)||1; dx/=l; dz/=l; const nx=-dz*hw, nz=dx*hw, x=pc[i][0], z=pc[i][1], y0=pc[i][2]-0.0012, y1=y0+h; if(i) d+=dist(pc[i-1][0],pc[i-1][1],x,z); const u=d/0.42;
     pos.push(x+nx,y0,z+nz, x-nx,y0,z-nz,  x+nx,y1,z+nz, x-nx,y1,z-nz,  x+nx,y0,z+nz, x+nx,y1,z+nz,  x-nx,y0,z-nz, x-nx,y1,z-nz);
     uv.push(u,0.02,u,0.02, u,0.98,u,0.98, u,0,u,1, u,0,u,1); for(let k=0;k<4;k++) col.push(0.42,0.42,0.42); for(let k=0;k<4;k++) col.push(1,1,1); }
-  for(let i=0;i<n-1;i++){ const o=i*8, q=o+8; for(const k of [0,2,4,6]) idx.push(o+k,q+k,o+k+1, o+k+1,q+k,q+k+1); }
+  for(let i=0;i<n-1;i++){ const o=i*8, q=o+8; for(const k of (faces||[0,2,4,6])) idx.push(o+k,q+k,o+k+1, o+k+1,q+k,q+k+1); }
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('uv',new T.Float32BufferAttribute(uv,2)); g.setAttribute('color',new T.Float32BufferAttribute(col,3)); g.setIndex(idx); return g; }
 /* Big stations are laid out the way real ones are. Lines that pass through a station in roughly the same direction
    are drawn together into parallel tracks side by side, each pair with its own platforms; lines that cross it in
@@ -370,14 +382,14 @@ function w3dTube(pc,hw,h){ const T=w3d.T, n=pc.length, pos=[], uv=[], col=[], id
 function w3dStationPlan(){ const gap=DECK*2+0.012;
   for(const st of stations){ const here=[];
     for(const L of lines){ if(L.stops.length<2||!L._p3||!L._p3.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const P=L._p3, u=P.sU[k]; here.push({P,u,h:polyHead(P.pts,P.cum,u,0.5),p:polyAt(P.pts,P.cum,u)}); }
-    if(here.length<2) continue; const cl=[];
+    if(!here.length) continue; const cl=[];
     for(const o of here){ const c=cl.find(c=>Math.abs(c.ax[0]*o.h[0]+c.ax[1]*o.h[1])>0.72); if(c) c.m.push(o); else cl.push({ax:o.h.slice(),m:[o]}); }
     cl.sort((a,b)=>b.m.length-a.m.length); const under=w3dHAt(here[0].P,here[0].u)<0;
     cl.forEach((c,ci)=>{ const ax=c.ax, n=[-ax[1],ax[0]], dY=Math.min(ci,2)*(under?-0.066:0.07);
       c.m.forEach(o=>{ o.lat=(o.p[0]-st.x)*n[0]+(o.p[1]-st.y)*n[1]; }); c.m.sort((a,b)=>a.lat-b.lat);
       c.m.forEach((o,i)=>{ const want=c.m.length>1?(i-(c.m.length-1)/2)*gap:o.lat, P=o.P;
         for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-o.u); if(du>3.6) continue;
-          if(c.m.length>1&&du<1.9){ const w=1-smooth(du,0.75,1.9), q=P.pts[v], t=(q[0]-st.x)*ax[0]+(q[1]-st.y)*ax[1]; P.pts[v]=[q[0]+(st.x+ax[0]*t+n[0]*want-q[0])*w,q[1]+(st.y+ax[1]*t+n[1]*want-q[1])*w]; }
+          if(du<1.9){ const w=1-smooth(du,0.75,1.9), q=P.pts[v], t=(q[0]-st.x)*ax[0]+(q[1]-st.y)*ax[1]; P.pts[v]=[q[0]+(st.x+ax[0]*t+n[0]*want-q[0])*w,q[1]+(st.y+ax[1]*t+n[1]*want-q[1])*w]; }
           if(dY) P.Y[v]+=dY*(1-smooth(du,1.0,3.6)); } }); }); }
   for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; for(let i=1;i<P.pts.length;i++) P.cum[i]=P.cum[i-1]+dist(P.pts[i-1][0],P.pts[i-1][1],P.pts[i][0],P.pts[i][1]); } }
 // where each stop of a line lies along its 3D path (searched near where it is expected, so stops stay in order)
@@ -455,7 +467,7 @@ function* w3dLocalGen(cx,cy,grp){
   { const fp=w3dFeatures(cx,cy,26,(x,y,sc,h)=>{ if(!near.has(Math.floor(x*8)*100000+Math.floor(y*8))) trees.push([x,y,sc,h]); },spires); for(const m of fp) add(m); } yield;
   if(trees.length){ const greens=dark?[0x2e4a2c,0x34522f,0x2a4230]:[0x5f8f45,0x6e9a4c,0x4f7f3f,0x7aa356,0x587f3a], V=new T.Vector3(), Q=new T.Quaternion(), Sc=new T.Vector3(), up=new T.Vector3(0,1,0);
     const mk=(list,det,shadow)=>{ if(!list.length) return; const tg=w3dMerge([{g:new T.CylinderGeometry(0.0012,0.0018,0.012,5),m:new T.Matrix4().makeTranslation(0,0.006,0),c:0x6b5440},{g:new T.IcosahedronGeometry(0.0085,det),m:new T.Matrix4().makeTranslation(0,0.017,0),c:0xffffff}]);
-      const tm=new T.InstancedMesh(tg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,flatShading:det===0}),list.length);
+      const tm=new T.InstancedMesh(tg,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,flatShading:det===0})),list.length);
       list.forEach((p,i)=>{ Q.setFromAxisAngle(up,(p[3]&255)/40); Sc.set(p[2],p[2]*(0.9+((p[3]>>8)&63)/150),p[2]); M.compose(V.set(p[0],w3dHt(p[0],p[1]),p[1]),Q,Sc); tm.setMatrixAt(i,M); col.set(greens[p[3]%greens.length]); tm.setColorAt(i,col); });
       tm.castShadow=shadow; tm.receiveShadow=true; add(tm); };
     mk(trees.filter(p=>dist(p[0],p[1],cx,cy)<=8),1,true); yield; mk(trees.filter(p=>dist(p[0],p[1],cx,cy)>8),0,false); }
@@ -488,7 +500,7 @@ function w3dRoadMesh(cx,cy,R){
   for(const [n,o] of nodes){ const x=Rn.x[n], z=Rn.y[n]; if(o.c<4) disc(0,x,z,o.p,PAVE); disc(1,x,z,o.a,ASPH[o.c]); }
   const pos=[].concat(Ls[0],Ls[1],Ls[2]), cl=[].concat(Cs[0],Cs[1],Cs[2]), nor=new Float32Array(pos.length); for(let i=1;i<nor.length;i+=3) nor[i]=1;
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('normal',new T.Float32BufferAttribute(nor,3)); g.setAttribute('color',new T.Float32BufferAttribute(cl,3));
-  const m=new T.Mesh(g,new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()})); m.renderOrder=-3; m.receiveShadow=true; return m; }
+  const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true; return m; }
 const w3dCarGeo=()=>w3dMerge([w3dBox(0.028,0.008,0.012,0,0.005,0,0xffffff),w3dBox(0.016,0.006,0.011,-0.002,0.011,0,0x2b3440)]);
 // What stands in the parks, squares, playgrounds, pitches, car parks and churchyards near the viewer. Everything is
 // placed from the plot's own number, so a place looks the same every time it is passed.
@@ -528,8 +540,8 @@ function w3dFeatures(cx,cy,R,addTree,spires){
   // church towers and spires
   for(const b of spires){ const Fm=new T.Matrix4().makeTranslation(b.x+b.w/2,0,b.y+b.d/2).multiply(new T.Matrix4().makeRotationY(-(b.a||0))), hN=b.h*BZ3*1.25, tw=Math.min(b.w,0.045), q=w3dBox(tw,hN*1.7,tw,0,hN*0.85,b.d/2-tw/2,0xe4ded2); q.m=Fm.clone().multiply(q.m); parts.push(q);
     parts.push({g:new T.ConeGeometry(tw*0.78,hN*0.9,4),m:Fm.clone().multiply(new T.Matrix4().makeTranslation(0,hN*1.7+hN*0.45,b.d/2-tw/2)).multiply(new T.Matrix4().makeRotationY(Math.PI/4)),c:0x5a6068}); }
-  if(flat.length){ const m=new T.Mesh(w3dMerge(flat),new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3,...w3dCut()})); m.receiveShadow=true; m.renderOrder=-2; out.push(m); }
-  if(parts.length){ const m=new T.Mesh(w3dMerge(parts),new T.MeshStandardMaterial({vertexColors:true,roughness:0.7,metalness:0.05})); m.castShadow=true; m.receiveShadow=true; out.push(m); }
+  if(flat.length){ const m=new T.Mesh(w3dMerge(flat),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3,...w3dCut()}))); m.receiveShadow=true; m.renderOrder=-2; out.push(m); }
+  if(parts.length){ const m=new T.Mesh(w3dMerge(parts),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.7,metalness:0.05}))); m.castShadow=true; m.receiveShadow=true; out.push(m); }
   if(cars.length){ const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(w3dCarGeo(),new T.MeshStandardMaterial({vertexColors:true,roughness:0.35,metalness:0.4}),cars.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1), col=new T.Color();
     cars.forEach((c,i)=>{ Q.setFromAxisAngle(up,-c[2]); M.compose(V.set(c[0],0.0012,c[1]),Q,one); m.setMatrixAt(i,M); col.set(cols[c[3]]); m.setColorAt(i,col); }); m.castShadow=true; m.receiveShadow=true; out.push(m); }
   return out; }
@@ -566,7 +578,7 @@ function* w3dLocalGround(cx,cy,add){
         g.moveTo(x-0.5,y-0.5+((h&255)/255)); g.bezierCurveTo(x-0.1,y-0.3,x+0.1,y+0.3,x+0.5,y-0.5+(((h>>8)&255)/255)); } g.stroke();
       if(P2.rail){ g.strokeStyle=dark?'#4a443e':'#9a8f84'; g.lineWidth=0.09; g.stroke(P2.rail); g.strokeStyle=dark?'#2a2a2a':'#4a4440'; g.lineWidth=0.006; for(const o of [-0.012,0.012]){ g.save(); g.translate(0,o); g.stroke(P2.rail); g.restore(); } }
       w3dStreets(g,w3dEdgesIn(tx0,ty0,tx0+tw,ty0+th,E),wd,[[0.034,pave],[0.006,dark?'#3a3c42':'#777a80'],[0,asph],[-0.0035,k=>k===4?'#e8c547':'rgba(255,255,255,.85)',k=>k===4?[]:[0.025,0.03],2]]); },
-    null,tx=>new T.MeshStandardMaterial({map:tx,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,...w3dCut()}),m=>{ m.renderOrder=-4; add(m); }); }
+    null,tx=>w3dSee(new T.MeshStandardMaterial({map:tx,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,...w3dCut()})),m=>{ m.renderOrder=-4; add(m); }); }
 // a point a given fraction along a line's 3D path (with its bundle offset)
 function w3dOn(L,f,dir){ const P=L._p3; if(!P||P.pts.length<2){ const g=trainAt(L,0); return {x:g.x,y:g.y,hx:1,hy:0}; } const len=P.cum[P.cum.length-1], u=clamp(f,0,1)*len, i=Math.max(1,trainSeg(P.cum,u)), q=(u-P.cum[i-1])/((P.cum[i]-P.cum[i-1])||1), a=P.pts[i-1], b=P.pts[i];
   const hx=(b[0]-a[0])*(dir||1), hy=(b[1]-a[1])*(dir||1), hl=Math.hypot(hx,hy)||1; return {x:lerp(a[0],b[0],q),y:lerp(a[1],b[1],q),hx:hx/hl,hy:hy/hl}; }
@@ -596,10 +608,11 @@ function w3dFrame(dt){
   if(w3d.gj&&!w3d.lj&&w3dRun(w3d.gj,4)) w3d.gj=null;
   for(const tr of (w3d.trains||[])){ if(!tr.L._p3) continue; for(let k=0;k<tr.n;k++){ const p=w3dTrainPos(tr,k); w3dSetCars(tr.m,k*W3D_CARS,tr.L,p.u,p.dir); } tr.m.instanceMatrix.needsUpdate=true; }
   if(!st){ R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }
-  let [x,z,u3]=st.L?w3dNear(st.L,st.x,st.y):[st.x,st.y,0]; const hx=st.hx, hz=st.hy, nx=-hz, nz=hx; w3dLocal(x,z);
-  const P3=st.L&&st.L._p3, yT=P3&&P3.Y?w3dHAt(P3,u3):TRK, under=yT<-0.01, len3=P3?P3.cum[P3.cum.length-1]:0;
-  // which way along the line the train is going, and so which of the two tracks it is on (trains keep to the right)
-  let sg=1; if(P3){ const hd=polyHead(P3.pts,P3.cum,u3,0.05); sg=(hd[0]*hx+hd[1]*hz)>=0?1:-1; } if(st.mode==='ride'){ x+=nx*W3D_TO; z+=nz*W3D_TO; }
+  const P3=st.L&&st.L._p3, ru=P3?w3dRideU(st):null; let x, z, u3, hx=st.hx, hz=st.hy, sg=1;
+  if(ru){ u3=ru.u; sg=ru.sg; w3d.lastSg=sg; const p=polyAt(P3.pts,P3.cum,u3), h=polyHead(P3.pts,P3.cum,u3,0.08); x=p[0]; z=p[1]; hx=h[0]*sg; hz=h[1]*sg; }
+  else { [x,z,u3]=st.L?w3dNear(st.L,st.x,st.y):[st.x,st.y,0]; if(P3){ const hd=polyHead(P3.pts,P3.cum,u3,0.05); sg=(hd[0]*hx+hd[1]*hz)>=0?1:-1; } }
+  const nx=-hz, nz=hx; w3dLocal(x,z);
+  const yT=P3&&P3.Y?w3dHAt(P3,u3):TRK, under=yT<-0.01, len3=P3?P3.cum[P3.cum.length-1]:0; if(st.mode==='ride'){ x+=nx*W3D_TO; z+=nz*W3D_TO; }
   const seat=watch.win, mine=w3d.myTrain;
   if(mine){ mine.visible=!seat&&!!P3&&st.mode==='ride'; if(P3&&mine.visible){ const tr=w3d.trains.find(o=>o.L===st.L); if(tr&&mine.geometry!==tr.geo) mine.geometry=tr.geo; w3dSetCars(mine,0,st.L,u3,sg); mine.instanceMatrix.needsUpdate=true; } }
   let cp, ct, kp, kt; const sw=st.speed?Math.sin(performance.now()/260)*0.00025:0;
@@ -607,24 +620,25 @@ function w3dFrame(dt){
   else if(seat){ cp=[x+nx*(DECK+0.02),yT+0.017,z+nz*(DECK+0.02)]; ct=[x-nx*1+hx*0.35,yT+0.01,z-nz*1+hz*0.35]; kp=kt=6; }   // on the platform, facing the tracks
   else {
     /* The following camera. In the open it circles slowly behind the train (swinging out to either side, rising and
-       falling, drawing in at stations) and lifts itself until nothing stands between it and the train. Where the
-       track is at or below street level it comes down onto the track and follows the last car, so it goes down the
-       ramp and through the tunnel with the train instead of cutting through the ground. */
+       falling, drawing in at stations) and keeps itself out of the buildings next to it. It stays above ground:
+       when the train goes underground it keeps roughly over the line and looks down more steeply, and whatever lies
+       between it and the train (ground, buildings, tunnel) is thinned so the train shows through (see w3dSee). */
     const C=w3d.cc||(w3d.cc={t:Math.random()*50,slow:0}); C.t+=dt; C.slow+=((st.speed>0.02?0:1)-C.slow)*Math.min(1,dt*0.8);
-    const az=0.6*Math.sin(C.t*0.085)+0.3*Math.sin(C.t*0.031+1.3), dd=lerp(0.66+0.2*Math.sin(C.t*0.052+2),0.5,C.slow), hh=lerp(0.15+0.07*Math.sin(C.t*0.067+0.5),0.1,C.slow);
+    C.ug=(C.ug||0)+((yT<0.02?1:0)-(C.ug||0))*Math.min(1,dt*1.2);
+    const az=(0.6*Math.sin(C.t*0.085)+0.3*Math.sin(C.t*0.031+1.3))*(1-0.8*C.ug), dd=lerp(lerp(0.66+0.2*Math.sin(C.t*0.052+2),0.5,C.slow),0.52,C.ug), hh=lerp(lerp(0.15+0.07*Math.sin(C.t*0.067+0.5),0.1,C.slow),0.4,C.ug);
     const ca=Math.cos(az), sa=Math.sin(az), ty=Math.max(yT,0)+0.012; let d2=dd, cy=Math.max(yT,0)+hh, ox=0, oz=0;
-    for(let tr=0;tr<3;tr++){ ox=(-hx*ca+nx*sa)*d2; oz=(-hz*ca+nz*sa)*d2; let need=cy;
-      for(let q=1;q<=10;q++){ const f=q/10, g=Math.max(w3dHgt(x+ox*f,z+oz*f),w3dHt(x+ox*f,z+oz*f)+0.01); if(g>0){ const yn=ty+(g+0.014-ty)/f; if(yn>need) need=yn; } }
-      if(need<=0.55){ cy=need; break; } d2*=0.66; cy=need; }
-    cy=Math.min(cy,0.7); const cpO=[x+ox,cy,z+oz], ctO=[x+hx*0.22,ty,z+hz*0.22];
-    let wR=0, cpR=cpO, ctR=ctO;
-    if(P3){ let low=1; for(const o of [-0.8,-0.45,0,0.45,0.9]) low=Math.min(low,w3dHAt(P3,clamp(u3+sg*o,0,len3))); wR=1-smooth(low,0.008,0.05);
-      if(wR>0){ const ub=clamp(u3-sg*0.44,0,len3), uf=clamp(u3+sg*0.3,0,len3), pb=polyAt(P3.pts,P3.cum,ub), hb=polyHead(P3.pts,P3.cum,ub,0.05), pf=polyAt(P3.pts,P3.cum,uf), hf=polyHead(P3.pts,P3.cum,uf,0.05);
-        cpR=[pb[0]-hb[1]*sg*W3D_TO,w3dHAt(P3,ub)+0.031,pb[1]+hb[0]*sg*W3D_TO]; ctR=[pf[0]-hf[1]*sg*W3D_TO,w3dHAt(P3,uf)+0.014,pf[1]+hf[0]*sg*W3D_TO]; } }
-    cp=cpO.map((v,i)=>v+(cpR[i]-v)*wR); ct=ctO.map((v,i)=>v+(ctR[i]-v)*wR); kp=lerp(2.2,9,wR); kt=lerp(4.5,10,wR); }
+    for(let tr=0;tr<6;tr++){ ox=(-hx*ca+nx*sa)*d2; oz=(-hz*ca+nz*sa)*d2; let need=cy;
+      for(let q=6;q<=10;q++){ const f=q/10, g=Math.max(w3dHgt(x+ox*f,z+oz*f),w3dHt(x+ox*f,z+oz*f)+0.01); if(g>0){ const yn=ty+(g+0.014-ty)/f; if(yn>need) need=yn; } }
+      if(need<=0.6+tr*0.08){ cy=need; break; } d2*=0.75; cy=need; }
+    cy=Math.min(cy,1.0); const cpO=[x+ox,cy,z+oz];
+    cp=cpO; ct=[x+hx*0.22,Math.max(yT,-0.02)+0.012,z+hz*0.22]; kp=2.2; kt=4.5; }
   const snap=!w3d.camPos||dist(w3d.camPos[0],w3d.camPos[2],cp[0],cp[2])>1.8, a1=snap?1:1-Math.exp(-dt*kp), a2=snap?1:1-Math.exp(-dt*kt);
   w3d.camPos=w3d.camPos&&!snap?w3d.camPos.map((v,i)=>v+(cp[i]-v)*a1):cp; w3d.camTgt=w3d.camTgt&&!snap?w3d.camTgt.map((v,i)=>v+(ct[i]-v)*a2):ct;
   w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt);
+  // where the train is on the screen and how deep, for the see-through (off at the window seat)
+  { const U=w3d.see.value; if(seat||!P3) U.set(0,0,0,0); else { w3d.cam3.updateMatrixWorld(); const c=w3d.cam3.position, tx=x, ty=yT+0.014, tz=z, dl=Math.hypot(c.x-tx,c.y-ty,c.z-tz)||1, k=Math.min(0.05,dl*0.2)/dl, v=(w3d.seeV||(w3d.seeV=new T.Vector3()));
+      v.set(tx,ty,tz).project(w3d.cam3); const sx=(v.x+1)/2*R.domElement.width, sy=(v.y+1)/2*R.domElement.height; v.set(tx+(c.x-tx)*k,ty+(c.y-ty)*k,tz+(c.z-tz)*k).project(w3d.cam3);
+      U.set(sx,sy,v.z*0.5+0.5,R.domElement.height*clamp(0.19/dl,0.14,0.34)); } }
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;
@@ -635,6 +649,14 @@ function w3dFrame(dt){
     else if(A.n>300&&A.e<12.5&&w3d.pr<w3d.prMax){ w3d.pr=Math.min(w3d.prMax,w3d.pr+0.25); R.setPixelRatio(w3d.pr); A.n=0; }
     R.shadowMap.autoUpdate=false; R.shadowMap.needsUpdate=A.e<21||(A.f&1)===0; }
   R.render(w3d.S,w3d.cam3); w3dEmpty(); w3dLabels(); }
+// Where the watched train is along its line's 3D track. The ride knows which two stops it is between and how far along;
+// that maps straight onto the track, so the position can only move forward (searching for the nearest piece of track
+// jumped back and forth wherever the line bends close to itself or is drawn aside into a station).
+function w3dRideU(st){ const L=st.L, P=L&&L._p3; if(!P||!P.sU) return null; const n=L.stops.length;
+  if(st.mode==='ride'&&st.q&&st.q.L===L){ const q=st.q, S=q.stopU; let j=0; while(j<S.length-2&&st.u>S[j+1]) j++; const a=q.ks[j], b=q.ks[j+1]; let ua, ub;
+    if(L.loop){ if(b===(a+1)%n){ ua=P.sU[a]; ub=P.sU[a+1]; } else if(a===(b+1)%n){ ua=P.sU[b+1]; ub=P.sU[b]; } else return null; } else { ua=P.sU[a]; ub=P.sU[b]; }
+    if(ua==null||ub==null) return null; const f=clamp((st.u-S[j])/((S[j+1]-S[j])||1),0,1); return {u:ua+(ub-ua)*f,sg:ub>=ua?1:-1}; }
+  const k=st.st?L.stops.indexOf(st.st.id):-1; return k<0||P.sU[k]==null?null:{u:P.sU[k],sg:w3d.lastSg||1}; }
 // how high the buildings stand at a point near the viewer (0 where there are none): a coarse grid filled when the surroundings are built
 function w3dHgt(x,z){ const g=w3d.hg; if(!g) return 0; const i=Math.floor((x-g.x0)*g.res), j=Math.floor((z-g.y0)*g.res); return i<0||j<0||i>=g.n||j>=g.n?0:g.a[j*g.n+i]; }
 // station names over the nearest platforms
