@@ -21,15 +21,10 @@ function cityStart(stamp){
   J.q.push(()=>{ worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.fillStyle=C.urban; ctx.fill(P2.apron); ctx.strokeStyle=C['arterial-edge']; ctx.lineWidth=px; ctx.stroke(P2.apron);
     ctx.fillStyle=C.runway; ctx.fill(P2.runways); ctx.fillStyle=C['ink-3']; ctx.fill(P2.terminal); });
-  const ba=smooth(cam.s,9,14);
-  if(ba>0.01){ const tiles=bldTilesIn(view[0],view[1],view[2],view[3]);
-    for(const [tx,ty] of tiles) J.q.push(()=>{ worldT(); ctx.globalAlpha=ba; bldPaintGround(bldPaths(bldTile(tx,ty),tx,ty)); ctx.globalAlpha=1; }); }
   J.q.push(()=>{ worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
     strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},0,smooth(cam.s,1.3,3),'old',view);
     ctx.strokeStyle=C.rail; ctx.lineWidth=Math.max(0.7,2.6*px); ctx.stroke(P2.rail);
     ctx.setLineDash([Math.max(1,6*px),Math.max(1,6*px)]); ctx.strokeStyle=C.land; ctx.lineWidth=Math.max(0.35,1.2*px); ctx.stroke(P2.rail); ctx.setLineDash([]); });
-  if(ba>0.01){ const tiles=bldTilesIn(view[0],view[1],view[2],view[3]);
-    for(const [tx,ty] of tiles) J.q.push(()=>{ worldT(); ctx.globalAlpha=ba; bldPaintRoofs(bldPaths(bldTile(tx,ty),tx,ty)); ctx.globalAlpha=1; }); }
   cityJob=J; }
 // drawing is only recorded until someone looks at the canvas; reading one pixel's worth of it into a scratch canvas makes
 // the browser do the work now, step by step, instead of all at once on the frame the finished picture is first shown
@@ -37,7 +32,7 @@ let cityScratch=null;
 function cityFlush(c){ if(!cityScratch){ cityScratch=document.createElement('canvas'); cityScratch.width=cityScratch.height=1; } cityScratch.getContext('2d').drawImage(c,0,0,1,1,0,0,1,1); }
 function cityRun(budget){
   const J=cityJob; if(!J) return; const t0=performance.now(), m=ctx, sv=[cam.x,cam.y,cam.s,vw,vh,dpr]; ctx=J.g; cam.x=J.x; cam.y=J.y; cam.s=J.s; vw=J.W2; vh=J.H2; dpr=J.r;
-  try{ while(J.i<J.q.length){ const a=performance.now(); J.q[J.i++](); cityFlush(J.c); if(window.__mcProf&&performance.now()-a>12) window.__mcProf.push(['city',J.i-1,J.q.length,Math.round(performance.now()-a)]); if(performance.now()-t0>budget) break; } } finally { ctx=m; cam.x=sv[0]; cam.y=sv[1]; cam.s=sv[2]; vw=sv[3]; vh=sv[4]; dpr=sv[5]; }
+  try{ while(J.i<J.q.length){ const a=performance.now(); J.q[J.i++](); if(window.__mcProf&&performance.now()-a>12) window.__mcProf.push(['city',J.i-1,J.q.length,Math.round(performance.now()-a)]); if(performance.now()-t0>budget) break; } } finally { ctx=m; cam.x=sv[0]; cam.y=sv[1]; cam.s=sv[2]; vw=sv[3]; vh=sv[4]; dpr=sv[5]; }
   if(J.i>=J.q.length){ citySpare=cityC; cityC=J.c; cityI=J; cityJob=null; cityEnd=performance.now(); } }
 function cityLayer(stamp,rest){
   const I=cityI, exact=I&&I.stamp===stamp&&I.x===cam.x&&I.y===cam.y&&I.s===cam.s&&I.W2===vw+2*Math.round(vw*CITY_M)&&I.H2===vh+2*Math.round(vh*CITY_M);
@@ -68,7 +63,7 @@ function draw(){
   cachedLayer('lo',camK,drawLower,!baseFadeAt,rest);
   // the street and building layer: while the camera rests, monthly street and building changes are folded in at most
   // every 12 s (new streets show on top meanwhile); a moving camera repaints anyway and takes everything at once
-  { const now=performance.now(), hard=P2.ver+'|'+G.bounds.join(','), soft=P2.rdVer+'|'+bldVer+'|'+bldRoadDirty;
+  { const now=performance.now(), hard=P2.ver+'|'+G.bounds.join(','), soft=''+P2.rdVer;
     if(hard!==upHard||(soft!==upSoft&&(!rest||now-upAt>12000))){ upHard=hard; upSoft=soft; upAt=now; if(P2.upMonth!==months){ P2.upMonth=months; buildRoadPaths(); } upStamp++; } }
   worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.imageSmoothingEnabled=true;
   const hf=heatPrev?clamp((performance.now()-heatFadeAt)/(2800/speedMul),0,1):1;
@@ -80,6 +75,7 @@ function draw(){
   if(flashCanvas){ const a=1-(performance.now()-flashAt)/4500; if(a>0){ ctx.globalAlpha=Math.min(1,a*1.4)*0.85; ctx.drawImage(flashCanvas,0,0,W,H); ctx.globalAlpha=1; } else flashCanvas=null; }
   if(cam.s>4){ ctx.strokeStyle=C['sea-shallow']; for(const r of P2.rivers){ ctx.lineWidth=Math.max(r.w,1.4*px); ctx.stroke(r.p); } }
   cityLayer(upStamp+'|'+layerVer,rest);
+  drawBuildingTiles(rest?6:3.5);
   { worldT(); const B=G.bounds, fog=new Path2D(); fog.rect(-50,-50,W+100,H+100); fog.rect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.fillStyle=C['card-solid']; ctx.globalAlpha=0.62; ctx.fill(fog,'evenodd'); ctx.globalAlpha=1;
     ctx.setLineDash([6*px,5*px]); ctx.strokeStyle=C['ink-3']; ctx.lineWidth=1.5*px; ctx.strokeRect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.setLineDash([]); }
   worldT(); ctx.lineCap='round'; ctx.lineJoin='round';

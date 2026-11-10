@@ -23,7 +23,7 @@ function* growthGen(){
     if(x0<0||y0<0||x0>=W-1||y0>=H-1) continue; const v=A*peak;
     U[y0*W+x0]+=v*(1-fx)*(1-fy); U[y0*W+x0+1]+=v*fx*(1-fy); U[(y0+1)*W+x0]+=v*(1-fx)*fy; U[(y0+1)*W+x0+1]+=v*fx*fy; anyS=true;
   }
-  if(anyS){ const r=Math.max(1,Math.round((Math.sqrt(4*sig*sig+1)-1)/2)), B=G.bounds, m=3*r+2; for(let k=0;k<3;k++) boxBlur(U,r,Math.max(0,B[0]-m),Math.max(0,B[1]-m),Math.min(W,B[2]+m),Math.min(H,B[3]+m)); }
+  if(anyS){ const r=Math.max(1,Math.round((Math.sqrt(4*sig*sig+1)-1)/2)), B=G.bounds, m=3*r+2; for(let k=0;k<3;k++){ boxBlur(U,r,Math.max(0,B[0]-m),Math.max(0,B[1]-m),Math.min(W,B[2]+m),Math.min(H,B[3]+m)); yield; } }
   yield;
   const D=G.D, J=G.J, D0=growth.D0, J0=growth.J0, S=growth.S, B=G.bounds, lb=growth.lastBaseD;
   if(!growth.TG) growth.TG=new Float32Array(W*H);
@@ -31,6 +31,7 @@ function* growthGen(){
   const blur=blurD(); yield; const RA=growth.roadAcc, Wt=growth.TG, PA=placeAttr(); let pool=0, sw=0;
   // remote places with neither metro nor roads slowly empty out
   for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++){ const i=y*W+x; if(U[i]<0.05&&RA[i]<0.15&&D[i]>0.05){ const out=D[i]*0.002; D[i]-=out; pool+=out; } }
+  yield;
   // the city grows on its own; a good metro makes it grow faster
   const share=sim?sim.share:0, big=G.popTotal/growth.pop0; pool+=popIn()*(0.0018+0.006*share)*clamp(1.5-0.3*big,0.25,1)+popIn()*projectInflow();
   // where people settle: near the metro, near roads, next to existing neighbourhoods, wherever there is room

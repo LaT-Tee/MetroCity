@@ -21,7 +21,7 @@ function newCity(seed,saved){ bldCache=new Map(); bldVer++;
   setTool('pan'); renderLines(); updateMetrics(); renderSuggestions(); if(heatMode==='commute') buildCommuteHeat(); persist();
 }
 function placeHelp(){ const h=$('#help'); if(vw>=760) h.style.top=($('.sign').getBoundingClientRect().bottom+12)+'px'; else h.style.top=''; }
-function onTheme(){ if(!G) return; layerVer++; renderBase(); geomKey=''; renderLines(); }
+function onTheme(){ darkC=null; if(!G) return; layerVer++; renderBase(); geomKey=''; renderLines(); }
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',onTheme);
 new MutationObserver(onTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 window.addEventListener('resize',()=>{ resize(); clampCam(); placeHelp(); });

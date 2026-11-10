@@ -4,7 +4,8 @@
    highway cells stay clear. Footprints and heights are in cells (1 cell = 150 m). */
 const BLD_T=12;                         // tile size in cells
 let bldVer=0, bldCache=new Map(), bldRoadVer=-1, bldRoadOf=null, bldRoadN=0, bldRoadC=null, bldRoadDirty=0;
-function bldBump(){ bldVer++; bldCache.clear(); }
+// a new year: tiles are not thrown away, each is worked out again when next needed and keeps its old picture until then
+function bldBump(){ bldVer++; }
 // streets stay clear: every plot is tested against the actual street segments nearby, widened to the drawn street plus
 // its pavement, so no building ever sits on a road. When streets are added (or widened) each month only the building
 // tiles they pass through are regenerated.
@@ -16,7 +17,7 @@ function bldRoadSync(){
   if(bldRoadOf!==R||R.ea.length<bldRoadN||!bldRoadC){ bldRoadOf=R; bldRoadVer=R.ver; bldRoadN=R.ea.length; bldRoadC=Uint8Array.from(R.ec); bldCache.clear(); bldRoadDirty++; return; }
   const dirty=new Set(); if(bldRoadC.length<R.ea.length){ const c=new Uint8Array(R.ea.length*2); c.set(bldRoadC); bldRoadC=c; }
   for(let e=0;e<R.ea.length;e++) if(e>=bldRoadN||bldRoadC[e]!==R.ec[e]){ bldTileOfEdge(R,e,dirty); bldRoadC[e]=R.ec[e]; }
-  bldRoadN=R.ea.length; bldRoadVer=R.ver; for(const k of dirty) bldCache.delete(k); if(dirty.size) bldRoadDirty++; }
+  bldRoadN=R.ea.length; bldRoadVer=R.ver; for(const k of dirty){ const t=bldCache.get(k); if(t) t.ver=-1; } if(dirty.size) bldRoadDirty++; }
 // the street and rail segments near one tile, binned per cell so each plot only looks at the few next to it
 function bldSegs(x0,y0){ const R=G.rn, bins=new Map(), add=(ax,ay,bx,by,c)=>{ const s=[ax,ay,bx,by,c];
     for(let y=Math.floor(Math.min(ay,by)-c+0.5);y<=Math.floor(Math.max(ay,by)+c+0.5);y++) for(let x=Math.floor(Math.min(ax,bx)-c+0.5);x<=Math.floor(Math.max(ax,bx)+c+0.5);x++){
@@ -47,7 +48,7 @@ function bldOnRoadR(bins,cx,cy,hw,hd,ca,sa){ const rx=Math.abs(hw*ca)+Math.abs(h
 const BLD_OC=24, BLD_M=1;
 function bldTile(tx,ty){
   if(G.rn&&(G.rn.ver!==bldRoadVer||G.rn!==bldRoadOf)) bldRoadSync();
-  const key=tx*1000+ty; let t=bldCache.get(key); if(t) return t;
+  const key=tx*1000+ty; let t=bldCache.get(key); if(t&&t.ver===bldVer) return t; const stale=t;
   const out=[], x0=tx*BLD_T, y0=ty*BLD_T, pk=G.pk, D=G.D, water=G.water, B=G.bounds, rm=bldSegs(x0,y0), R=G.rn;
   const ox=x0-0.5-BLD_M, oy=y0-0.5-BLD_M, ON=(BLD_T+2*BLD_M)*BLD_OC, occ=new Uint8Array(ON*ON);
   // claim a turned footprint on the occupancy grid (with a small gap to the neighbours); false if something is there
@@ -118,7 +119,7 @@ function bldTile(tx,ty){
       let hm=(6+30*Math.pow(Math.min(d,1.5),1.5))*(0.6+rnd()*0.7);         // metres
       if(d>1&&rnd()<0.06) hm=Math.min(240,hm*(1.8+rnd()*1.4));               // the odd tower downtown
       out.push({x:bx,y:by,w,d:dd,h:hm/150,c:(h>>>20)&3,a:0}); } }
-  t={list:out,feat:feats,ver:bldVer}; bldCache.set(key,t); if(bldCache.size>900) bldCache.delete(bldCache.keys().next().value); return t;
+  t={list:out,feat:feats,ver:bldVer,rs:null,rsOld:stale?(stale.rs&&stale.rs.some(Boolean)?stale.rs:stale.rsOld):null}; bldCache.delete(key); bldCache.set(key,t); if(bldCache.size>900) bldCache.delete(bldCache.keys().next().value); return t;
 }
 function bldInRect(x0,y0,x1,y1,cb){
   const tx0=Math.floor((x0-1)/BLD_T), ty0=Math.floor((y0-1)/BLD_T), tx1=Math.floor((x1+1)/BLD_T), ty1=Math.floor((y1+1)/BLD_T);
@@ -144,8 +145,9 @@ function bldPaths(t,tx,ty){ if(t.p) return t.p;
   // a shadow is the footprint swept along the sun's direction: its far copy plus the strips swept by the edges, all wound the same way
   const quad=(p,ax,ay,bx,by,cx,cy,dx,dy)=>{ if((bx-ax)*(cy-ay)-(by-ay)*(cx-ax)<0){ p.moveTo(ax,ay); p.lineTo(dx,dy); p.lineTo(cx,cy); p.lineTo(bx,by); } else { p.moveTo(ax,ay); p.lineTo(bx,by); p.lineTo(cx,cy); p.lineTo(dx,dy); } p.closePath(); };
   for(const b of t.list){ const z=Math.min(1.3,b.h*BLD_Z), sx=z*0.36, sy=z*0.28, q=bldCorners(b), sh=shB.next();
-    for(let k=0;k<4;k++){ const a=k*2, c=((k+1)%4)*2; quad(sh,q[a],q[a+1],q[c],q[c+1],q[c]+sx,q[c+1]+sy,q[a]+sx,q[a+1]+sy); }
-    quad(sh,q[0]+sx,q[1]+sy,q[2]+sx,q[3]+sy,q[4]+sx,q[5]+sy,q[6]+sx,q[7]+sy);
+    // the footprint swept along the sun's direction is a six-cornered shape: each edge at its near or its far position
+    { let px=NaN, py=NaN, first=true; const pt=(x,y)=>{ if(x===px&&y===py) return; if(first){ sh.moveTo(x,y); first=false; } else sh.lineTo(x,y); px=x; py=y; };
+      for(let k=0;k<4;k++){ const a=k*2, c=((k+1)%4)*2, far=(q[c]-q[a])*sy-(q[c+1]-q[a+1])*sx>0, ox=far?sx:0, oy=far?sy:0; pt(q[a]+ox,q[a+1]+oy); pt(q[c]+ox,q[c+1]+oy); } sh.closePath(); }
     poly(rimB.next(),q); poly(rfB[b.h*150<14?2+(b.c&3):(b.c&1)].next(),q); }
   const tz=0.06, tree=(px,py,r)=>{ const ts=tsB.next(), tr=trB.next(); ts.moveTo(px+r+0.04,py+0.03); ts.arc(px+0.04,py+0.03,r,0,6.283); tr.moveTo(px+r,py-tz*0.4); tr.arc(px,py-tz*0.4,r,0,6.283); };
   for(let y=ty*BLD_T;y<(ty+1)*BLD_T;y++) for(let x=tx*BLD_T;x<(tx+1)*BLD_T;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]) continue; const pk=G.pk[i], n=pk>0.27?6:pk>0.255?3:(pk>0.12&&G.D[i]<0.05)?4:0;
@@ -163,14 +165,42 @@ function bldPaths(t,tx,ty){ if(t.p) return t.p;
     else if(f.k==='school'){ const m=0.5; ln(g.line,P(-0.1,0),P(0.9,0)); ln(g.line,P(0.9,0),P(0.9,0.85)); ln(g.line,P(0.9,0.85),P(-0.1,0.85)); ln(g.line,P(-0.1,0.85),P(-0.1,0)); ln(g.line,P(0.4,0),P(0.4,0.85)); } }
   return t.p={sh:shB.a,rim:rimB.a,rf:rfB.map(o=>o.a),tr:trB.a,ts:tsB.a,g}; }
 // painting one tile: what lies on the ground first (grounds and shadows), then what stands on it
-function bldPaintGround(p){ const F=isDark()?FEAT_COL.dark:FEAT_COL.light, g=p.g;
+function bldPaintGround(p,px){ const F=isDark()?FEAT_COL.dark:FEAT_COL.light, g=p.g;
   for(const k of ['park','play','plaza','pitch','lot','yard']){ ctx.fillStyle=F[k]; ctx.fill(g[k]); }
-  ctx.strokeStyle=F.path; ctx.lineWidth=0.03; ctx.stroke(g.path); ctx.fillStyle=F.water; ctx.fill(g.water); ctx.strokeStyle=F.line; ctx.lineWidth=Math.max(0.008,0.7/cam.s); ctx.stroke(g.line);
+  ctx.strokeStyle=F.path; ctx.lineWidth=0.03; ctx.stroke(g.path); ctx.fillStyle=F.water; ctx.fill(g.water); ctx.strokeStyle=F.line; ctx.lineWidth=Math.max(0.008,0.7*px); ctx.stroke(g.line);
   ctx.fillStyle='#e2574c'; ctx.fill(g.dotA); ctx.fillStyle='#3f7fbf'; ctx.fill(g.dotB);
   ctx.fillStyle=C['bld-shadow']; for(const q of p.sh) ctx.fill(q); ctx.fillStyle='rgba(30,60,30,.18)'; for(const q of p.ts) ctx.fill(q); }
 const BLD_RC=()=>[C['bld-roof'],C['bld-roof2'],'#c47a62','#9c7266','#7d8794','#b39478'];
-function bldPaintRoofs(p){ const RC=BLD_RC(), e=Math.max(0.6/cam.s,0.012);
+function bldPaintRoofs(p,px){ const RC=BLD_RC(), e=Math.max(0.6*px,0.012);
   ctx.fillStyle=C['bld-side']; ctx.translate(e,e); for(const q of p.rim) ctx.fill(q); ctx.translate(-e,-e);
   for(let k=0;k<6;k++){ ctx.fillStyle=RC[k]; for(const q of p.rf[k]) ctx.fill(q); }
   ctx.fillStyle=isDark()?'#2f5a34':'#79a95e'; for(const q of p.tr) ctx.fill(q); }
 function bldTilesIn(x0,y0,x1,y1){ const o=[]; for(let ty=Math.max(0,Math.floor((y0-1)/BLD_T));ty<=Math.floor((y1+1)/BLD_T)&&ty*BLD_T<H;ty++) for(let tx=Math.max(0,Math.floor((x0-1)/BLD_T));tx<=Math.floor((x1+1)/BLD_T)&&tx*BLD_T<W;tx++) o.push([tx,ty]); return o; }
+
+/* Buildings on the map are pictures, not drawings. A tile's thousand outlines are painted once into a small bitmap
+   (at the sharpness of the current zoom, a few tiles a frame) and from then on a frame only pastes bitmaps: dragging,
+   zooming and the monthly changes to the streets never redraw a building that has not changed. While a sharper or
+   newer picture of a tile is still to come, whatever picture of it exists is shown. */
+const BLD_LV=[6,12,24,48], BLD_RMAX=110e6; let bldRBytes=0, bldRQ=[], bldTheme='';
+function bldRaster(t,tx,ty,li){ const R=BLD_LV[li], c=document.createElement('canvas'); c.width=c.height=BLD_T*R; const g=c.getContext('2d',{willReadFrequently:true}), m=ctx; ctx=g;
+  try{ g.setTransform(R,0,0,R,-(tx*BLD_T-0.5)*R,-(ty*BLD_T-0.5)*R); g.lineCap='round'; g.lineJoin='round';
+    // shadows fall to the south-east: those of the tiles to the west and north reach into this one
+    g.fillStyle=C['bld-shadow']; for(const [dx,dy] of [[-1,0],[0,-1],[-1,-1]]){ if(tx+dx<0||ty+dy<0) continue; const n=bldCache.get((tx+dx)*1000+ty+dy); if(n&&n.p) for(const q of n.p.sh) g.fill(q); }
+    const p=bldPaths(t,tx,ty); bldPaintGround(p,1/R); bldPaintRoofs(p,1/R); } finally { ctx=m; }
+  if(!t.rs) t.rs=[null,null,null,null]; t.rs[li]=c; const bytes=c.width*c.height*4; bldRBytes+=bytes; bldRQ.push({t,li,bytes});
+  while(bldRBytes>BLD_RMAX&&bldRQ.length>1){ const o=bldRQ.shift(); bldRBytes-=o.bytes; if(o.t.rs&&o.t.rs[o.li]){ o.t.rs[o.li].width=0; o.t.rs[o.li]=null; } }
+  return c; }
+function drawBuildingTiles(budget){
+  const a=smooth(cam.s,9,14); if(a<=0.01) return; const th=isDark()?'d':'l'; if(th!==bldTheme){ bldTheme=th; for(const t of bldCache.values()){ t.rsOld=null; t.rs=null; } bldRQ=[]; bldRBytes=0; }
+  const want=cam.s*dpr/1.35; let li=BLD_LV.length-1; for(let k=0;k<BLD_LV.length;k++) if(BLD_LV[k]>=want){ li=k; break; }
+  const [x0,y0]=toWorld(0,0), [x1,y1]=toWorld(vw,vh), todo=[]; worldT(); ctx.globalAlpha=a; ctx.imageSmoothingEnabled=true;
+  for(let ty=Math.max(0,Math.floor((y0+0.5)/BLD_T));ty<=Math.floor((y1+0.5)/BLD_T)&&ty*BLD_T<H;ty++) for(let tx=Math.max(0,Math.floor((x0+0.5)/BLD_T));tx<=Math.floor((x1+0.5)/BLD_T)&&tx*BLD_T<W;tx++){
+    const t=bldCache.get(tx*1000+ty), fresh=t&&t.ver===bldVer; let c=null;
+    if(t){ const pick=rs=>{ if(!rs) return null; if(rs[li]) return rs[li]; for(let k=li+1;k<rs.length;k++) if(rs[k]) return rs[k]; for(let k=li-1;k>=0;k--) if(rs[k]) return rs[k]; return null; }; c=pick(t.rs)||pick(t.rsOld); }
+    if(c) ctx.drawImage(c,tx*BLD_T-0.5,ty*BLD_T-0.5,BLD_T,BLD_T);
+    if(!fresh||!t.rs||!t.rs[li]) todo.push([tx,ty,(tx*BLD_T+BLD_T/2-cam.x)**2+(ty*BLD_T+BLD_T/2-cam.y)**2+(c?1e6:0)]); }
+  ctx.globalAlpha=1;
+  // work out and paint the missing ones, nearest the middle of the view first, those with no picture at all before those with an old one
+  if(todo.length){ todo.sort((p,q)=>p[2]-q[2]); const t0=performance.now(); drawBuildingTiles.n=(drawBuildingTiles.n||0)+1;
+    for(const [tx,ty,pr] of todo){ if(pr>=1e6&&drawBuildingTiles.n%4) break;      /* tiles that only need refreshing: one every fourth frame */
+      const t=bldTile(tx,ty); bldRaster(t,tx,ty,li); if(pr>=1e6||performance.now()-t0>budget) break; } } }

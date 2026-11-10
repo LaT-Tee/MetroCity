@@ -1,9 +1,12 @@
 /* ---------- sim scheduling + UI ---------- */
 // the network is measured in one task, the panels and rewards follow in the next, so no single task grows long enough to stutter
-function scheduleSim(){ clearTimeout(simTimer); simTimer=setTimeout(()=>{ const pf=window.__mcProf, T=[performance.now()], m=()=>{ if(pf) T.push(performance.now()); };
-  sim=runSim(); m(); updateMetrics(); renderLines(); m();
-  simTimer=setTimeout(()=>{ if(heatMode==='commute') buildCommuteHeat(); if(pendingImpact){ showImpact(pendingImpact); pendingImpact=null; } renderSuggestions(); m(); announceThrough(!progressReady); progressCheck(!progressReady); m(); progressReady=true;
-    if(pf) pf.push(['sim',T.slice(1).map((t,i)=>Math.round(t-T[i])).join(',')]); },0); },60); }
+function scheduleSim(){ clearTimeout(simTimer); simTimer=setTimeout(()=>{ if(scheduleSim.busy){ scheduleSim.again=true; return; } scheduleSim.busy=true;
+  jobs.push(function*(){ const pf=window.__mcProf, T=[performance.now()], m=()=>{ if(pf) T.push(performance.now()); };
+    try{ const v=netVersion, g=runSimGen(); let r; while(!(r=g.next()).done){ yield; if(netVersion!==v){ scheduleSim.again=true; return; } }
+      const tm=(n,f)=>{ const a=performance.now(); f(); const d=performance.now()-a; if(pf&&d>8) pf.push(['ui',n,Math.round(d)]); };
+      sim=r.value; yield; tm('metrics',updateMetrics); yield; tm('lines',renderLines); yield;
+      if(heatMode==='commute') tm('cheat',buildCommuteHeat); if(pendingImpact){ const pi=pendingImpact; pendingImpact=null; tm('impact',()=>showImpact(pi)); } yield; tm('sugg',renderSuggestions); yield; tm('thru',()=>announceThrough(!progressReady)); yield; tm('prog',()=>progressCheck(!progressReady)); progressReady=true; }
+    finally { scheduleSim.busy=false; if(scheduleSim.again){ scheduleSim.again=false; scheduleSim(); } } }); },60); }
 const KB=4, kw=Math.ceil(W/KB), kh=Math.ceil(H/KB);
 function blockGrid(val){ const sum=new Float64Array(kw*kh), n=new Float64Array(kw*kh); G.agents.forEach((a,i)=>{ const k=clamp(Math.floor(a.hy/KB),0,kh-1)*kw+clamp(Math.floor(a.hx/KB),0,kw-1); sum[k]+=val(a,i); n[k]++; }); return {sum,n}; }
 function blurGrid(v,w){ const o=new Float64Array(v.length), on=new Float64Array(v.length); for(let y=0;y<kh;y++) for(let x=0;x<kw;x++) for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const X=x+dx,Y=y+dy; if(X<0||Y<0||X>=kw||Y>=kh) continue; const f=(dx||dy)?0.5:1; o[y*kw+x]+=v[Y*kw+X]*f; on[y*kw+x]+=w[Y*kw+X]*f; } return [o,on]; }

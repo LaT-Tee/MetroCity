@@ -3,7 +3,9 @@ let G=null, stations=[], lines=[], nextSid=1, nextLineNum=1, activeLineId=null, 
 let sim=null, baseline=null, growth=null, months=0;
 const lineById=id=>lines.find(l=>l.id===id);
 const stById=id=>stations.find(s=>s.id===id);
-function isDark(){ return typeof document!=='undefined' && getComputedStyle(document.documentElement).colorScheme.includes('dark'); }
+// asked many times a frame, so the answer is kept until the theme changes (reading computed style is not free)
+let darkC=null;
+function isDark(){ if(darkC==null) darkC=typeof document!=='undefined' && getComputedStyle(document.documentElement).colorScheme.includes('dark'); return darkC; }
 function lineColor(L){ const c=LINE_COLORS[L.ci]; return (L.ci===18&&isDark())?'#9b6fe0':c; }
 
 /* geometry */

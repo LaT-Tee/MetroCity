@@ -1,7 +1,10 @@
 /* ---------- loop ---------- */
-let clockUIt=0, lastDt=0;
+let clockUIt=0, lastDt=0, frameEMA=16, slowN=0;
 function frame(ts){
-  const dt=Math.min(0.1,(ts-lastTs)/1000||0); lastTs=ts; lastDt=dt;
+  const raw=ts-lastTs, dt=Math.min(0.1,raw/1000||0); lastTs=ts; lastDt=dt;
+  // if frames keep arriving late the map is drawn a little less sharp: on a dense screen that is most of the work
+  if(raw>0&&raw<250&&!(watch.on&&watch.view==='3d')){ frameEMA+=(raw-frameEMA)*0.04; if(frameEMA>22) slowN++; else slowN=Math.max(0,slowN-2);
+    if(slowN>110&&dpr>1){ dprCap=Math.max(1,dpr-0.25); slowN=0; frameEMA=16; resize(); clampCam(); } }
   if(!paused){ trainT+=dt*5*speedMul; growthAcc+=dt*speedMul; if(growthAcc>=3){ growthAcc=0; doGrowth(); } }
   if(jobs.length) runJobs(6);
   if(stroke&&stroke.drawing){ strokeFrame(dt,ts); updateLiveEst(ts); }
@@ -33,7 +36,9 @@ function doGrowth(sync){
         const o=pe[pe.length-1]; toast(t(o.type==='start'?'projStart':'projDone',{p:nm(projName(o.p))})); if(o.type==='done'){ SFX.level(); burst(40,vw/2,140,1.2); } else SFX.up(); persistSoon(); } },
     ()=>{ const now=performance.now(); const ev=evolvePlaces(); if(ev.length){ let nr=false; ev.forEach(o=>{ if(roadForPlace(o.x,o.y,o.tier)) nr=true; }); if(nr) buildPaths(); ev.forEach((o,i)=>{ floats.push({x:o.x,y:o.y,txt:nm(o.to),t0:now+i*300,big:true}); }); const o=ev[0];
         toast(o.type==='new'?t('placeNew',{b:nm(o.to)}):t('placeUp',{a:nm(o.from),b:nm(o.to),t:t('tierName')[o.tier]})); SFX.up(); persistSoon(); } },
-    ()=>{ roadsTick(); },
+    // the month's street work in pieces, so no single piece is long enough to be felt
+    ()=>{ if(G.rn) rnGrow(G.rn,140); }, ()=>{ if(G.rn) rnGrow(G.rn,140); }, ()=>{ if(G.rn) rnGrow(G.rn,140); },
+    ()=>{ const R=G.rn; if(!R) return; rnTraffic(R,20); if(months%12===0) rnWiden(R); }, ()=>{ const R=G.rn; if(!R) return; if(months%12===0) rnTidy(R); if(months%12===6) rnBridges(R); },
     ()=>{ relocate(0.03); },
     ()=>{ buildHeat(); updatePop(); if(months%6===0) persistSoon(); },
     ()=>{ scheduleSim(); }
