@@ -45,7 +45,8 @@ function strokePlace(wx,wy){
   const st1=target.isNew?newStation(target.x,target.y):hit;
   L.stops.push(st1.id); L.paths.push(path);
   if(s.newStart){ joinCrossing(s.newStart,L); s.newStart=null; }
-  const jn=target.isNew?joinCrossing(st1,L):[]; (jn.length||!target.isNew)?SFX.xfer():SFX.station();
+  const jn=target.isNew?joinCrossing(st1,L):[], xs=crossInterchange(L,L.paths.length-1); (jn.length||xs.length||!target.isNew)?SFX.xfer():SFX.station();
+  if(xs.length){ const x=xs[xs.length-1]; toast(t('toastXfer',{s:nm(x.name),ls:lines.filter(M=>M.stops.includes(x.id)&&M.stops.length>=2).map(lineName).join(t('sep'))})); const now=performance.now(); xs.forEach((o,k)=>floats.push({x:o.x,y:o.y,txt:nm(o.name),t0:now+k*200,big:true})); }
   s.from=st1; s.raw=[];
   changed(); updateBuildHint();
   return true;

@@ -40,6 +40,30 @@ function linePathPts(L){ ensurePaths(L); const o=[]; L.paths.forEach((p,i)=>{ fo
 function totalCost(){ let c=stations.length*ST_COST; for(const L of lines){ ensurePaths(L); let lc=0; for(const p of L.paths) lc+=pathCost(p); c+=lc*(1+0.12*(L.svc||0))*(isRapid(L)?RAPID_COST:1); } return c; }
 function lineLength(L){ ensurePaths(L); return L.paths.reduce((s,p)=>s+plen(p),0); }
 
+/* ---------- underground and elevated ----------
+   Under the dense centre the metro runs in tunnel; further out it comes up a ramp and carries on on viaduct. The level
+   follows the city (so a line dives as the centre grows): a stretch is underground where the density above it is high,
+   short daylight gaps are closed, dives too short to be worth it are dropped, and every station sits level. */
+const UG_D=0.5, UG_RAMP=1.3;
+function densify(pts,step){ const o=[pts[0]]; for(let i=1;i<pts.length;i++){ const a=pts[i-1], b=pts[i], m=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/step)); for(let q=1;q<=m;q++) o.push([a[0]+(b[0]-a[0])*q/m,a[1]+(b[1]-a[1])*q/m]); } return o; }
+function lineLevels(L){
+  const key=netVersion+'|'+Math.floor(months/12)+'|'+G.seed; if(L._lvK===key&&L._lv) return L._lv;
+  ensurePaths(L); const pts=densify(linePathPts(L),0.5), n=pts.length, cum=new Float64Array(n), ug=new Uint8Array(n);
+  for(let i=1;i<n;i++) cum[i]=cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+  for(let i=0;i<n;i++){ const c=clamp(Math.round(pts[i][1]),0,H-1)*W+clamp(Math.round(pts[i][0]),0,W-1); ug[i]=G.water[c]?(i?ug[i-1]:0):G.D[c]>=UG_D?1:0; }
+  const runs=()=>{ const r=[]; let a=0; for(let i=1;i<=n;i++) if(i===n||ug[i]!==ug[a]){ r.push([a,i-1,ug[a]]); a=i; } return r; };
+  for(const [a,b,v] of runs()) if(!v&&a>0&&b<n-1&&cum[b]-cum[a]<5) ug.fill(1,a,b+1);
+  for(const [a,b,v] of runs()) if(v&&cum[b]-cum[a]<4) ug.fill(0,a,b+1);
+  // stations: level for the length of the platforms and a little more
+  const sU=[0]; L.paths.forEach((q,i)=>sU.push(sU[i]+plen(q))); const at=u=>{ let lo=0, hi=n-1; while(lo<hi){ const m=(lo+hi)>>1; if(cum[m]<u) lo=m+1; else hi=m; } return lo; };
+  for(const u of sU){ const k=at(u), v=ug[k]; for(let i=at(u-1.6);i<n&&cum[i]<=u+1.6;i++) ug[i]=v; }
+  const bd=[]; for(let i=1;i<n;i++) if(ug[i]!==ug[i-1]) bd.push((cum[i]+cum[i-1])/2);
+  const dep=new Float32Array(n); for(let i=0;i<n;i++){ let m=1e9; for(const b of bd) m=Math.min(m,Math.abs(cum[i]-b)); dep[i]=bd.length?smooth(ug[i]?m:-m,-UG_RAMP,UG_RAMP):ug[i]; }
+  L._lvK=key; return L._lv={pts,cum,ug,dep,bd,sU,len:cum[n-1],any:ug.some(v=>v)}; }
+// how deep the line is at distance u along it: 0 on the viaduct, 1 in the tunnel, in between on the ramps
+function levelDep(lv,u){ const c=lv.cum, n=c.length; if(u<=0) return lv.dep[0]; if(u>=c[n-1]) return lv.dep[n-1]; let lo=1, hi=n-1; while(lo<hi){ const m=(lo+hi)>>1; if(c[m]<u) lo=m+1; else hi=m; }
+  const f=(u-c[lo-1])/((c[lo]-c[lo-1])||1); return lv.dep[lo-1]+(lv.dep[lo]-lv.dep[lo-1])*f; }
+function stationUnder(st){ for(const L of lines){ const k=L.stops.indexOf(st.id); if(k<0||L.stops.length<2) continue; const lv=lineLevels(L); if(levelDep(lv,lv.sU[Math.min(k,lv.sU.length-1)])>0.5) return true; } return false; }
 function nameStation(x,y){
   const used=new Set(); stations.forEach(st=>{ if(st.name) nameKey(st.name).split('|').forEach(v=>used.add(v)); });
   const F=G.fac, free=o=>!nameKey(o).split('|').some(v=>used.has(v)), tryN=o=>free(o)?o:null;

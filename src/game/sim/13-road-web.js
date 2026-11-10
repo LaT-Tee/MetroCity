@@ -1,6 +1,8 @@
 /* ================= road web: a street graph that grows like a spider web =================
    Streets branch off existing roads (T-junctions), snap onto neighbours (crossroads, loops),
    reach into wherever people settle, and widen where traffic keeps using them. Display + growth only. */
+// full street width by class, kerb to kerb plus pavements, in cells (1 cell = 150 m): lane, street, avenue, arterial, highway
+const ROAD_W=[0.09,0.105,0.135,0.17,0.21];
 const RN_G=2, RN_GW=Math.ceil(W/RN_G)+1, RN_SPEED=[0.55,0.75,1,1.3,1.8], RN_MAXN=60000;
 function rnNew(){ return {x:[],y:[],adj:[],ea:[],eb:[],ec:[],ef:[],et:[],eg:new Map(),ng:new Map(),ver:0,trips:0}; }
 const rnKey=(gx,gy)=>gy*RN_GW+gx;
@@ -127,13 +129,42 @@ function rnWiden(R){
     R.ef[e]*=0.5; }
   R.trips*=0.5; if(up) R.ver++; return up;
 }
+// a road class only reads as a network when it is continuous: short busy stubs are folded back into the streets around
+// them, and one-block gaps in an avenue are closed
+function rnTidy(R){
+  const E=R.ea.length, len=e=>Math.hypot(R.x[R.ea[e]]-R.x[R.eb[e]],R.y[R.ea[e]]-R.y[R.eb[e]]); let ch=0;
+  for(let lv=3;lv>=1;lv--){
+    // gaps: a lesser street running straight on between two stretches of this class
+    for(let e=0;e<E;e++){ if(R.ec[e]>=lv) continue; const a=R.ea[e], b=R.eb[e], dx=R.x[b]-R.x[a], dy=R.y[b]-R.y[a], l=Math.hypot(dx,dy)||1; if(l>3.2) continue;
+      const on=(n,sg)=>R.adj[n].some(f=>{ if(f===e||R.ec[f]<lv) return false; const o=R.ea[f]===n?R.eb[f]:R.ea[f], ox=R.x[o]-R.x[n], oy=R.y[o]-R.y[n], ol=Math.hypot(ox,oy)||1; return (ox*dx+oy*dy)/(ol*l)*sg>0.8; });
+      if(on(a,-1)&&on(b,1)){ R.ec[e]=lv; ch++; } }
+    // spurs: from every loose end walk to the next junction of this class; too short to be a road of its own → demote
+    const deg=n=>{ let d=0; for(const f of R.adj[n]) if(R.ec[f]>=lv) d++; return d; }, minL=lv===1?4.5:lv===2?7:9;
+    for(let n=0;n<R.x.length;n++){ if(deg(n)!==1) continue; const chain=[]; let u=n, tot=0, prev=-1;
+      for(let g=0;g<60;g++){ const f=R.adj[u].find(q=>q!==prev&&R.ec[q]>=lv); if(f==null) break; chain.push(f); tot+=len(f); prev=f; u=R.ea[f]===u?R.eb[f]:R.ea[f]; if(deg(u)!==2||tot>=minL) break; }
+      if(tot<minL&&chain.length&&deg(u)>=2){ for(const f of chain) if(R.ec[f]===lv){ R.ec[f]=lv-1; ch++; } } } }
+  if(ch) R.ver++; return ch;
+}
+// bridges: where the city has grown on both banks, a street crosses the river every few blocks
+function rnBridges(R,rand){
+  rand=rand||Math.random; let added=0; const wat=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); return xi<0||yi<0||xi>=W||yi>=H?1:G.water[yi*W+xi]; }, Dat=(x,y)=>G.D[clamp(Math.round(y),0,H-1)*W+clamp(Math.round(x),0,W-1)];
+  for(const r of (G.rivers||[])){ let acc=2+rand()*3;
+    for(let k=1;k<r.length-1;k++){ const p=r[k], q=r[k-1]; acc-=dist(p[0],p[1],q[0],q[1]); if(acc>0) continue; acc=1.2;
+      if(!inB(p[0],p[1],3)||wat(p[0],p[1])!==2) continue; const tx=r[k+1][0]-q[0], ty=r[k+1][1]-q[1], tl=Math.hypot(tx,ty)||1, nx=-ty/tl, ny=tx/tl;
+      const bank=sg=>{ for(let d=0.5;d<=5;d+=0.25){ const x=p[0]+nx*d*sg, y=p[1]+ny*d*sg; if(!wat(x,y)) return [p[0]+nx*(d+0.9)*sg,p[1]+ny*(d+0.9)*sg]; } return null; }, A=bank(1), B=bank(-1);
+      if(!A||!B||wat(A[0],A[1])||wat(B[0],B[1])||Math.min(Dat(A[0],A[1]),Dat(B[0],B[1]))<0.22) continue;
+      // not next to a bridge that is already there
+      let near=false; for(let d=-3;d<=3&&!near;d+=0.75){ const x=p[0]+tx/tl*d, y=p[1]+ty/tl*d, h=rnNearEdge(R,x,y,0.7); if(h&&wat(x,y)) near=true; } if(near) continue;
+      rnPolyline(R,[A,B],2); added++; acc=3.5+rand()*3; } }
+  return added;
+}
 function rnBuild(){
   const R=rnNew(); G.rn=R; const rand=mulberry32(G.seed*53+7);
   for(const p of G.highways) rnPolyline(R,p,4); for(const p of G.arterials) rnPolyline(R,p,3); for(const p of (G.locals||[])) rnPolyline(R,p,1);
   for(const r of G.extraRoads) rnPolyline(R,r.p,r.c==='hwy'?4:r.c==='art'?3:1); G.extraRoads=[];
-  rnFill(R,rand); R.et.fill(-99); R.ver++; return R;
+  rnBridges(R,rand); rnFill(R,rand); R.et.fill(-99); R.ver++; return R;
 }
-function rnFill(R,rand){ for(let round=0;round<16;round++){ updateRoadAccess(); const a=rnGrow(R,5000,rand); if(a<40) break; } rnTraffic(R,240,rand); rnWiden(R); }
+function rnFill(R,rand){ for(let round=0;round<16;round++){ updateRoadAccess(); const a=rnGrow(R,5000,rand); if(a<40) break; } rnTraffic(R,700,rand); rnWiden(R); rnTidy(R); }
 // compact save: node coords ×10 and edge endpoints as 16-bit, classes as bytes
 function b64(u8){ if(typeof btoa!=='undefined'){ let s=''; for(let i=0;i<u8.length;i+=8192) s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192)); return btoa(s); } return Buffer.from(u8).toString('base64'); }
 function unb64(s){ if(typeof atob!=='undefined'){ const b=atob(s), u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; } return new Uint8Array(Buffer.from(s,'base64')); }
@@ -153,7 +184,7 @@ function rnDecode(o){
 
 function rnAccKey(){ return G.rn?Math.floor(G.rn.ea.length/150):'-'+G.extraRoads.length; }
 // monthly: streets creep outward, traffic is counted, once a year busy streets widen
-function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0) rnWiden(R); return R.ver!==v; }
+function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0){ rnWiden(R); rnTidy(R); } if(months%12===6) rnBridges(R); return R.ver!==v; }
 
 // population grid save: sqrt-scaled bytes with zero runs, ~100–200 KB
 function encodeD(){

@@ -18,34 +18,50 @@ function generate(seed){
   const ang=R()*Math.PI*2, cdx=Math.cos(ang), cdy=Math.sin(ang), o1=R()*100, o2=R()*100;
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
     const nx=(x-W/2)/W, ny=(y-H/2)/W;
-    h[y*W+x]=fbm(N1,x*0.016+o1,y*0.016,5)*1.1-(nx*cdx+ny*cdy)*1.5+fbm(N2,x*0.045,y*0.045+o2,3)*0.25;
+    h[y*W+x]=fbm(N1,x*0.014+o1,y*0.014,4)*1.1-(nx*cdx+ny*cdy)*1.75+fbm(N2,x*0.045,y*0.045+o2,3)*0.13;
   }
   const sorted=Float32Array.from(h).sort();
-  const sea=sorted[Math.floor(n*(0.3+R()*0.1))], hmax=sorted[n-1];
+  const sea=sorted[Math.floor(n*(0.3+R()*0.1))];
   const water=new Uint8Array(n); for(let i=0;i<n;i++) if(h[i]<sea) water[i]=1;
+  // --- one sea, a lake or two: noise alone leaves ponds and islets everywhere, so the small ones are filled in or sunk
+  const R2=mulberry32((seed*40503+977)>>>0), seaC=new Uint8Array(n);
+  { const comp=new Int32Array(n).fill(-1), info=[], stack=[];
+    for(let s0=0;s0<n;s0++){ if(comp[s0]>=0) continue; const id=info.length, wv=water[s0]; let area=0, edge=false; comp[s0]=id; stack.push(s0);
+      while(stack.length){ const u=stack.pop(), x=u%W, y=(u/W)|0; area++; if(x===0||y===0||x===W-1||y===H-1) edge=true;
+        if(x>0&&comp[u-1]<0&&water[u-1]===wv){ comp[u-1]=id; stack.push(u-1); } if(x<W-1&&comp[u+1]<0&&water[u+1]===wv){ comp[u+1]=id; stack.push(u+1); }
+        if(y>0&&comp[u-W]<0&&water[u-W]===wv){ comp[u-W]=id; stack.push(u-W); } if(y<H-1&&comp[u+W]<0&&water[u+W]===wv){ comp[u+W]=id; stack.push(u+W); } }
+      info.push({id,area,edge,wv}); }
+    const wc=info.filter(o=>o.wv).sort((p,q)=>(q.edge-p.edge)||(q.area-p.area)), seaId=wc.length?wc[0].id:-1, keep=new Set([seaId]);
+    wc.forEach(o=>{ if(o.edge&&o.area>=260) keep.add(o.id); });
+    const lakes=wc.filter(o=>!o.edge&&o.area>=70&&o.area<=1600).sort((p,q)=>q.area-p.area), nLake=R2()<0.35?0:R2()<0.6?1:2; lakes.slice(0,nLake).forEach(o=>keep.add(o.id));
+    const mainLand=info.filter(o=>!o.wv).sort((p,q)=>q.area-p.area)[0];
+    for(let i=0;i<n;i++){ const o=info[comp[i]];
+      if(o.wv){ if(!keep.has(o.id)){ h[i]=sea+0.008+(sea-h[i])*0.4; water[i]=0; } else if(o.id===seaId||o.edge) seaC[i]=1; }
+      else if(mainLand&&o!==mainLand&&o.area<110){ h[i]=sea-0.012; water[i]=1; seaC[i]=1; } } }
+  let hmax=-1e9; for(let i=0;i<n;i++) if(h[i]>hmax) hmax=h[i];
   const e=new Float32Array(n); for(let i=0;i<n;i++) e[i]=water[i]?0:(h[i]-sea)/(hmax-sea);
 
-  // --- river: steepest descent from the hills to the sea
+  // --- rivers: the cheapest way down to the sea from far inland (valleys are cheap, a slow noise makes them wander),
+  //     so a river always reaches the coast, widens on the way and a tributary can join it
   const rivers=[];
-  const dw0=distTransform(water);
-  for(let tr=0;tr<40&&!rivers.length;tr++){
-    const sx=Math.floor(R()*W), sy=Math.floor(R()*H), si=sy*W+sx;
-    if(water[si]||e[si]<0.3||dw0[si]<28) continue;
-    const path=[], vis=new Set(); let cx=sx, cy=sy, ok=false;
-    for(let k=0;k<700;k++){
-      path.push([cx,cy]); vis.add(cy*W+cx);
-      let bi=-1,bv=1e9,bx=0,by=0;
-      for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
-        if(!ox&&!oy) continue; const nx=cx+ox, ny=cy+oy; if(nx<0||ny<0||nx>=W||ny>=H) continue;
-        const ni=ny*W+nx; if(vis.has(ni)) continue;
-        const v=h[ni]+(R()-.5)*0.006; if(v<bv){ bv=v; bi=ni; bx=nx; by=ny; }
-      }
-      if(bi<0) break; cx=bx; cy=by;
-      if(water[bi]===1){ path.push([cx,cy]); ok=true; break; }
-    }
-    if(ok&&path.length>40&&path.length<420) rivers.push(path);
-  }
-  rivers.forEach(p=>p.forEach(([x,y],k)=>{ const i=y*W+x; if(!water[i]) water[i]=2; if(k>p.length*0.55&&x+1<W&&!water[i+1]) water[i+1]=2; }));
+  { const cost=new Float32Array(n).fill(Infinity), from=new Int32Array(n).fill(-1), done=new Uint8Array(n);
+    HPQ.n=0; for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){ const i=y*W+x; if(seaC[i]&&(!water[i-1]||!water[i+1]||!water[i-W]||!water[i+W])){ cost[i]=0; hqPush(0,i); } }
+    const NB=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
+    while(HPQ.n){ const u=hqPop(); if(done[u]) continue; done[u]=1; const ux=u%W, uy=(u/W)|0, cu=cost[u];
+      for(const [dx,dy,dl] of NB){ const vx=ux+dx, vy=uy+dy; if(vx<0||vy<0||vx>=W||vy>=H) continue; const v=vy*W+vx; if(done[v]||seaC[v]) continue;
+        const m=water[v]?0.25:1+6*e[v]+5*smooth(fbm(N3,vx*0.03+60,vy*0.03+60,2),-0.28,0.28)+2.5*smooth(N4(vx*0.11+9,vy*0.11+9),-0.3,0.3), ng=cu+dl*m; if(ng<cost[v]){ cost[v]=ng; from[v]=u; hqPush(ng,v); } } }
+    const riv=new Uint8Array(n), trace=s0=>{ const p=[]; for(let u=s0,g=0;u>=0&&g<4000;u=from[u],g++){ p.push([u%W,(u/W)|0]); if(riv[u]) break; } return p; };
+    const pickSrc=(minLen,score)=>{ let best=null, bsc=-1e9; for(let tr=0;tr<400;tr++){ const x=Math.floor(R2()*W), y=Math.floor(R2()*H), i=y*W+x; if(water[i]||!isFinite(cost[i])) continue; const p=trace(i); if(p.length<minLen) continue; const sc=score(p,x,y); if(sc>bsc){ bsc=sc; best=p; } } return best; };
+    const lay=(cells,w0,w1)=>{ let pts=chaikin(rdp(cells,1.1),3); pts.w0=w0; pts.w1=w1; rivers.push(pts);
+      const fine=[]; for(let k=1;k<pts.length;k++){ const a=pts[k-1], b=pts[k], m=Math.max(1,Math.ceil(dist(a[0],a[1],b[0],b[1])/0.5)); for(let q=0;q<m;q++) fine.push([lerp(a[0],b[0],q/m),lerp(a[1],b[1],q/m)]); }
+      fine.forEach(([x,y],k)=>{ const r=Math.max(0.5,(w0+(w1-w0)*k/fine.length)/2-0.2), r2=r*r; for(let yy=Math.floor(y-r);yy<=Math.ceil(y+r);yy++) for(let xx=Math.floor(x-r);xx<=Math.ceil(x+r);xx++){ if(xx<0||yy<0||xx>=W||yy>=H) continue; if((xx-x)**2+(yy-y)**2<=r2){ const i=yy*W+xx; riv[i]=1; if(!water[i]) water[i]=2; } } });
+      for(const [x,y] of cells) riv[y*W+x]=1; };
+    const inMid=p=>{ let c=0; for(const [x,y] of p) if(x>150&&x<450&&y>115&&y<305) c++; return c; };
+    const main_=pickSrc(110,p=>inMid(p)+p.length*0.35);
+    if(main_){ lay(main_,0.8,2.5);
+      if(R2()<0.75){ const s0=main_[0], tb=pickSrc(60,(p,x,y)=>{ const end=p[p.length-1], j=main_.findIndex(q=>q[0]===end[0]&&q[1]===end[1]); return (j>main_.length*0.25?1:-1e6)+p.length*0.5+Math.min(120,dist(x,y,s0[0],s0[1]))+inMid(p)*0.4; });
+        if(tb&&dist(tb[0][0],tb[0][1],s0[0],s0[1])>60) lay(tb,0.6,1.3); } } }
+  for(let i=0;i<n;i++) if(water[i]===2) e[i]=0;
   const dw=distTransform(water);
   const land=(x,y)=>{ x=Math.round(x); y=Math.round(y); return x>=0&&y>=0&&x<W&&y<H&&water[y*W+x]===0; };
   const ix=(x,y)=>clamp(Math.round(y),0,H-1)*W+clamp(Math.round(x),0,W-1);
@@ -54,11 +70,12 @@ function generate(seed){
   // --- main centre
   const seaMask=new Uint8Array(n); for(let i=0;i<n;i++) seaMask[i]=water[i]===1?1:0;
   const dws=distTransform(seaMask);                       // distance to the sea only (rivers don't count)
+  const rivMask=new Uint8Array(n); for(let i=0;i<n;i++) rivMask[i]=water[i]===2?1:0; const dRiv=rivers.length?distTransform(rivMask):null;
   const landAround=(x,y,r)=>{ let a=0,t=0; for(let k=0;k<24;k++){ const ang=k/24*Math.PI*2; for(const rr of [r*0.5,r]){ t++; if(land(x+Math.cos(ang)*rr,y+Math.sin(ang)*rr)) a++; } } return a/t; };
   let main=null, bs=-1e9; const seaTarget=rnd(16,34);
   for(let tr=0;tr<1400;tr++){
     const x=rnd(150,450), y=rnd(115,305), i=ix(x,y); if(!land(x,y)) continue;
-    const s=Math.exp(-(((dws[i]-seaTarget)/12)**2))*1.2+landAround(x,y,22)*0.9+(1-dist(x,y,W/2,H/2)/(W/2))*0.6-e[i]*1.8+Math.exp(-dw[i]/4)*0.15*(water[i]===0?1:0)+R()*0.15;
+    const s=Math.exp(-(((dws[i]-seaTarget)/12)**2))*1.2+landAround(x,y,22)*0.9+(1-dist(x,y,W/2,H/2)/(W/2))*0.6-e[i]*1.8+Math.exp(-dw[i]/4)*0.15*(water[i]===0?1:0)+(dRiv?0.85*Math.exp(-(((dRiv[i]-5)/8)**2)):0)+R()*0.15;
     if(s>bs){ bs=s; main={x,y}; }
   }
   if(!main) main={x:W/2,y:H/2};

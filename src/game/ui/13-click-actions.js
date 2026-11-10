@@ -13,12 +13,12 @@ function buildClick(wx,wy){
     pushUndo(); if(!L){ if(activeLineCount()>=MAX_LINES){ toast(t('toastMax',{n:MAX_LINES})); undoStack.pop(); return; } L=newLine(); }
     activeLineId=L.id; forceNew=false;
     if(tail) L.paths.push([[tail.x,tail.y],[hit.x,hit.y]]);
-    L.stops.push(hit.id); changed(); updateBuildHint(); return;
+    L.stops.push(hit.id); if(tail&&crossInterchange(L,L.paths.length-1).length) SFX.xfer(); changed(); updateBuildHint(); return;
   }
   if(!isLand(wx,wy)){ toast(whyNot(wx,wy)); return; }
   pushUndo(); if(!L){ if(activeLineCount()>=MAX_LINES){ toast(t('toastMax',{n:MAX_LINES})); undoStack.pop(); return; } L=newLine(); }
   activeLineId=L.id; forceNew=false;
-  const s=newStation(wx,wy); if(tail) L.paths.push([[tail.x,tail.y],[s.x,s.y]]); L.stops.push(s.id); changed(); updateBuildHint(); SFX.station();
+  const s=newStation(wx,wy); if(tail) L.paths.push([[tail.x,tail.y],[s.x,s.y]]); L.stops.push(s.id); (tail&&crossInterchange(L,L.paths.length-1).length)?SFX.xfer():SFX.station(); changed(); updateBuildHint();
 }
 function eraseClick(wx,wy){
   const hit=stationAt(wx,wy); if(!hit){ toast(t('toastClickStation')); return; }

@@ -3,7 +3,7 @@
    and a dark wayfinding strip with tools and an LED clock (bottom). */
 :root{
   /* map */
-  --sea:#e6f2fa; --sea-shallow:#f0f8fd; --land:#fbfbf8; --urban:#e9ebf1; --park:#d9efd8; --forest:#cfe7cc; --hill:#e4e9da;
+  --sea:#cde2f3; --sea-shallow:#dcebf7; --land:#fbfbf8; --urban:#e9ebf1; --park:#d9efd8; --forest:#cfe7cc; --hill:#e4e9da;
   --bld-roof:#f4f3f8; --bld-roof2:#eceef4; --bld-wall:#d6d6e2; --bld-side:#c4c5d4; --bld-shadow:rgba(60,64,90,.10);
   --street:#dfe1ec; --arterial:#ffffff; --arterial-edge:#d3d6e4; --highway:#b8bcc7; --rail:#a2a6b1; --runway:#9ea4b0;
   /* chrome */
@@ -17,7 +17,7 @@
   --font-num:"Barlow Condensed","DIN Alternate","Arial Narrow",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --sea:#0d1823; --sea-shallow:#12202d; --land:#1a212a; --urban:#232b37; --park:#1b3024; --forest:#192b20; --hill:#232b25;
+  --sea:#0b1b2e; --sea-shallow:#10263b; --land:#1a212a; --urban:#232b37; --park:#1b3024; --forest:#192b20; --hill:#232b25;
   --bld-roof:#3a4352; --bld-roof2:#343c4a; --bld-wall:#262d39; --bld-side:#1f2530; --bld-shadow:rgba(0,0,0,.28);
   --street:#2c3442; --arterial:#3a4354; --arterial-edge:#262d3a; --highway:#4e5667; --rail:#5f6777; --runway:#555d6c;
   --paper:#171c26; --paper-2:#1e2430; --ink:#e8ebf2; --ink-2:#a8afc1; --ink-3:#737b8f; --rule:#2a3140;
@@ -26,7 +26,7 @@
   --accent:#7d9bff; --good:#3fc58a; --warn:#f0b13c; --bad:#ff6b6b; --halo:#10161f; --card-solid:#171c26;
   --shadow:0 10px 30px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.4); color-scheme:dark;}}
 :root[data-theme="dark"]{
-  --sea:#0d1823; --sea-shallow:#12202d; --land:#1a212a; --urban:#232b37; --park:#1b3024; --forest:#192b20; --hill:#232b25;
+  --sea:#0b1b2e; --sea-shallow:#10263b; --land:#1a212a; --urban:#232b37; --park:#1b3024; --forest:#192b20; --hill:#232b25;
   --bld-roof:#3a4352; --bld-roof2:#343c4a; --bld-wall:#262d39; --bld-side:#1f2530; --bld-shadow:rgba(0,0,0,.28);
   --street:#2c3442; --arterial:#3a4354; --arterial-edge:#262d3a; --highway:#4e5667; --rail:#5f6777; --runway:#555d6c;
   --paper:#171c26; --paper-2:#1e2430; --ink:#e8ebf2; --ink-2:#a8afc1; --ink-3:#737b8f; --rule:#2a3140;

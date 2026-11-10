@@ -25,19 +25,22 @@ function buildRoadPaths(){
   for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e], p=(R.et[e]>=fresh&&months>0)?(nf++,P2.rdNew[R.ec[e]]):R.et[e]>=up?(np++,P2.rdPend[R.ec[e]]):P2.rd[R.ec[e]]; p.moveTo(R.x[a],R.y[a]); p.lineTo(R.x[b],R.y[b]); }
   P2.rdAt=performance.now(); P2.rdHasNew=nf>0; P2.rdHasPend=np>0;
 }
-const RD_W=[[0.9,0],[1.5,0.55],[2.1,1.0],[2.6,1.35],[2.8,0]];   // casing / centre widths in screen px
+const RD_W=[[0.9,0],[1.5,0.6],[2.3,1.2],[3.1,1.8],[3.2,0]];   // least casing / centre widths in screen px
+// far out a road is a line of a few pixels; close in it takes its true width, so buildings stand beside it, not on it
 function strokeRoads(c,px,col,alphaNew,lanesA,which){
   const rd=P2.rd; if(!rd) return; const sets=which==='old'?[rd]:which==='new'?[P2.rdNew]:which==='pend'?[P2.rdPend]:[rd,P2.rdPend,P2.rdNew];
+  const wide=ROAD_W[0]>=2.4*px;      // streets wide enough on screen to be drawn as streets: kerbs and a pale roadway
   for(let k=0;k<5;k++){ for(const set of sets){ const p=set[k], a=set===rd?1:alphaNew; if(a<=0.01) continue;
-      if(k===0){ if(lanesA<=0.02) continue; c.globalAlpha=a*lanesA*0.85; c.strokeStyle=col.edge; c.lineWidth=Math.max(0.12,RD_W[0][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
-      if(k===4){ c.globalAlpha=a; c.strokeStyle=col.hwy; c.lineWidth=Math.max(0.85,RD_W[4][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
-      c.globalAlpha=a; c.strokeStyle=col.edge; c.lineWidth=Math.max(0.3+0.2*k,RD_W[k][0]*px); c.stroke(p); c.globalAlpha=1; } }
-  for(let k=1;k<4;k++) for(const set of sets){ const a=set===rd?1:alphaNew; if(a<=0.01) continue; c.globalAlpha=a; c.strokeStyle=col.core; c.lineWidth=Math.max(0.12+0.12*k,RD_W[k][1]*px); c.stroke(set[k]); c.globalAlpha=1; }
+      if(k===0&&!wide){ if(lanesA<=0.02) continue; c.globalAlpha=a*lanesA*0.85; c.strokeStyle=col.edge; c.lineWidth=Math.max(ROAD_W[0]*0.8,RD_W[0][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
+      if(k===4){ c.globalAlpha=a; c.strokeStyle=col.hwy; c.lineWidth=Math.max(ROAD_W[4],RD_W[4][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
+      c.globalAlpha=a; c.strokeStyle=col.edge; c.lineWidth=Math.max(ROAD_W[k],RD_W[k][0]*px); c.stroke(p); c.globalAlpha=1; } }
+  for(let k=wide?0:1;k<4;k++) for(const set of sets){ const a=set===rd?1:alphaNew; if(a<=0.01) continue; c.globalAlpha=a; c.strokeStyle=col.core; c.lineWidth=k===0?ROAD_W[0]-2*px:Math.max(ROAD_W[k]-Math.max(2*px,0.03),RD_W[k][1]*px); c.stroke(set[k]); c.globalAlpha=1; }
+  if(wide&&which==='old'){ c.strokeStyle=col.core; c.globalAlpha=0.55; c.lineWidth=Math.max(px,0.012); c.setLineDash([0.12,0.1]); for(const set of sets) c.stroke(set[4]); c.setLineDash([]); c.globalAlpha=1; }
 }
 function buildPaths(){
   P2.ver=(P2.ver||0)+1;
   buildRoadPaths(); P2.rail=mkPath([G.rail]);
-  P2.rivers=[]; for(const r of G.rivers){ const sm=chaikin(r.map(p=>[p[0],p[1]]),3); for(let c=0;c<5;c++){ const a=Math.floor(sm.length*c/5), b=Math.min(sm.length,Math.floor(sm.length*(c+1)/5)+1); P2.rivers.push({p:mkPath([sm.slice(a,b)]),w:1.1+c*0.45}); } }
+  P2.rivers=[]; for(const r of G.rivers){ const sm=r, w0=r.w0||1.1, w1=r.w1||2.9, NC=8; for(let c=0;c<NC;c++){ const a=Math.floor(sm.length*c/NC), b=Math.min(sm.length,Math.floor(sm.length*(c+1)/NC)+1); P2.rivers.push({p:mkPath([sm.slice(a,b)]),w:w0+(w1-w0)*(c+0.5)/NC}); } }
   const ap=G.fac.airport, ca=Math.cos(ap.a), sa=Math.sin(ap.a);
   const rect=(cx,cy,l,w)=>{ const p=[[-l/2,-w/2],[l/2,-w/2],[l/2,w/2],[-l/2,w/2]].map(([u,v])=>[cx+u*ca-v*sa,cy+u*sa+v*ca]); const q=new Path2D(); q.moveTo(...p[0]); p.slice(1).forEach(pt=>q.lineTo(...pt)); q.closePath(); return q; };
   P2.apron=rect(ap.x,ap.y,22,10); P2.runways=new Path2D(); P2.runways.addPath(rect(ap.x+sa*2.6,ap.y-ca*2.6,19,1.1)); P2.runways.addPath(rect(ap.x-sa*2.2,ap.y+ca*2.2,15,0.9));

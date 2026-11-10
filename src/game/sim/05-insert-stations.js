@@ -33,3 +33,25 @@ function crossingNear(L,x,y,R){
       const X=segX(pa[i],pa[i+1],pb[j],pb[j+1]); if(X){ const d=dist(X[0],X[1],x,y); if(d<bd){ bd=d; best=X; } } } } }
   return best;
 }
+
+// A newly drawn stretch (segment seg of line L) that crosses another line makes an interchange there, as real metros do:
+// at that line's own station when one is close (the new line bends to call at it), otherwise a new station on both.
+function crossInterchange(L,seg){
+  const made=[], dry=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); return inB(x,y,1)&&G.water[yi*W+xi]===0; };
+  for(let guard=0;guard<6&&seg<L.paths.length;guard++){
+    const pa=L.paths[seg]; let hit=null;
+    for(let i=0;i<pa.length-1&&!hit;i++) for(const M of lines){ if(M===L||M.stops.length<2||hit) continue;
+      for(let s2=0;s2<M.paths.length&&!hit;s2++){ const pb=M.paths[s2]; for(let j=0;j<pb.length-1;j++){ const X=segX(pa[i],pa[i+1],pb[j],pb[j+1]); if(!X) continue;
+        if(L.stops.some(id=>{ const o=stById(id); return o&&dist(o.x,o.y,X[0],X[1])<2.4; })) continue;
+        hit={X,M,s2,j,i}; break; } } }
+    if(!hit) break; const {X,M,s2,j,i}=hit;
+    let S=null, bd=2.6; for(const id of M.stops){ const o=stById(id); if(!o||L.stops.includes(id)) continue; const d=dist(o.x,o.y,X[0],X[1]); if(d<bd&&!L.stops.some(q=>{ const w=stById(q); return w&&dist(w.x,w.y,o.x,o.y)<2.2; })){ bd=d; S=o; } }
+    if(S){ // bend the new line through the existing station
+      const far=q=>dist(q[0],q[1],S.x,S.y)>2.6, a=pa.slice(0,i+1).filter((q,k)=>k===0||far(q)), b=pa.slice(i+1).filter((q,k,arr)=>k===arr.length-1||far(q));
+      a.push([S.x,S.y]); b.unshift([S.x,S.y]); L.paths.splice(seg,1,chaikin(a,2),chaikin(b,2)); L.stops.splice(seg+1,0,S.id); made.push(S); }
+    else if(dry(X[0],X[1])&&!M.stops.some(id=>{ const o=stById(id); return o&&dist(o.x,o.y,X[0],X[1])<1.6; })){
+      const st=newStation(X[0],X[1]); splitInsert(L,seg,i,st); splitInsert(M,s2,j,st); made.push(st); }
+    else break;
+    seg++; }
+  return made;
+}
