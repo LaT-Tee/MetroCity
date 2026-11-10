@@ -6,6 +6,9 @@ const BLD_T=12;                         // tile size in cells
 let bldVer=0, bldCache=new Map(), bldRoadVer=-1, bldRoadOf=null, bldRoadN=0, bldRoadC=null, bldRoadDirty=0;
 // a new year: tiles are not thrown away, each is worked out again when next needed and keeps its old picture until then
 function bldBump(){ bldVer++; }
+// during a ride in the 3D view the city round the train must not change under the viewer's eyes: while this is set, a
+// tile that has been worked out keeps its buildings even if the city has moved on (it catches up at the next cut)
+let bldFreeze=false;
 // streets stay clear: every plot is tested against the actual street segments nearby, widened to the drawn street plus
 // its pavement, so no building ever sits on a road. When streets are added (or widened) each month only the building
 // tiles they pass through are regenerated.
@@ -48,7 +51,7 @@ function bldOnRoadR(bins,cx,cy,hw,hd,ca,sa){ const rx=Math.abs(hw*ca)+Math.abs(h
 const BLD_OC=24, BLD_M=1;
 function bldTile(tx,ty){
   if(G.rn&&(G.rn.ver!==bldRoadVer||G.rn!==bldRoadOf)) bldRoadSync();
-  const key=tx*1000+ty; let t=bldCache.get(key); if(t&&t.ver===bldVer) return t; const stale=t;
+  const key=tx*1000+ty; let t=bldCache.get(key); if(t&&(t.ver===bldVer||bldFreeze)) return t; const stale=t;
   const out=[], x0=tx*BLD_T, y0=ty*BLD_T, pk=G.pk, D=G.D, water=G.water, B=G.bounds, rm=bldSegs(x0,y0), R=G.rn;
   const ox=x0-0.5-BLD_M, oy=y0-0.5-BLD_M, ON=(BLD_T+2*BLD_M)*BLD_OC, occ=new Uint8Array(ON*ON);
   // claim a turned footprint on the occupancy grid (with a small gap to the neighbours); false if something is there

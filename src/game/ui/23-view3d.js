@@ -24,7 +24,7 @@ async function w3dStart(){
   R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; });
   R.domElement.addEventListener('pointerup',e=>{ if(!w3d.down||Math.hypot(e.clientX-w3d.down[0],e.clientY-w3d.down[1])>6) return; w3dTap(e.clientX,e.clientY); });
   w3dBuild(); }
-function w3dStop(){ w3d.active=false; const box=$('#cv3d'); box.hidden=true; box.classList.remove('seat'); }
+function w3dStop(){ w3d.active=false; bldFreeze=false; const box=$('#cv3d'); box.hidden=true; box.classList.remove('seat'); }
 const W3D_SH=4.5;                    // the sun's shadows reach this many cells either side of the viewer
 const w3dDark=()=>false;              // the 3D city is always seen by day, whatever the page theme
 // ---- small geometry helpers: boxes with vertex colours merged into one geometry
@@ -236,11 +236,13 @@ function w3dSee(m){ const prev=m.onBeforeCompile, key=m.customProgramCacheKey?m.
     sh.fragmentShader='uniform vec4 uSee;\nuniform vec4 uSeeE;\n'+sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n\tif(uSee.w>0.0&&gl_FragCoord.z<uSee.z){ vec2 seeD=gl_FragCoord.xy-uSee.xy; float seeR=length(vec2(dot(seeD,uSeeE.xy)*uSeeE.z,dot(seeD,vec2(-uSeeE.y,uSeeE.x))*uSeeE.w)); gl_FragColor.a*=mix(1.0,mix(0.26,1.0,smoothstep(0.5,1.0,seeR)),uSee.w); }'); };
   m.customProgramCacheKey=()=>key+'|see2'; return m; }
 function w3dTrash(list){ if(list&&list.length) (w3d.trash||(w3d.trash=[])).push(...list); }
-function w3dEmpty(){ if(w3d.trash&&w3d.trash.length){ w3dClear(w3d.trash); } }
+// old pieces are let go a few a frame, not all on the frame they are replaced
+function w3dEmpty(){ if(w3d.trash&&w3d.trash.length){ w3dClear(w3d.trash.splice(0,3)); } }
 
 // ---- everything that only changes with the network or the year
 function w3dBuild(){
-  const T=w3d.T, dark=w3dDark(), gs=G.stage+'|'+dark+'|'+G.seed, sig=netVersion+'|'+gs+'|'+Math.floor(months/12); if(sig===w3d.sig) return; w3d.sig=sig; w3dClear(w3d.objs); w3dTextures();
+  const T=w3d.T, dark=w3dDark(), gs=G.stage+'|'+dark+'|'+G.seed, sig=netVersion+'|'+gs+'|'+(w3d.cutYear||0); if(sig===w3d.sig) return; w3d.sig=sig; w3dClear(w3d.objs); w3dTextures();
+  if(gs!==w3d.gSig&&w3d.cars){ w3dTrash([w3d.cars.m]); w3d.cars=null; }
   // the land only when the map itself changes (a new city, a bigger map, the theme); new streets are drawn in later, in the background
   if(gs!==w3d.gSig){ w3d.gSig=gs; if(w3d.gj) w3d.gj=null; w3d.gRn=G.rn?G.rn.ver:0; w3d.gAt=performance.now(); w3d.gj={it:w3dGroundGen()}; w3dRun(w3d.gj,Infinity); w3d.gj=null; w3d.bc=null; }
   { const k0=w3d.tK; w3dTerrain(); if(k0&&k0!==w3d.tK&&!w3d.gj){ w3d.gAt=performance.now(); w3d.gj={it:w3dGroundGen()}; } }
@@ -408,20 +410,26 @@ function w3dSched(L){ const P=L._p3; if(P.sched) return P.sched; const sU=P.sU||
   for(let i=0;i<sU.length-1;i++) leg(sU[i],sU[i+1]); if(!L.loop) for(let i=sU.length-1;i>0;i--) leg(sU[i],sU[i-1]);
   let T=0; for(const l of legs){ l.t0=T; T+=l.run+l.dw; } return P.sched={legs,T,v,a}; }
 // ---- buildings and trees round the viewer, rebuilt as the train travels
+/* The surroundings follow the train, but nothing the viewer can see may change while they do. So: the next stretch is
+   prepared in the background well before its edge comes into view (everything it adds lies in the haze), its pieces
+   are shown a couple a frame while the old ones are still there (where the two overlap they are identical, so the
+   hand-over cannot be seen), and the city itself is frozen for the length of a ride: growth, new streets and the new
+   year only reach the 3D view at a cut, when the camera jumps to another train or passenger anyway. */
 function w3dLocal(cx,cy){
   const j=w3d.lj;
   if(j){ // a rebuild is under way: keep at it, unless the viewer has jumped far from where it started
-    if(dist(j.c[0],j.c[1],cx,cy)<20){ if(w3dRun(j,5)) w3d.lj=null; return; }
+    if(dist(j.c[0],j.c[1],cx,cy)<20){ if(w3dRun(j,4)) w3d.lj=null; return; }
     j.it.return(); w3dClear([j.grp]); w3d.lj=null; }
   const far=!w3d.bc||!w3d.local.length||dist(w3d.bc[0],w3d.bc[1],cx,cy)>20;
-  if(!far&&!w3d.bcStale&&dist(w3d.bc[0],w3d.bc[1],cx,cy)<9) return;
+  if(!far&&!w3d.bcStale&&dist(w3d.bc[0],w3d.bc[1],cx,cy)<6) return;
   w3d.bc=[cx,cy]; w3d.bcStale=false; const grp=new w3d.T.Group(); grp.visible=false; w3d.S.add(grp);
-  const nj={it:w3dLocalGen(cx,cy,grp),grp,c:[cx,cy]};
-  // a jump to a new train is built at once (the view changes anyway); travelling on, the next stretch is built in the background
-  if(far) w3dRun(nj,Infinity); else if(!w3dRun(nj,5)) w3d.lj=nj; }
-function* w3dLocalGen(cx,cy,grp){
-  const T=w3d.T, dark=w3dDark(), add=m=>{ grp.add(m); return m; }; w3dTextures();
-  w3dTerrain(); yield* w3dLocalGround(cx,cy,add); yield;
+  const nj={it:w3dLocalGen(cx,cy,grp,far),grp,c:[cx,cy]};
+  // a cut: the city catches up, and everything is built at once (the view changes anyway)
+  if(far){ bldFreeze=false; w3d.cutYear=Math.floor(months/12); w3d.cut=true; try{ w3dRun(nj,Infinity); } finally { bldFreeze=true; } }
+  else if(!w3dRun(nj,4)) w3d.lj=nj; }
+function* w3dLocalGen(cx,cy,grp,far){
+  const T=w3d.T, dark=w3dDark(), add=m=>{ if(!m.renderOrder) m.renderOrder=10+grp.children.length; grp.add(m); return m; }; w3dTextures();
+  if(!w3d.tF) w3dTerrain(); yield* w3dLocalGround(cx,cy,add); yield;
   // viaducts run over streets: keep buildings off the track corridor
   const near=new Set(); for(const L of lines){ if(L.stops.length<2||!L._p3) continue; const pts=L._p3.pts, Yv=L._p3.Y; for(let i=1;i<pts.length;i++){ if(Yv&&Yv[i]<-0.06&&Yv[i-1]<-0.06) continue; const a=pts[i-1], b=pts[i], n=Math.ceil(dist(a[0],a[1],b[0],b[1])*8); for(let k=0;k<=n;k++){ const x=lerp(a[0],b[0],k/n), y=lerp(a[1],b[1],k/n); if(Math.abs(x-cx)>34||Math.abs(y-cy)>34) continue; near.add(Math.floor(x*8)*100000+Math.floor(y*8)); } } }
   // stations are wider than the viaduct: keep their footprint clear too
@@ -453,7 +461,7 @@ function* w3dLocalGen(cx,cy,grp){
   // blocks and towers, grouped by facade so each kind is one draw call
   for(const m of bx.meshes(true)){ add(m); yield; }
   // trees: in parks and woods, and lining residential streets
-  const M=new T.Matrix4(), col=new T.Color(), trees=[]; const r2=24;
+  const M=new T.Matrix4(), col=new T.Color(), trees=[]; const r2=27;
   for(let y=Math.floor(cy-r2);y<=cy+r2;y++) for(let x=Math.floor(cx-r2);x<=cx+r2;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]) continue; const pk=G.pk[i], d=G.D[i];
     const n=pk>0.27?7:pk>0.255?4:(pk>0.12&&d<0.05)?5:d>0.06&&d<0.45?3:d<0.9?1:0;   /* woods, parks, gardens */ for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), tx=x-0.5+(h&1023)/1023, ty=y-0.5+((h>>10)&1023)/1023; if(dist(tx,ty,cx,cy)>r2||near.has(Math.floor(tx*8)*100000+Math.floor(ty*8))) continue; trees.push([tx,ty,0.7+((h>>20)&255)/255*0.7,h]); } }
   for(let y=Math.floor(cy-r2);y<=cy+r2;y++) for(let x=Math.floor(cx-r2);x<=cx+r2;x++){ const hf=w3dFieldAt(x,y); if(hf<0) continue; const eE=w3dFieldAt(x+1,y)>>3!==hf>>3, eS=w3dFieldAt(x,y+1)>>3!==hf>>3;
@@ -464,8 +472,8 @@ function* w3dLocalGen(cx,cy,grp){
         const h=hashInt(e*977+Math.round(s*100)*3+(sd>0?1:0)); if((h&3)===0||near.has(Math.floor(tx*8)*100000+Math.floor(ty*8))) continue; trees.push([tx,ty,0.55+((h>>20)&255)/255*0.35,h]); } } }
   yield;
   // streets as real surfaces near the viewer, the grounds and furniture of parks, squares and the rest, parked cars
-  { const rm=w3dRoadMesh(cx,cy,24); if(rm) add(rm); } yield;
-  { const fp=w3dFeatures(cx,cy,26,(x,y,sc,h)=>{ if(!near.has(Math.floor(x*8)*100000+Math.floor(y*8))) trees.push([x,y,sc,h]); },spires); for(const m of fp) add(m); } yield;
+  { const rm=w3dRoadMesh(cx,cy,27); if(rm) add(rm); } yield;
+  { const fp=w3dFeatures(cx,cy,28,(x,y,sc,h)=>{ if(!near.has(Math.floor(x*8)*100000+Math.floor(y*8))) trees.push([x,y,sc,h]); },spires); for(const m of fp) add(m); } yield;
   if(trees.length){ const greens=dark?[0x2e4a2c,0x34522f,0x2a4230]:[0x5f8f45,0x6e9a4c,0x4f7f3f,0x7aa356,0x587f3a], V=new T.Vector3(), Q=new T.Quaternion(), Sc=new T.Vector3(), up=new T.Vector3(0,1,0);
     const mk=(list,det,shadow)=>{ if(!list.length) return; const tg=w3dMerge([{g:new T.CylinderGeometry(0.0012,0.0018,0.012,5),m:new T.Matrix4().makeTranslation(0,0.006,0),c:0x6b5440},{g:new T.IcosahedronGeometry(0.0085,det),m:new T.Matrix4().makeTranslation(0,0.017,0),c:0xffffff}]);
       const tm=new T.InstancedMesh(tg,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,flatShading:det===0})),list.length);
@@ -477,10 +485,12 @@ function* w3dLocalGen(cx,cy,grp){
   { const fb=w3dBoxes(); bldInRect(cx-70,cy-70,cx+70,cy+70,b=>{ const dd=dist(b.x,b.y,cx,cy); if(dd>R&&dd<70&&b.h>0.1){ const i=Math.round(b.y)*W+Math.round(b.x); fb.building(b,G.D[i]||0,hashInt(i*13+Math.round(b.x*97)+Math.round(b.y*61)),false); } });
     for(const m of fb.meshes(false)){ add(m); yield; } }
   // traffic on the streets near the line
-  yield; const cars=w3dCars(cx,cy,add);
+  yield; const cars=far||!w3d.cars?w3dCars(cx,cy,m=>w3d.S.add(m)):w3d.cars;      /* the traffic carries on across rebuilds */
   // what was not here at the last look goes up over a quarter of a minute rather than appearing between two frames
   const G2=nBorn>0&&nBorn<700?{t:0,bx,hgrow}:null; if(G2){ bx.growTo(0); hgrow.forEach(f=>f(0)); }
-  return ()=>{ grp.visible=true; w3dTrash(w3d.local); w3d.local=[grp]; w3d.cars=cars; w3d.hg=hg; w3d.bKeys=keys; w3d.bKC=[cx,cy]; w3d.grow=G2; }; }
+  return ()=>{ const old=w3d.local.slice(), drop=l=>{ for(const g of l) w3dTrash([...g.children,g]); }; if(w3d.reveal){ old.push(...w3d.reveal.old); w3d.reveal=null; }
+    grp.visible=true; w3d.local=[grp]; if(far||!old.length) drop(old); else { const kids=grp.children.slice(); kids.forEach(k=>{ k.visible=false; }); w3d.reveal={kids,old,drop}; }
+    if(cars!==w3d.cars){ if(w3d.cars) w3dTrash([w3d.cars.m]); w3d.cars=cars; } w3d.hg=hg; w3d.bKeys=keys; w3d.bKC=[cx,cy]; w3d.grow=G2; }; }
 // Streets near the viewer as geometry rather than paint: pavements, a roadway inside them, junctions rounded off,
 // centre and lane lines, zebra crossings on the bigger roads. Drawn straight over the ground in three passes
 // (pavement, roadway, paint), so every edge is sharp at any distance and angle.
@@ -556,14 +566,16 @@ function w3dCars(cx,cy,add){
   for(let i=0;i<n;i++){ col.set(cols[i%cols.length]); m.setColorAt(i,col); } m.castShadow=true; add(m); return {m,cars,E}; }
 function w3dCarsTick(dt){
   const c=w3d.cars; if(!c) return; const T=w3d.T, Rn=G.rn, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
-  c.cars.forEach((o,i)=>{ const a=Rn.ea[o.e], b=Rn.eb[o.e], ax=Rn.x[a], ay=Rn.y[a], bx=Rn.x[b], by=Rn.y[b], L=Math.hypot(bx-ax,by-ay)||0.1;
+  const vp=w3d.vp||[0,0], again=o=>{ const an=Math.random()*6.283, r=7.5+Math.random()*3, l=Rn.eg.get(rnKey(Math.floor((vp[0]+Math.cos(an)*r)/RN_G),Math.floor((vp[1]+Math.sin(an)*r)/RN_G))); if(l&&l.length){ o.e=l[Math.floor(Math.random()*l.length)]; o.t=Math.random(); } };
+  c.cars.forEach((o,i)=>{ const a=Rn.ea[o.e], b=Rn.eb[o.e]; if(a==null||b==null){ again(o); return; } const ax=Rn.x[a], ay=Rn.y[a], bx=Rn.x[b], by=Rn.y[b], L=Math.hypot(bx-ax,by-ay)||0.1;
+    if(Math.abs(ax-vp[0])>12||Math.abs(ay-vp[1])>12){ again(o); return; }      /* left far behind: comes back on a street well away from the viewer */
     o.t+=dt*o.v/L*(o.fwd?1:-1); if(o.t>1||o.t<0){ const nd=o.t>1?b:a, nx=Rn.adj[nd].filter(e=>e!==o.e); if(nx.length&&c.E.length){ o.e=nx[Math.floor(Math.random()*nx.length)]; o.fwd=Rn.ea[o.e]===nd; o.t=o.fwd?0:1; } else { o.fwd=!o.fwd; o.t=clamp(o.t,0,1); } return; }
     const dx=(bx-ax)/L, dy=(by-ay)/L, s=o.fwd?1:-1, lane=0.012*s, x=ax+(bx-ax)*o.t-dy*lane, y=ay+(by-ay)*o.t+dx*lane;
     Q.setFromAxisAngle(up,-Math.atan2(dy*s,dx*s)); M.compose(V.set(x,0.0005,y),Q,one); c.m.setMatrixAt(i,M); });
   c.m.instanceMatrix.needsUpdate=true; }
 // near the viewer the ground is redrawn sharp: 56 px per cell (about 2.7 m a pixel) so kerbs, lane markings and paths read from the train
 function* w3dLocalGround(cx,cy,add){
-  const T=w3d.T, B=G.bounds, S=26, K=56, x0=Math.max(B[0]-0.5,Math.round(cx)-S/2-0.5), y0=Math.max(B[1]-0.5,Math.round(cy)-S/2-0.5), sw=Math.min(S,B[2]-0.5-x0), sh=Math.min(S,B[3]-0.5-y0); if(sw<=0||sh<=0) return;
+  const T=w3d.T, B=G.bounds, S=32, K=52, x0=Math.max(B[0]-0.5,Math.round(cx)-S/2-0.5), y0=Math.max(B[1]-0.5,Math.round(cy)-S/2-0.5), sw=Math.min(S,B[2]-0.5-x0), sh=Math.min(S,B[3]-0.5-y0); if(sw<=0||sh<=0) return;
   const dark=w3dDark(), GK=6, gc=w3d.groundCanvas; if(!gc) return;
   // texture: grain in grass and paving
   if(!w3d.noise){ const n=document.createElement('canvas'); n.width=n.height=128; const ng=n.getContext('2d'), id=ng.createImageData(128,128); for(let i=0;i<id.data.length;i+=4){ const v=128+((hashInt(i)&255)-128)*0.5; id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255; } ng.putImageData(id,0,0); w3d.noise=n; }
@@ -598,21 +610,22 @@ function w3dTap(cx,cy){ const r=w3d.R.domElement.getBoundingClientRect(), T=w3d.
   if(best){ const L=best.L, sc=stopCum(L), u=best.p.f*sc[sc.length-1]; let k0=0; if(best.p.dir>0){ for(let j=0;j<sc.length;j++) if(sc[j]<=u) k0=j; } else { k0=sc.length-1; for(let j=sc.length-1;j>=0;j--) if(sc[j]>=u) k0=j; }
     const s=pickTrain(L,Math.min(k0,L.stops.length-1),best.p.dir); if(s){ watch.subj=s; watch.user=0; renderWatchBar(); } } }
 function w3dFrame(dt){
-  if(!w3d.active||!w3d.ready) return; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
+  if(!w3d.active||!w3d.ready) return; bldFreeze=true; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
   const st=watch.st, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
   // the other trains glide along at the same calm pace as yours
   w3d.tt=(w3d.tt||0)+dt; w3dCarsTick(dt);
   if(w3d.grow){ const g=w3d.grow; g.t+=dt; const f=smooth(g.t,0,15); g.bx.growTo(f); g.hgrow.forEach(fn=>fn(f)); if(f>=1) w3d.grow=null; }
   // streets added since the land was drawn: redraw it in the background now and then, never while the surroundings are being built
-  const now=performance.now(); if(!w3d.gj&&G.rn&&G.rn.ver!==w3d.gRn&&now-(w3d.gAt||0)>30000){ w3d.gRn=G.rn.ver; w3d.gAt=now; w3d.gj={it:w3dGroundGen()}; }
+  const now=performance.now(); if(w3d.cut){ w3d.cut=false; if(!w3d.gj&&G.rn&&G.rn.ver!==w3d.gRn){ w3d.gRn=G.rn.ver; w3d.gAt=now; w3d.gj={it:w3dGroundGen()}; } }      /* new streets reach the land only at a cut */
+  if(w3d.reveal){ const r=w3d.reveal; for(let k=0;k<2&&r.kids.length;k++) r.kids.shift().visible=true; if(!r.kids.length){ r.drop(r.old); w3d.reveal=null; } }
   if(w3d.gj&&!w3d.lj&&w3dRun(w3d.gj,4)) w3d.gj=null;
   for(const tr of (w3d.trains||[])){ if(!tr.L._p3) continue; for(let k=0;k<tr.n;k++){ const p=w3dTrainPos(tr,k); w3dSetCars(tr.m,k*W3D_CARS,tr.L,p.u,p.dir); } tr.m.instanceMatrix.needsUpdate=true; }
   if(!st){ R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }
   const P3=st.L&&st.L._p3, ru=P3?w3dRideU(st):null; let x, z, u3, hx=st.hx, hz=st.hy, sg=1;
   if(ru){ u3=ru.u; sg=ru.sg; w3d.lastSg=sg; const p=polyAt(P3.pts,P3.cum,u3), h=polyHead(P3.pts,P3.cum,u3,0.08); x=p[0]; z=p[1]; hx=h[0]*sg; hz=h[1]*sg; }
   else { [x,z,u3]=st.L?w3dNear(st.L,st.x,st.y):[st.x,st.y,0]; if(P3){ const hd=polyHead(P3.pts,P3.cum,u3,0.05); sg=(hd[0]*hx+hd[1]*hz)>=0?1:-1; } }
-  const nx=-hz, nz=hx; w3dLocal(x,z);
+  const nx=-hz, nz=hx; w3d.vp=[x,z]; w3dLocal(x,z);
   const yT=P3&&P3.Y?w3dHAt(P3,u3):TRK, under=yT<-0.01, len3=P3?P3.cum[P3.cum.length-1]:0; if(st.mode==='ride'){ x+=nx*W3D_TO; z+=nz*W3D_TO; }
   const seat=watch.win, mine=w3d.myTrain;
   if(mine){ mine.visible=!seat&&!!P3&&st.mode==='ride'; if(P3&&mine.visible){ const tr=w3d.trains.find(o=>o.L===st.L); if(tr&&mine.geometry!==tr.geo) mine.geometry=tr.geo; w3dSetCars(mine,0,st.L,u3,sg); mine.instanceMatrix.needsUpdate=true; } }
@@ -636,15 +649,19 @@ function w3dFrame(dt){
   const snap=!w3d.camPos||dist(w3d.camPos[0],w3d.camPos[2],cp[0],cp[2])>1.8, a1=snap?1:1-Math.exp(-dt*kp), a2=snap?1:1-Math.exp(-dt*kt);
   w3d.camPos=w3d.camPos&&!snap?w3d.camPos.map((v,i)=>v+(cp[i]-v)*a1):cp; w3d.camTgt=w3d.camTgt&&!snap?w3d.camTgt.map((v,i)=>v+(ct[i]-v)*a2):ct;
   w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt);
-  // the see-through ellipse: from a little behind the train to well ahead along its route (off at the window seat)
-  { const U=w3d.see.value, E=w3d.seeE.value; if(seat||!P3) U.set(0,0,0,0); else { w3d.cam3.updateMatrixWorld(); const v=(w3d.seeV||(w3d.seeV=new T.Vector3())), bw=R.domElement.width, bh=R.domElement.height, c=w3d.cam3.position;
-      const at=u=>{ const uu=clamp(u,0,len3), p=polyAt(P3.pts,P3.cum,uu); v.set(p[0],w3dHAt(P3,uu)+0.014,p[1]).project(w3d.cam3); return v.z>1||v.z<-1||Math.abs(v.x)>4||Math.abs(v.y)>4?null:[(v.x+1)/2*bw,(v.y+1)/2*bh,v.z*0.5+0.5]; };
+  /* The see-through. Whenever the train is below ground (and the view is from outside), everything in the ellipse fades,
+     however much of it there is and wherever it stands: no test of what is nearer or further, so it cannot drop out
+     as the camera rises and falls. Above ground it is off. It comes and goes over a moment, and the ellipse glides
+     rather than jumps, from just behind the train to well ahead along its route. */
+  { const U=w3d.see.value, E=w3d.seeE.value, v=(w3d.seeV||(w3d.seeV=new T.Vector3())), bw=R.domElement.width, bh=R.domElement.height;
+    w3d.seeOn=!seat&&!!P3&&(yT<0?true:yT>0.03?false:!!w3d.seeOn); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1);
+    if(!P3||seat||w3d.seeW<=0){ U.set(0,0,0,0); w3d.seeS=null; } else { w3d.cam3.updateMatrixWorld();
+      const at=u=>{ const uu=clamp(u,0,len3), p=polyAt(P3.pts,P3.cum,uu); v.set(p[0],w3dHAt(P3,uu)+0.014,p[1]).project(w3d.cam3); return v.z>1||v.z<-1||Math.abs(v.x)>4||Math.abs(v.y)>4?null:[(v.x+1)/2*bw,(v.y+1)/2*bh]; };
       // a point of the route behind the camera cannot be placed on the screen: reach less far that way
-      const sm=at(u3)||[bw/2,bh/2,1]; let s0=null, s1=null; for(const d of [0.7,0.35,0.1]) if((s0=at(u3-sg*d))) break; for(const d of [2.4,1.7,1.1,0.6,0.2]) if((s1=at(u3+sg*d))) break; s0=s0||sm; s1=s1||sm; const dx=s1[0]-s0[0], dy=s1[1]-s0[1], L=Math.hypot(dx,dy)||1, la=clamp(L/2+bh*0.1,bh*0.2,bh*0.75), sb=clamp(la*0.5,bh*0.17,bh*0.3);
-      // underground everything above the route fades, as far as the route reaches; in the open only what is nearer than the train itself
-      const ugN=yT<0.004, dl=Math.hypot(c.x-x,c.y-yT,c.z-z)||1, k=Math.min(0.05,dl*0.2)/dl; v.set(x+(c.x-x)*k,yT+0.014+(c.y-yT)*k,z+(c.z-z)*k).project(w3d.cam3);
-      const zOpen=v.z*0.5+0.5, zUnder=Math.max(s0[2],s1[2],sm[2])-1e-6; w3d.seeW=(w3d.seeW||0)+(1-(w3d.seeW||0))*Math.min(1,dt*3);
-      U.set((s0[0]+s1[0])/2,(s0[1]+s1[1])/2,ugN?zUnder:zOpen,w3d.seeW); E.set(dx/L,dy/L,1/la,1/sb); } }
+      const sm=at(u3)||[bw/2,bh/2]; let s0=null, s1=null; for(const d of [0.7,0.35,0.1]) if((s0=at(u3-sg*d))) break; for(const d of [2.4,1.7,1.1,0.6,0.2]) if((s1=at(u3+sg*d))) break; s0=s0||sm; s1=s1||sm;
+      let dx=s1[0]-s0[0], dy=s1[1]-s0[1]; const L=Math.hypot(dx,dy)||1; dx/=L; dy/=L; const la=clamp(L/2+bh*0.12,bh*0.24,bh*0.8), sb=clamp(la*0.55,bh*0.2,bh*0.34), tg=[(s0[0]+s1[0])/2,(s0[1]+s1[1])/2,dx,dy,la,sb];
+      let S=w3d.seeS; if(!S||snap) S=w3d.seeS=tg; else { if(S[2]*tg[2]+S[3]*tg[3]<0){ tg[2]=-tg[2]; tg[3]=-tg[3]; } const k=1-Math.exp(-dt*7); for(let i=0;i<6;i++) S[i]+=(tg[i]-S[i])*k; }
+      const al=Math.hypot(S[2],S[3])||1; U.set(S[0],S[1],2,w3d.seeW); E.set(S[2]/al,S[3]/al,1/S[4],1/S[5]); } }
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;
