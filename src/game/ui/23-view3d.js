@@ -20,7 +20,7 @@ async function w3dStart(){
   const S=new T.Scene(), cam3=new T.PerspectiveCamera(60,1,0.0015,120);
   const hemi=new T.HemisphereLight(0xd6e6ff,0x8e8d88,0.9), sun=new T.DirectionalLight(0xfff0dc,2.6); sun.castShadow=true; sun.shadow.mapSize.set(4096,4096);
   Object.assign(sun.shadow.camera,{left:-W3D_SH,right:W3D_SH,top:W3D_SH,bottom:-W3D_SH,near:0.5,far:50}); sun.shadow.bias=-0.00025; sun.shadow.normalBias=0.0035; sun.shadow.radius=1.6; S.add(hemi,sun,sun.target);
-  Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null}); w3d.see=w3d.see||{value:new T.Vector4(0,0,0,0)};
+  Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null}); w3d.see=w3d.see||{value:new T.Vector4(0,0,0,0)}; w3d.seeE=w3d.seeE||{value:new T.Vector4(1,0,1,1)};
   R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; });
   R.domElement.addEventListener('pointerup',e=>{ if(!w3d.down||Math.hypot(e.clientX-w3d.down[0],e.clientY-w3d.down[1])>6) return; w3dTap(e.clientX,e.clientY); });
   w3dBuild(); }
@@ -226,14 +226,15 @@ function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, a
 // material settings for anything lying on the ground: it is left out where a cutting has been marked (see the mask in w3dBuild)
 function w3dCut(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:1,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
 /* Seeing the train through whatever is in the way. Every material that can stand between the camera and the train
-   (ground, streets, buildings, trees, tunnel walls, station roofs) gets a few lines in its shader: a fragment that is
-   nearer than the train and falls inside a circle round the train on the screen is thinned out in a fine dither, most
-   at the centre and not at all at the rim. The thing stays there, lit and shadowed, but the train shows through it,
-   with no hole cut in the ground and no sorting of transparent surfaces. uSee = (centre x, y in pixels, train depth, radius). */
-function w3dSee(m){ const prev=m.onBeforeCompile, key=m.customProgramCacheKey?m.customProgramCacheKey():'';
-  m.onBeforeCompile=(sh,r)=>{ if(prev) prev(sh,r); sh.uniforms.uSee=w3d.see;
-    sh.fragmentShader='uniform vec4 uSee;\n'+sh.fragmentShader.replace('void main() {','void main() {\n\tif(uSee.w>0.0&&gl_FragCoord.z<uSee.z){ float seeR=length(gl_FragCoord.xy-uSee.xy)/uSee.w; if(seeR<1.0){ float seeK=mix(0.2,1.0,smoothstep(0.45,1.0,seeR)); if(fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))))>seeK) discard; } }'); };
-  m.customProgramCacheKey=()=>key+'|see'; return m; }
+   (ground, streets, buildings, trees, tunnel walls, station roofs) is drawn as a transparent surface whose opacity
+   is worked out per pixel: inside an ellipse on the screen that reaches from just behind the train to well ahead
+   along its route, anything nearer than the route fades to about a quarter, smoothly back to solid at the rim. So
+   the train and the track ahead show through the city above them, softly, with no hole and no dots.
+   uSee = (centre x, y in pixels, depth beyond which nothing fades, how strongly); uSeeE = (long axis direction x, y, 1/long, 1/short). */
+function w3dSee(m){ const prev=m.onBeforeCompile, key=m.customProgramCacheKey?m.customProgramCacheKey():''; m.transparent=true;
+  m.onBeforeCompile=(sh,r)=>{ if(prev) prev(sh,r); sh.uniforms.uSee=w3d.see; sh.uniforms.uSeeE=w3d.seeE;
+    sh.fragmentShader='uniform vec4 uSee;\nuniform vec4 uSeeE;\n'+sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n\tif(uSee.w>0.0&&gl_FragCoord.z<uSee.z){ vec2 seeD=gl_FragCoord.xy-uSee.xy; float seeR=length(vec2(dot(seeD,uSeeE.xy)*uSeeE.z,dot(seeD,vec2(-uSeeE.y,uSeeE.x))*uSeeE.w)); gl_FragColor.a*=mix(1.0,mix(0.26,1.0,smoothstep(0.5,1.0,seeR)),uSee.w); }'); };
+  m.customProgramCacheKey=()=>key+'|see2'; return m; }
 function w3dTrash(list){ if(list&&list.length) (w3d.trash||(w3d.trash=[])).push(...list); }
 function w3dEmpty(){ if(w3d.trash&&w3d.trash.length){ w3dClear(w3d.trash); } }
 
@@ -635,10 +636,15 @@ function w3dFrame(dt){
   const snap=!w3d.camPos||dist(w3d.camPos[0],w3d.camPos[2],cp[0],cp[2])>1.8, a1=snap?1:1-Math.exp(-dt*kp), a2=snap?1:1-Math.exp(-dt*kt);
   w3d.camPos=w3d.camPos&&!snap?w3d.camPos.map((v,i)=>v+(cp[i]-v)*a1):cp; w3d.camTgt=w3d.camTgt&&!snap?w3d.camTgt.map((v,i)=>v+(ct[i]-v)*a2):ct;
   w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt);
-  // where the train is on the screen and how deep, for the see-through (off at the window seat)
-  { const U=w3d.see.value; if(seat||!P3) U.set(0,0,0,0); else { w3d.cam3.updateMatrixWorld(); const c=w3d.cam3.position, tx=x, ty=yT+0.014, tz=z, dl=Math.hypot(c.x-tx,c.y-ty,c.z-tz)||1, k=Math.min(0.05,dl*0.2)/dl, v=(w3d.seeV||(w3d.seeV=new T.Vector3()));
-      v.set(tx,ty,tz).project(w3d.cam3); const sx=(v.x+1)/2*R.domElement.width, sy=(v.y+1)/2*R.domElement.height; v.set(tx+(c.x-tx)*k,ty+(c.y-ty)*k,tz+(c.z-tz)*k).project(w3d.cam3);
-      U.set(sx,sy,v.z*0.5+0.5,R.domElement.height*clamp(0.19/dl,0.14,0.34)); } }
+  // the see-through ellipse: from a little behind the train to well ahead along its route (off at the window seat)
+  { const U=w3d.see.value, E=w3d.seeE.value; if(seat||!P3) U.set(0,0,0,0); else { w3d.cam3.updateMatrixWorld(); const v=(w3d.seeV||(w3d.seeV=new T.Vector3())), bw=R.domElement.width, bh=R.domElement.height, c=w3d.cam3.position;
+      const at=u=>{ const uu=clamp(u,0,len3), p=polyAt(P3.pts,P3.cum,uu); v.set(p[0],w3dHAt(P3,uu)+0.014,p[1]).project(w3d.cam3); return v.z>1||v.z<-1||Math.abs(v.x)>4||Math.abs(v.y)>4?null:[(v.x+1)/2*bw,(v.y+1)/2*bh,v.z*0.5+0.5]; };
+      // a point of the route behind the camera cannot be placed on the screen: reach less far that way
+      const sm=at(u3)||[bw/2,bh/2,1]; let s0=null, s1=null; for(const d of [0.7,0.35,0.1]) if((s0=at(u3-sg*d))) break; for(const d of [2.4,1.7,1.1,0.6,0.2]) if((s1=at(u3+sg*d))) break; s0=s0||sm; s1=s1||sm; const dx=s1[0]-s0[0], dy=s1[1]-s0[1], L=Math.hypot(dx,dy)||1, la=clamp(L/2+bh*0.1,bh*0.2,bh*0.75), sb=clamp(la*0.5,bh*0.17,bh*0.3);
+      // underground everything above the route fades, as far as the route reaches; in the open only what is nearer than the train itself
+      const ugN=yT<0.004, dl=Math.hypot(c.x-x,c.y-yT,c.z-z)||1, k=Math.min(0.05,dl*0.2)/dl; v.set(x+(c.x-x)*k,yT+0.014+(c.y-yT)*k,z+(c.z-z)*k).project(w3d.cam3);
+      const zOpen=v.z*0.5+0.5, zUnder=Math.max(s0[2],s1[2],sm[2])-1e-6; w3d.seeW=(w3d.seeW||0)+(1-(w3d.seeW||0))*Math.min(1,dt*3);
+      U.set((s0[0]+s1[0])/2,(s0[1]+s1[1])/2,ugN?zUnder:zOpen,w3d.seeW); E.set(dx/L,dy/L,1/la,1/sb); } }
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;
