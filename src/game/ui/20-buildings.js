@@ -152,7 +152,8 @@ function bldPaths(t,tx,ty){ if(t.p) return t.p;
     { let px=NaN, py=NaN, first=true; const pt=(x,y)=>{ if(x===px&&y===py) return; if(first){ sh.moveTo(x,y); first=false; } else sh.lineTo(x,y); px=x; py=y; };
       for(let k=0;k<4;k++){ const a=k*2, c=((k+1)%4)*2, far=(q[c]-q[a])*sy-(q[c+1]-q[a+1])*sx>0, ox=far?sx:0, oy=far?sy:0; pt(q[a]+ox,q[a+1]+oy); pt(q[c]+ox,q[c+1]+oy); } sh.closePath(); }
     poly(rimB.next(),q); poly(rfB[b.h*150<14?2+(b.c&3):(b.c&1)].next(),q); }
-  const tz=0.06, tree=(px,py,r)=>{ const ts=tsB.next(), tr=trB.next(); ts.moveTo(px+r+0.04,py+0.03); ts.arc(px+0.04,py+0.03,r,0,6.283); tr.moveTo(px+r,py-tz*0.4); tr.arc(px,py-tz*0.4,r,0,6.283); };
+  const tz=0.06, tree=(px,py,r)=>{ if(G.rn){ const h=rnNearEdge(G.rn,px,py,0.22); if(h&&h.d<ROAD_W[G.rn.ec[h.e]]/2+r*0.7) return; }      /* not in the roadway */
+    const ts=tsB.next(), tr=trB.next(); ts.moveTo(px+r+0.04,py+0.03); ts.arc(px+0.04,py+0.03,r,0,6.283); tr.moveTo(px+r,py-tz*0.4); tr.arc(px,py-tz*0.4,r,0,6.283); };
   for(let y=ty*BLD_T;y<(ty+1)*BLD_T;y++) for(let x=tx*BLD_T;x<(tx+1)*BLD_T;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]) continue; const pk=G.pk[i], n=pk>0.27?6:pk>0.255?3:(pk>0.12&&G.D[i]<0.05)?4:0;
     for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), px=x-0.5+(h&1023)/1023, py=y-0.5+((h>>10)&1023)/1023; if(!wetAt(px,py,0.05)) tree(px,py,0.07+((h>>20)&63)/63*0.05); } }
   // grounds: one path per kind, plus white markings, footpaths and ponds
