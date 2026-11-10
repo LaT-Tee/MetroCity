@@ -1,5 +1,5 @@
 /* ---------- drawing ---------- */
-let lastCamK='', upHard='', upSoft='', upAt=0, upStamp=0, upProg=null, upSpare=null;
+let lastCamK='', upHard='', upSoft='', upAt=0, upStamp=0;
 function drawLower(){
   screenT(); ctx.fillStyle=C.sea; ctx.fillRect(0,0,vw,vh);
   worldT(); ctx.imageSmoothingEnabled=true; ctx.drawImage(base,0,0,W,H);
@@ -7,33 +7,51 @@ function drawLower(){
   const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
   ctx.strokeStyle=C['sea-shallow']; for(const r of P2.rivers){ ctx.lineWidth=Math.max(r.w,1.4*px); ctx.stroke(r.p); }
 }
-function drawUpper(){ const pf=window.__mcProf, t0=performance.now(); drawUpper0(); if(pf) pf.push(['upper',Math.round(performance.now()-t0)]); }
-function drawUpper0(){
-  worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
-  ctx.fillStyle=C.urban; ctx.fill(P2.apron); ctx.strokeStyle=C['arterial-edge']; ctx.lineWidth=px; ctx.stroke(P2.apron);
-  ctx.fillStyle=C.runway; ctx.fill(P2.runways); ctx.fillStyle=C['ink-3']; ctx.fill(P2.terminal);
-  strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},0,smooth(cam.s,1.3,3),'old');
-  ctx.strokeStyle=C.rail; ctx.lineWidth=Math.max(0.7,2.6*px); ctx.stroke(P2.rail);
-  ctx.setLineDash([Math.max(1,6*px),Math.max(1,6*px)]); ctx.strokeStyle=C.land; ctx.lineWidth=Math.max(0.35,1.2*px); ctx.stroke(P2.rail); ctx.setLineDash([]);
-  drawBuildings2D();
-  { const B=G.bounds, fog=new Path2D(); fog.rect(-50,-50,W+100,H+100); fog.rect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.fillStyle=C['card-solid']; ctx.globalAlpha=0.62; ctx.fill(fog,'evenodd'); ctx.globalAlpha=1;
-    ctx.setLineDash([6*px,5*px]); ctx.strokeStyle=C['ink-3']; ctx.lineWidth=1.5*px; ctx.strokeRect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.setLineDash([]); }
-}
+/* The city layer (streets, railway, airport, grounds, buildings) is the expensive one, so the screen never waits for it.
+   It is painted into its own canvas, a little larger than the view, a few milliseconds a frame; every frame simply
+   draws that picture moved and scaled to where the camera now is. Dragging and zooming therefore cost one image draw;
+   a sharp repaint for the new view is made in the background and swapped in when it is ready. */
+const CITY_M=0.22;
+let cityC=null, cityI=null, cityJob=null, citySpare=null, cityEnd=0;
+function cityStart(stamp){
+  const mx=Math.round(vw*CITY_M), my=Math.round(vh*CITY_M), W2=vw+2*mx, H2=vh+2*my; let r=dpr; if(W2*H2*r*r>7.5e6) r=Math.sqrt(7.5e6/(W2*H2));
+  const c=citySpare&&citySpare!==cityC?citySpare:document.createElement('canvas'), pw=Math.round(W2*r), ph=Math.round(H2*r); citySpare=null; if(c.width!==pw||c.height!==ph){ c.width=pw; c.height=ph; }
+  const g=c.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,pw,ph);
+  const J={c,g,x:cam.x,y:cam.y,s:cam.s,r,W2,H2,stamp,q:[],i:0}, hw=W2/2/cam.s, hh=H2/2/cam.s, view=[cam.x-hw,cam.y-hh,cam.x+hw,cam.y+hh];
+  J.q.push(()=>{ worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.fillStyle=C.urban; ctx.fill(P2.apron); ctx.strokeStyle=C['arterial-edge']; ctx.lineWidth=px; ctx.stroke(P2.apron);
+    ctx.fillStyle=C.runway; ctx.fill(P2.runways); ctx.fillStyle=C['ink-3']; ctx.fill(P2.terminal); });
+  const ba=smooth(cam.s,9,14);
+  if(ba>0.01){ const tiles=bldTilesIn(view[0],view[1],view[2],view[3]);
+    for(const [tx,ty] of tiles) J.q.push(()=>{ worldT(); ctx.globalAlpha=ba; bldPaintGround(bldPaths(bldTile(tx,ty),tx,ty)); ctx.globalAlpha=1; }); }
+  J.q.push(()=>{ worldT(); const px=1/cam.s; ctx.lineCap='round'; ctx.lineJoin='round';
+    strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},0,smooth(cam.s,1.3,3),'old',view);
+    ctx.strokeStyle=C.rail; ctx.lineWidth=Math.max(0.7,2.6*px); ctx.stroke(P2.rail);
+    ctx.setLineDash([Math.max(1,6*px),Math.max(1,6*px)]); ctx.strokeStyle=C.land; ctx.lineWidth=Math.max(0.35,1.2*px); ctx.stroke(P2.rail); ctx.setLineDash([]); });
+  if(ba>0.01){ const tiles=bldTilesIn(view[0],view[1],view[2],view[3]);
+    for(const [tx,ty] of tiles) J.q.push(()=>{ worldT(); ctx.globalAlpha=ba; bldPaintRoofs(bldPaths(bldTile(tx,ty),tx,ty)); ctx.globalAlpha=1; }); }
+  cityJob=J; }
+// drawing is only recorded until someone looks at the canvas; reading one pixel's worth of it into a scratch canvas makes
+// the browser do the work now, step by step, instead of all at once on the frame the finished picture is first shown
+let cityScratch=null;
+function cityFlush(c){ if(!cityScratch){ cityScratch=document.createElement('canvas'); cityScratch.width=cityScratch.height=1; } cityScratch.getContext('2d').drawImage(c,0,0,1,1,0,0,1,1); }
+function cityRun(budget){
+  const J=cityJob; if(!J) return; const t0=performance.now(), m=ctx, sv=[cam.x,cam.y,cam.s,vw,vh,dpr]; ctx=J.g; cam.x=J.x; cam.y=J.y; cam.s=J.s; vw=J.W2; vh=J.H2; dpr=J.r;
+  try{ while(J.i<J.q.length){ const a=performance.now(); J.q[J.i++](); cityFlush(J.c); if(window.__mcProf&&performance.now()-a>12) window.__mcProf.push(['city',J.i-1,J.q.length,Math.round(performance.now()-a)]); if(performance.now()-t0>budget) break; } } finally { ctx=m; cam.x=sv[0]; cam.y=sv[1]; cam.s=sv[2]; vw=sv[3]; vh=sv[4]; dpr=sv[5]; }
+  if(J.i>=J.q.length){ citySpare=cityC; cityC=J.c; cityI=J; cityJob=null; cityEnd=performance.now(); } }
+function cityLayer(stamp,rest){
+  const I=cityI, exact=I&&I.stamp===stamp&&I.x===cam.x&&I.y===cam.y&&I.s===cam.s&&I.W2===vw+2*Math.round(vw*CITY_M)&&I.H2===vh+2*Math.round(vh*CITY_M);
+  if(!exact&&!cityJob){ const k=I?cam.s/I.s:0, hw=vw/2/cam.s, hh=vh/2/cam.s;
+    const covered=I&&I.stamp===stamp&&cam.x-hw>=I.x-I.W2/2/I.s&&cam.x+hw<=I.x+I.W2/2/I.s&&cam.y-hh>=I.y-I.H2/2/I.s&&cam.y+hh<=I.y+I.H2/2/I.s&&k>0.72&&k<1.4;
+    // at rest: make it sharp. On the move: only when the old picture no longer covers the view
+    if(rest||!covered) cityStart(stamp); }
+  if(cityJob) cityRun(!cityI?40:rest?7:4.5);
+  if(cityC&&cityI){ const I2=cityI; worldT(); ctx.imageSmoothingEnabled=true; ctx.drawImage(cityC,I2.x-I2.W2/2/I2.s,I2.y-I2.H2/2/I2.s,I2.W2/I2.s,I2.H2/I2.s); } }
 // Static layers are rendered once into screen-sized canvases and reused while the camera rests.
 // A layer is cached on the second frame with the same key, so continuous panning never pays for the copy.
 function cachedLayer(which,key,paint,canCache,rest){
   const isLo=which==='lo', cur=isLo?loKey:upKey, prev=isLo?prevLoKey:prevUpKey;
   if(isLo) prevLoKey=key; else prevUpKey=key;
-  // same view, new content (streets, buildings): repaint in bands over a few frames while the old picture stays up
-  if(!isLo&&canCache&&rest&&cur!==key&&sceneUp&&cur&&cur.split('|')[0]===key.split('|')[0]){
-    if(!upProg||upProg.key!==key){ const c=upSpare&&upSpare!==sceneUp?upSpare:document.createElement('canvas'); if(c.width!==cvs.width||c.height!==cvs.height){ c.width=cvs.width; c.height=cvs.height; }
-      const g=c.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,c.width,c.height); upProg={key,c,i:0,n:5}; }
-    const P=upProg, g=P.c.getContext('2d'), h=vh/P.n, y0=P.i*h;
-    g.save(); g.setTransform(1,0,0,1,0,0); g.beginPath(); g.rect(0,Math.floor(y0*dpr),P.c.width,Math.ceil(h*dpr)+1); g.clip();
-    const m=ctx; ctx=g; bldBand=[y0,y0+h]; try{ paint(); } finally { bldBand=null; ctx=m; g.restore(); }
-    if(++P.i>=P.n){ upSpare=sceneUp; sceneUp=P.c; upKey=key; upProg=null; }
-    ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(sceneUp,0,0); return; }
-  if(!isLo) upProg=null;
   // with the camera at rest a changed layer goes straight into the cache, so it is painted once, not twice
   if(canCache&&(cur===key||prev===key||rest)){
     let c=isLo?sceneLo:sceneUp;
@@ -44,17 +62,6 @@ function cachedLayer(which,key,paint,canCache,rest){
   }
   paint();
 }
-// While the map is dragged at one zoom the street-and-building layer is not repainted every frame: it is painted once
-// with a margin all round and slid under the view, and painted again only when the view has moved past that margin.
-let panC=null, panInfo=null, panPrevS=0; const PAN_M=200;
-function panLayer(stamp,paint){
-  const m=PAN_M, w=Math.round((vw+2*m)*dpr), h=Math.round((vh+2*m)*dpr);
-  let ok=panC&&panInfo&&panInfo.s===cam.s&&panInfo.stamp===stamp&&panC.width===w&&panC.height===h, dx=0, dy=0;
-  if(ok){ dx=(panInfo.x-cam.x)*cam.s; dy=(panInfo.y-cam.y)*cam.s; if(Math.abs(dx)>m-2||Math.abs(dy)>m-2) ok=false; }
-  if(!ok){ if(!panC) panC=document.createElement('canvas'); if(panC.width!==w||panC.height!==h){ panC.width=w; panC.height=h; }
-    const g=panC.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h); const m0=ctx, vw0=vw, vh0=vh; ctx=g; vw+=2*m; vh+=2*m; try{ paint(); } finally { ctx=m0; vw=vw0; vh=vh0; }
-    panInfo={x:cam.x,y:cam.y,s:cam.s,stamp}; dx=dy=0; }
-  ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(panC,Math.round((dx-m)*dpr),Math.round((dy-m)*dpr)); }
 function draw(){
   if(G.rn&&P2.rdVer!==G.rn.ver) buildRoadPaths();
   const camK=cam.x+','+cam.y+','+cam.s+','+cvs.width+','+cvs.height+','+layerVer, rest=camK===lastCamK; lastCamK=camK;
@@ -72,8 +79,9 @@ function draw(){
   if(heatMode==='commute'&&commuteCanvas){ ctx.globalAlpha=0.6; ctx.drawImage(commuteCanvas,0,0,W,H); ctx.globalAlpha=1; }
   if(flashCanvas){ const a=1-(performance.now()-flashAt)/4500; if(a>0){ ctx.globalAlpha=Math.min(1,a*1.4)*0.85; ctx.drawImage(flashCanvas,0,0,W,H); ctx.globalAlpha=1; } else flashCanvas=null; }
   if(cam.s>4){ ctx.strokeStyle=C['sea-shallow']; for(const r of P2.rivers){ ctx.lineWidth=Math.max(r.w,1.4*px); ctx.stroke(r.p); } }
-  if(!rest&&cam.s===panPrevS&&cam.s>=6) panLayer(upStamp+'|'+layerVer,drawUpper); else cachedLayer('up',camK+'|'+upStamp,drawUpper,true,rest);
-  panPrevS=cam.s; if(bldPending){ const r=bldWarm(); if(r){ upStamp++; bldPending=r===2; } }
+  cityLayer(upStamp+'|'+layerVer,rest);
+  { worldT(); const B=G.bounds, fog=new Path2D(); fog.rect(-50,-50,W+100,H+100); fog.rect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.fillStyle=C['card-solid']; ctx.globalAlpha=0.62; ctx.fill(fog,'evenodd'); ctx.globalAlpha=1;
+    ctx.setLineDash([6*px,5*px]); ctx.strokeStyle=C['ink-3']; ctx.lineWidth=1.5*px; ctx.strokeRect(B[0],B[1],B[2]-B[0],B[3]-B[1]); ctx.setLineDash([]); }
   worldT(); ctx.lineCap='round'; ctx.lineJoin='round';
   if(P2.rdHasPend) strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},1,smooth(cam.s,1.3,3),'pend');
   if(P2.rdHasNew){ const a=clamp((performance.now()-P2.rdAt)/(1600/speedMul),0,1); strokeRoads(ctx,px,{edge:C['arterial-edge'],core:C.arterial,hwy:C.highway},a,smooth(cam.s,1.3,3),'new'); }
@@ -135,8 +143,9 @@ function draw(){
 }
 function trainSeg(cum,u){ let lo=1, hi=cum.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(cum[m]<u) lo=m+1; else hi=m; } return lo; }
 // a train is drawn as a short piece of its own track, so it bends through the curves instead of pivoting like a ruler
-function trackSlice(pts,cum,u0,u1){ const len=cum[cum.length-1]; u0=clamp(u0,0,len); u1=clamp(u1,0,len); const at=u=>{ const i=Math.max(1,trainSeg(cum,u)), f=(u-cum[i-1])/((cum[i]-cum[i-1])||1); return [lerp(pts[i-1][0],pts[i][0],f),lerp(pts[i-1][1],pts[i][1],f),i]; };
-  const a=at(u0), b=at(u1); ctx.beginPath(); ctx.moveTo(a[0],a[1]); for(let i=a[2];i<b[2];i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.lineTo(b[0],b[1]); return b; }
+function trackSlice(pts,cum,u0,u1,off){ const len=cum[cum.length-1]; u0=clamp(u0,0,len); u1=clamp(u1,0,len); const at=u=>{ const i=Math.max(1,trainSeg(cum,u)), f=(u-cum[i-1])/((cum[i]-cum[i-1])||1); return [lerp(pts[i-1][0],pts[i][0],f),lerp(pts[i-1][1],pts[i][1],f),i]; };
+  const a=at(u0), b=at(u1); let P=[a]; for(let i=a[2];i<b[2];i++) P.push(pts[i]); P.push(b); if(off){ if(P.length===2&&P[0][0]===P[1][0]&&P[0][1]===P[1][1]){ const i=a[2], dx=pts[i][0]-pts[i-1][0], dy=pts[i][1]-pts[i-1][1], l=Math.hypot(dx,dy)||1; P=[[a[0]-dy/l*off,a[1]+dx/l*off]]; P.push(P[0]); } else P=offsetPts(P,off); }
+  ctx.beginPath(); ctx.moveTo(P[0][0],P[0][1]); for(let i=1;i<P.length;i++) ctx.lineTo(P[i][0],P[i][1]); return P[P.length-1]; }
 function drawTrains(lw){
   ctx.lineCap='round'; ctx.lineJoin='round';
   for(const L of lines){
@@ -145,18 +154,18 @@ function drawTrains(lw){
     const n=Math.max(2,Math.round(len/16)), per=L.loop?len:len*2, v=lineV(L)*0.85, col=lineColor(L);
     for(let k=0;k<n;k++){
       let u=(trainT*v+k*per/n)%per, dir=1; if(!L.loop&&u>len){ u=per-u; dir=-1; }
-      const l=lw*2.6, w=lw*0.9;
-      trackSlice(pts,cum,u-l/2+w/2,u+l/2-w/2); ctx.strokeStyle=C.ink; ctx.lineWidth=w+lw*0.44; ctx.stroke(); ctx.strokeStyle=C['card-solid']; ctx.lineWidth=w; ctx.stroke();
-      ctx.lineCap='butt'; trackSlice(pts,cum,u+dir*l*0.12-(dir<0?l*0.26:0),u+dir*l*0.12+(dir>0?l*0.26:0)); ctx.strokeStyle=col; ctx.lineWidth=w*0.44; ctx.stroke(); ctx.lineCap='round';
+      const l=lw*2.6, w=lw*0.9, off=dir*lw*0.46;      /* each direction on its own side, so trains pass instead of running through each other */
+      trackSlice(pts,cum,u-l/2+w/2,u+l/2-w/2,off); ctx.strokeStyle=C.ink; ctx.lineWidth=w+lw*0.44; ctx.stroke(); ctx.strokeStyle=C['card-solid']; ctx.lineWidth=w; ctx.stroke();
+      ctx.lineCap='butt'; trackSlice(pts,cum,u+dir*l*0.12-(dir<0?l*0.26:0),u+dir*l*0.12+(dir>0?l*0.26:0),off); ctx.strokeStyle=col; ctx.lineWidth=w*0.44; ctx.stroke(); ctx.lineCap='round';
     }
     // faster services: longer trains in the line colour with a tier-coloured nose
     for(let tr=1;tr<=((L.xs&&L.svc)?L.xs.length:0);tr++){
       const ne=Math.max(1,Math.round(len/45)), ve=v*SVC_SPEED[tr]*1.25;
       for(let k=0;k<ne;k++){
         let u=(trainT*ve+(k+0.37*tr)*per/ne)%per, dir=1; if(u>len){ u=per-u; dir=-1; }
-        const l=lw*3.4, w=lw*0.95;
-        trackSlice(pts,cum,u-l/2+w/2,u+l/2-w/2); ctx.strokeStyle=C['card-solid']; ctx.lineWidth=w+lw*0.44; ctx.stroke(); ctx.strokeStyle=col; ctx.lineWidth=w; ctx.stroke();
-        const nose=trackSlice(pts,cum,u,u+dir*(l/2-w*0.55)); ctx.fillStyle=SVC_COL[tr]; ctx.beginPath(); ctx.arc(dir>0?nose[0]:nose[0],nose[1],w*0.32,0,Math.PI*2); ctx.fill();
+        const l=lw*3.4, w=lw*0.95, off=dir*lw*0.46;
+        trackSlice(pts,cum,u-l/2+w/2,u+l/2-w/2,off); ctx.strokeStyle=C['card-solid']; ctx.lineWidth=w+lw*0.44; ctx.stroke(); ctx.strokeStyle=col; ctx.lineWidth=w; ctx.stroke();
+        const nose=trackSlice(pts,cum,u+dir*(l/2-w*0.55),u+dir*(l/2-w*0.55),off); ctx.fillStyle=SVC_COL[tr]; ctx.beginPath(); ctx.arc(dir>0?nose[0]:nose[0],nose[1],w*0.32,0,Math.PI*2); ctx.fill();
       }
     }
   }

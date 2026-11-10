@@ -60,7 +60,7 @@ function rnPolyline(R,pts,c){
 // how dense streets get: ~225 m blocks downtown, ~600 m at the fringe
 function rnSpacing(d){ return d>=1?1.25:d>=0.4?1.25+(1-d)/0.6*0.45:d>=0.05?1.7+(0.4-d)/0.35*1.5:3.4; }
 function rnOkTurn(R,a,dx,dy){ const l=Math.hypot(dx,dy)||1; for(const e of R.adj[a]){ const o=R.ea[e]===a?R.eb[e]:R.ea[e], ox=R.x[o]-R.x[a], oy=R.y[o]-R.y[a], ol=Math.hypot(ox,oy)||1; if((ox*dx+oy*dy)/(ol*l)>0.85) return false; } return true; }
-function rnLandOk(x,y){ const xi=Math.round(x), yi=Math.round(y); if(xi<0||yi<0||xi>=W||yi>=H) return false; const i=yi*W+xi; return !G.water[i]&&G.e[i]<0.74&&G.pk[i]<0.3; }
+function rnLandOk(x,y){ const xi=Math.round(x), yi=Math.round(y); if(xi<0||yi<0||xi>=W||yi>=H) return false; const i=yi*W+xi; return !G.water[i]&&G.e[i]<0.74&&G.pk[i]<0.3&&!wetAt(x,y,0.22); }
 function rnGrow(R,tries,rand){
   rand=rand||Math.random; const B=G.bounds; let added=0; if(R.x.length>RN_MAXN) return 0;
   // only places people live that are still far from any road

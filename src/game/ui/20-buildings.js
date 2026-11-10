@@ -59,6 +59,33 @@ function bldTile(tx,ty){
     occ[ci]=1; return true; };
   const okGround=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); if(xi<B[0]||yi<B[1]||xi>=B[2]||yi>=B[3]) return -1; const i=yi*W+xi; return water[i]||pk[i]>0.255?-1:D[i]; };
   const inTile=(x,y)=>x>=x0-0.5&&x<x0+BLD_T-0.5&&y>=y0-0.5&&y<y0+BLD_T-0.5;
+  // the whole footprint on dry land, a little back from the bank
+  const dry=(cx,cy,hw,hd,ca,sa)=>{ const ux=hw*ca, uy=hw*sa, vx=-hd*sa, vy=hd*ca; return !(wetAt(cx,cy,0.06)||wetAt(cx-ux-vx,cy-uy-vy,0.05)||wetAt(cx+ux-vx,cy+uy-vy,0.05)||wetAt(cx+ux+vx,cy+uy+vy,0.05)||wetAt(cx-ux+vx,cy-uy+vy,0.05)); };
+  const feats=[];
+  // 0. the places that are not buildings: parks, squares, playgrounds, pitches, car parks, and the plots of schools,
+  //    churches and shopping centres. Each cell rolls for one; what it gets follows how built-up the place is, and it is
+  //    turned to face the nearest street and shrunk until it fits its block.
+  for(let y=y0-BLD_M;y<y0+BLD_T+BLD_M;y++) for(let x=x0-BLD_M;x<x0+BLD_T+BLD_M;x++){
+    if(x<B[0]||y<B[1]||x>=B[2]||y>=B[3]) continue; const i=y*W+x; if(water[i]||pk[i]>0.255) continue; const d=D[i]; if(d<0.07) continue;
+    let h=hashInt(i*31337+G.seed*7+5); const rnd=()=>{ h=hashInt(h); return (h&0xffff)/65536; };
+    if(rnd()>(d<0.3?0.045:d<0.8?0.07:0.085)) continue;
+    const r=rnd()*100, k=d<0.3?(r<34?'park':r<58?'play':r<82?'pitch':'school'):d<0.8?(r<24?'park':r<38?'play':r<54?'plaza':r<64?'pitch':r<78?'lot':r<89?'school':'church'):(r<36?'plaza':r<60?'park':r<70?'lot':r<90?'mall':'church');
+    let fw,fd; const q=rnd(), q2=rnd();
+    if(k==='park'){ fw=0.5+q*0.5; fd=0.4+q2*0.45; } else if(k==='play'){ fw=0.2+q*0.12; fd=0.18+q2*0.1; } else if(k==='plaza'){ fw=0.32+q*0.3; fd=0.3+q2*0.25; }
+    else if(k==='pitch'){ if(q<0.5){ fw=0.72; fd=0.46; } else { fw=0.24; fd=0.14; } } else if(k==='lot'){ fw=0.3+q*0.22; fd=0.22+q2*0.14; }
+    else if(k==='school'){ fw=0.5+q*0.15; fd=0.4+q2*0.1; } else if(k==='church'){ fw=0.2+q*0.06; fd=0.3+q2*0.08; } else { fw=0.58+q*0.2; fd=0.42+q2*0.12; }
+    // face the nearest street
+    let ang=0; { const l=rm.get(i); if(l&&l.length){ const sg=l[Math.floor(rnd()*l.length)%l.length]; ang=Math.atan2(sg[3]-sg[1],sg[2]-sg[0]); } }
+    const ca=Math.cos(ang), sa=Math.sin(ang); let ok=false, cx=0, cy=0, sc=1;
+    for(let tr=0;tr<6&&!ok;tr++){ sc=[1,1,0.8,0.8,0.62,0.5][tr]; cx=x+(rnd()-0.5)*0.7; cy=y+(rnd()-0.5)*0.7; if(k==='pitch'&&sc<0.8&&fw>0.5) continue;
+      ok=cx>ox+0.2&&cy>oy+0.2&&cx<ox+ON/BLD_OC-0.2&&cy<oy+ON/BLD_OC-0.2&&okGround(cx,cy)>=0.05&&!bldOnRoadR(rm,cx,cy,fw*sc/2+0.012,fd*sc/2+0.012,ca,sa)&&dry(cx,cy,fw*sc/2,fd*sc/2,ca,sa)&&claim(cx,cy,fw*sc/2,fd*sc/2,ca,sa,0.02); }
+    if(!ok) continue; fw*=sc; fd*=sc;
+    const f={k,x:cx-fw/2,y:cy-fd/2,w:fw,d:fd,a:ang,r:h>>>0}; if(inTile(cx,cy)) feats.push(f);
+    // the buildings that belong to it: lx, lz are measured from the plot's centre along and across the plot
+    const sub=(lx,lz,w,dd,hm,sp)=>{ const bx=cx+lx*ca-lz*sa, by=cy+lx*sa+lz*ca; if(inTile(cx,cy)) out.push({x:bx-w/2,y:by-dd/2,w,d:dd,h:hm/150,c:(h>>>20)&3,a:ang,sp}); };
+    if(k==='school'){ sub(0,-fd*0.32,fw*0.9,fd*0.26,11+q*4,'school'); sub(-fw*0.36,fd*0.06,fw*0.18,fd*0.44,8,'school'); }
+    else if(k==='church') sub(0,-fd*0.08,fw*0.5,fd*0.72,11+q*3,'church');
+    else if(k==='mall') sub(0,-fd*0.2,fw*0.94,fd*0.56,13+q*5,'mall'); }
   // 1. plots along the streets
   if(R){ const es=[], seen=new Set(); for(let gy=Math.floor((y0-1.5)/RN_G);gy<=Math.floor((y0+BLD_T+1.5)/RN_G);gy++) for(let gx=Math.floor((x0-1.5)/RN_G);gx<=Math.floor((x0+BLD_T+1.5)/RN_G);gx++){ const l=R.eg.get(rnKey(gx,gy)); if(l) for(const e of l) if(!seen.has(e)){ seen.add(e); es.push(e); } }
     es.sort((p,q)=>p-q);
@@ -74,7 +101,7 @@ function bldTile(tx,ty){
           if(u+f>L+0.01){ if(L-u<f*0.6) break; f=L-u; bw=Math.min(bw,f*0.9); }
           const put=rnd()<fill, tower=d>1&&rnd()<0.07, off=BLD_CLR[c]+setb+dp/2, cx=ax+tx_*(u+f/2)-ty_*sg*off, cy=ay+ty_*(u+f/2)+tx_*sg*off; u+=f+gapU;
           if(!put||cx<ox+0.1||cy<oy+0.1||cx>ox+ON/BLD_OC-0.1||cy>oy+ON/BLD_OC-0.1||okGround(cx,cy)<0.04) continue;
-          if(bldOnRoadR(rm,cx,cy,bw/2,dp/2,tx_,ty_)||!claim(cx,cy,bw/2,dp/2,tx_,ty_,0.014)) continue;
+          if(bldOnRoadR(rm,cx,cy,bw/2,dp/2,tx_,ty_)||!dry(cx,cy,bw/2,dp/2,tx_,ty_)||!claim(cx,cy,bw/2,dp/2,tx_,ty_,0.014)) continue;
           if(tower) hm=Math.min(240,hm*(1.8+r1*1.4));
           if(inTile(cx,cy)) out.push({x:cx-bw/2,y:cy-dp/2,w:bw,d:dp,h:hm/150,c:(h>>>20)&3,a:ang}); } } } }
   // 2. the insides of the blocks, and the scattered buildings of places no street has reached yet
@@ -86,52 +113,64 @@ function bldTile(tx,ty){
     for(let s=0;s<n*n;s++){ if(rnd()>fillP) continue;
       const sx=(s%n)*sz, sy=Math.floor(s/n)*sz; let bx,by,w,dd,ok=false;
       for(let k=0;k<3&&!ok;k++){ const f=sz*(k===0?0.5+rnd()*0.3:k===1?0.4:0.28);
-        w=f*(0.8+rnd()*0.3); dd=f*(0.75+rnd()*0.3); bx=x-0.5+sx+(sz-w)*(k===2?0.5:rnd()); by=y-0.5+sy+(sz-dd)*(k===2?0.5:rnd()); ok=!bldOnRoad(rm,bx,by,w,dd)&&claim(bx+w/2,by+dd/2,w/2,dd/2,1,0,0.016); }
+        w=f*(0.8+rnd()*0.3); dd=f*(0.75+rnd()*0.3); bx=x-0.5+sx+(sz-w)*(k===2?0.5:rnd()); by=y-0.5+sy+(sz-dd)*(k===2?0.5:rnd()); ok=!bldOnRoad(rm,bx,by,w,dd)&&dry(bx+w/2,by+dd/2,w/2,dd/2,1,0)&&claim(bx+w/2,by+dd/2,w/2,dd/2,1,0,0.016); }
       if(!ok) continue;
       let hm=(6+30*Math.pow(Math.min(d,1.5),1.5))*(0.6+rnd()*0.7);         // metres
       if(d>1&&rnd()<0.06) hm=Math.min(240,hm*(1.8+rnd()*1.4));               // the odd tower downtown
       out.push({x:bx,y:by,w,d:dd,h:hm/150,c:(h>>>20)&3,a:0}); } }
-  t={list:out,ver:bldVer}; bldCache.set(key,t); if(bldCache.size>900) bldCache.delete(bldCache.keys().next().value); return t;
+  t={list:out,feat:feats,ver:bldVer}; bldCache.set(key,t); if(bldCache.size>900) bldCache.delete(bldCache.keys().next().value); return t;
 }
 function bldInRect(x0,y0,x1,y1,cb){
   const tx0=Math.floor((x0-1)/BLD_T), ty0=Math.floor((y0-1)/BLD_T), tx1=Math.floor((x1+1)/BLD_T), ty1=Math.floor((y1+1)/BLD_T);
   for(let ty=ty0;ty<=ty1;ty++) for(let tx=tx0;tx<=tx1;tx++){ if(tx<0||ty<0||tx*BLD_T>=W||ty*BLD_T>=H) continue; for(const b of bldTile(tx,ty).list) if(b.x+b.w+0.2>=x0&&b.x-0.2<=x1&&b.y+b.d+0.2>=y0&&b.y-0.2<=y1) cb(b); }
 }
+function bldFeatInRect(x0,y0,x1,y1,cb){ for(let ty=Math.floor((y0-1)/BLD_T);ty<=Math.floor((y1+1)/BLD_T);ty++) for(let tx=Math.floor((x0-1)/BLD_T);tx<=Math.floor((x1+1)/BLD_T);tx++){ if(tx<0||ty<0||tx*BLD_T>=W||ty*BLD_T>=H) continue; for(const f of bldTile(tx,ty).feat) if(f.x+f.w+0.3>=x0&&f.x-0.3<=x1&&f.y+f.d+0.3>=y0&&f.y-0.3<=y1) cb(f); } }
+// a point of a plot given along (u) and across (v) it, each from -1 to 1
+function featPt(f,u,v){ const ca=Math.cos(f.a), sa=Math.sin(f.a), lx=u*f.w/2, lz=v*f.d/2; return [f.x+f.w/2+lx*ca-lz*sa,f.y+f.d/2+lx*sa+lz*ca]; }
 // the four corners of a building's footprint, turned about its centre
 function bldCorners(b,dx,dy){ const cx=b.x+b.w/2+(dx||0), cy=b.y+b.d/2+(dy||0), hw=b.w/2, hd=b.d/2; if(!b.a) return [cx-hw,cy-hd,cx+hw,cy-hd,cx+hw,cy+hd,cx-hw,cy+hd];
   const ca=Math.cos(b.a), sa=Math.sin(b.a), ux=hw*ca, uy=hw*sa, vx=-hd*sa, vy=hd*ca; return [cx-ux-vx,cy-uy-vy,cx+ux-vx,cy+uy-vy,cx+ux+vx,cy+uy+vy,cx-ux+vx,cy-uy+vy]; }
-// On the map buildings are seen from straight above, like a city plan: each footprint casts a soft shadow to the
-// south-east as long as the building is tall, so the skyline still reads, but nothing leans over the streets.
-// Each tile keeps its outlines as ready-made paths (shadows, rims, one per roof colour, trees), so a frame only fills
-// a handful of paths per tile however many buildings there are.
-let bldBand=null, bldPending=false;    // while the map layer is repainted in bands: the screen rows being painted
+// On the map buildings are seen from straight above, like a city plan: each one casts a shadow to the south-east, as
+// long as the building is tall and joined to its foot, so the skyline reads. Each tile keeps its outlines as ready-made
+// paths (grounds, shadows, rims, one per roof colour, trees), so painting a tile is a handful of fills.
 const BLD_Z=1.0;                         // shadow length per unit of height
+const FEAT_COL={light:{park:'#cfe6c4',play:'#f0dcb6',plaza:'#e7e2d6',pitch:'#a5d093',lot:'#cdd0d8',yard:'#eadcc4',water:'#bcd9ee',line:'rgba(255,255,255,.9)',path:'#efe9d6'},
+                dark:{park:'#21382a',play:'#4a4030',plaza:'#3a3d45',pitch:'#2d5233',lot:'#2c313b',yard:'#3d3a32',water:'#12324c',line:'rgba(255,255,255,.45)',path:'#4a4a40'}};
 function bldPaths(t,tx,ty){ if(t.p) return t.p;
-  const sh=new Path2D(), rim=new Path2D(), rf=[0,1,2,3,4,5].map(()=>new Path2D()), poly=(p,q)=>{ p.moveTo(q[0],q[1]); p.lineTo(q[2],q[3]); p.lineTo(q[4],q[5]); p.lineTo(q[6],q[7]); p.closePath(); };
-  for(const b of t.list){ const z=Math.min(1.2,b.h*BLD_Z); poly(sh,bldCorners(b,z*0.32,z*0.25)); const q=bldCorners(b); poly(rim,q); poly(rf[b.h*150<14?2+(b.c&3):(b.c&1)],q); }
-  const tr=new Path2D(), ts=new Path2D(), tz=0.06;
+  // a very long path gets slower to add to with every piece, so each layer is kept as several shorter paths
+  const bag=n=>{ const a=[new Path2D()]; let c=0; return {a,next(){ if(++c>n){ c=1; a.push(new Path2D()); } return a[a.length-1]; }}; };
+  const shB=bag(40), rimB=bag(150), rfB=[0,1,2,3,4,5].map(()=>bag(150)), trB=bag(200), tsB=bag(200);
+  const poly=(p,q)=>{ p.moveTo(q[0],q[1]); p.lineTo(q[2],q[3]); p.lineTo(q[4],q[5]); p.lineTo(q[6],q[7]); p.closePath(); };
+  // a shadow is the footprint swept along the sun's direction: its far copy plus the strips swept by the edges, all wound the same way
+  const quad=(p,ax,ay,bx,by,cx,cy,dx,dy)=>{ if((bx-ax)*(cy-ay)-(by-ay)*(cx-ax)<0){ p.moveTo(ax,ay); p.lineTo(dx,dy); p.lineTo(cx,cy); p.lineTo(bx,by); } else { p.moveTo(ax,ay); p.lineTo(bx,by); p.lineTo(cx,cy); p.lineTo(dx,dy); } p.closePath(); };
+  for(const b of t.list){ const z=Math.min(1.3,b.h*BLD_Z), sx=z*0.36, sy=z*0.28, q=bldCorners(b), sh=shB.next();
+    for(let k=0;k<4;k++){ const a=k*2, c=((k+1)%4)*2; quad(sh,q[a],q[a+1],q[c],q[c+1],q[c]+sx,q[c+1]+sy,q[a]+sx,q[a+1]+sy); }
+    quad(sh,q[0]+sx,q[1]+sy,q[2]+sx,q[3]+sy,q[4]+sx,q[5]+sy,q[6]+sx,q[7]+sy);
+    poly(rimB.next(),q); poly(rfB[b.h*150<14?2+(b.c&3):(b.c&1)].next(),q); }
+  const tz=0.06, tree=(px,py,r)=>{ const ts=tsB.next(), tr=trB.next(); ts.moveTo(px+r+0.04,py+0.03); ts.arc(px+0.04,py+0.03,r,0,6.283); tr.moveTo(px+r,py-tz*0.4); tr.arc(px,py-tz*0.4,r,0,6.283); };
   for(let y=ty*BLD_T;y<(ty+1)*BLD_T;y++) for(let x=tx*BLD_T;x<(tx+1)*BLD_T;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]) continue; const pk=G.pk[i], n=pk>0.27?6:pk>0.255?3:(pk>0.12&&G.D[i]<0.05)?4:0;
-    for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), px=x-0.5+(h&1023)/1023, py=y-0.5+((h>>10)&1023)/1023, r=0.07+((h>>20)&63)/63*0.05; ts.moveTo(px+r+0.04,py+0.03); ts.arc(px+0.04,py+0.03,r,0,6.283); tr.moveTo(px+r,py-tz); tr.arc(px,py-tz,r,0,6.283); } }
-  return t.p={sh,rim,rf,tr,ts}; }
-// tiles of the current view that are still missing are worked out a few milliseconds a frame; true once all are there
-let bldWarmAt=0;
-function bldWarm(){ const [x0,y0]=toWorld(-40,-40), [x1,y1]=toWorld(vw+40,vh+40), t0=performance.now(); let left=0;
-  for(let ty=Math.max(0,Math.floor((y0-1)/BLD_T));ty<=Math.floor((y1+1)/BLD_T)&&ty*BLD_T<H;ty++) for(let tx=Math.max(0,Math.floor((x0-1)/BLD_T));tx<=Math.floor((x1+1)/BLD_T)&&tx*BLD_T<W;tx++){
-    if(bldCache.has(tx*1000+ty)) continue; if(performance.now()-t0>8){ left++; continue; } bldPaths(bldTile(tx,ty),tx,ty); }
-  if(left&&t0-bldWarmAt<350) return 0; bldWarmAt=t0; return left?2:1; }
-function drawBuildings2D(){
-  const a=smooth(cam.s,9,14); if(a<=0.01) return;
-  const yA=bldBand?bldBand[0]:0, yB=bldBand?bldBand[1]:vh, [x0,y0]=toWorld(-40,yA-40), [x1,y1]=toWorld(vw+40,yB+40), tiles=[], t0=performance.now();
-  for(let ty=Math.max(0,Math.floor((y0-1)/BLD_T));ty<=Math.floor((y1+1)/BLD_T)&&ty*BLD_T<H;ty++) for(let tx=Math.max(0,Math.floor((x0-1)/BLD_T));tx<=Math.floor((x1+1)/BLD_T)&&tx*BLD_T<W;tx++){
-    // new tiles are worked out a few milliseconds a frame; the rest follow on the next frames
-    if(!bldCache.has(tx*1000+ty)&&performance.now()-t0>(bldBand?2:9)){ bldPending=true; continue; } tiles.push(bldPaths(bldTile(tx,ty),tx,ty)); }
-  ctx.save(); ctx.globalAlpha=a; ctx.lineJoin='miter';
-  ctx.fillStyle=C['bld-shadow']; for(const p of tiles) ctx.fill(p.sh);
-  // roofs: flat ones in two greys, tiled ones on the low-rise houses; a darker rim on the sunless sides
-  const RC=[C['bld-roof'],C['bld-roof2'],'#c47a62','#9c7266','#7d8794','#b39478'], e=Math.max(0.6/cam.s,0.012);
-  ctx.fillStyle=C['bld-side']; ctx.translate(e,e); for(const p of tiles) ctx.fill(p.rim); ctx.translate(-e,-e);
-  for(let k=0;k<6;k++){ ctx.fillStyle=RC[k]; for(const p of tiles) ctx.fill(p.rf[k]); }
-  // trees in the parks and woods
-  ctx.fillStyle='rgba(30,60,30,.18)'; for(const p of tiles) ctx.fill(p.ts); ctx.fillStyle=isDark()?'#2f5a34':'#79a95e'; for(const p of tiles) ctx.fill(p.tr);
-  ctx.restore();
-}
+    for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), px=x-0.5+(h&1023)/1023, py=y-0.5+((h>>10)&1023)/1023; if(!wetAt(px,py,0.05)) tree(px,py,0.07+((h>>20)&63)/63*0.05); } }
+  // grounds: one path per kind, plus white markings, footpaths and ponds
+  const g={park:new Path2D(),play:new Path2D(),plaza:new Path2D(),pitch:new Path2D(),lot:new Path2D(),yard:new Path2D(),water:new Path2D(),line:new Path2D(),path:new Path2D(),dotA:new Path2D(),dotB:new Path2D()};
+  for(const f of t.feat){ const q=bldCorners(f), P=(u,v)=>featPt(f,u,v), ln=(p,a,b)=>{ p.moveTo(a[0],a[1]); p.lineTo(b[0],b[1]); }, kind=f.k==='school'?'yard':f.k==='church'?'park':f.k==='mall'?'lot':f.k; poly(g[kind],q);
+    if(f.k==='park'||f.k==='church'){ let h=f.r; const n=Math.round(f.w*f.d*(f.k==='park'?34:16));
+      for(let k=0;k<n;k++){ h=hashInt(h+k); const u=((h&1023)/1023*2-1)*0.9, v=(((h>>10)&1023)/1023*2-1)*0.9; if(f.k==='church'&&Math.abs(u)<0.6&&v<0.7) continue; if(Math.abs(u)<0.12||Math.abs(v)<0.1) continue; const c=P(u,v); tree(c[0],c[1],0.035+((h>>20)&63)/63*0.03); }
+      if(f.k==='park'){ ln(g.path,P(-1,0),P(1,0)); ln(g.path,P(0,-1),P(0,1)); if(f.w>0.7){ const c=P(0.45,0.45); g.water.moveTo(c[0]+f.w*0.14,c[1]); g.water.ellipse(c[0],c[1],f.w*0.14,f.d*0.12,f.a,0,6.283); } } }
+    else if(f.k==='pitch'){ const m=0.9; ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); const c=P(0,0); g.line.moveTo(c[0]+f.d*0.16,c[1]); g.line.arc(c[0],c[1],f.d*0.16,0,6.283); }
+    else if(f.k==='lot'||f.k==='mall'){ const v0=f.k==='mall'?0.35:-0.8, n=Math.max(3,Math.round(f.w/0.035)); for(let k=0;k<=n;k++){ const u=-0.9+1.8*k/n; ln(g.line,P(u,v0),P(u,v0+0.3)); ln(g.line,P(u,0.9),P(u,0.6)); } }
+    else if(f.k==='plaza'){ const c=P(0,0), r=Math.min(f.w,f.d)*0.2; g.water.moveTo(c[0]+r,c[1]); g.water.arc(c[0],c[1],r,0,6.283); g.dotB.moveTo(c[0]+r*0.3,c[1]); g.dotB.arc(c[0],c[1],r*0.3,0,6.283); for(const [u,v] of [[-0.7,-0.7],[0.7,-0.7],[0.7,0.7],[-0.7,0.7]]){ const e=P(u,v); tree(e[0],e[1],0.035); } }
+    else if(f.k==='play'){ const a=P(-0.4,-0.2), b=P(0.4,0.3); g.dotA.moveTo(a[0]+0.03,a[1]); g.dotA.arc(a[0],a[1],0.03,0,6.283); g.dotB.moveTo(b[0]+0.025,b[1]); g.dotB.arc(b[0],b[1],0.025,0,6.283); const e=P(0.6,-0.6); tree(e[0],e[1],0.04); }
+    else if(f.k==='school'){ const m=0.5; ln(g.line,P(-0.1,0),P(0.9,0)); ln(g.line,P(0.9,0),P(0.9,0.85)); ln(g.line,P(0.9,0.85),P(-0.1,0.85)); ln(g.line,P(-0.1,0.85),P(-0.1,0)); ln(g.line,P(0.4,0),P(0.4,0.85)); } }
+  return t.p={sh:shB.a,rim:rimB.a,rf:rfB.map(o=>o.a),tr:trB.a,ts:tsB.a,g}; }
+// painting one tile: what lies on the ground first (grounds and shadows), then what stands on it
+function bldPaintGround(p){ const F=isDark()?FEAT_COL.dark:FEAT_COL.light, g=p.g;
+  for(const k of ['park','play','plaza','pitch','lot','yard']){ ctx.fillStyle=F[k]; ctx.fill(g[k]); }
+  ctx.strokeStyle=F.path; ctx.lineWidth=0.03; ctx.stroke(g.path); ctx.fillStyle=F.water; ctx.fill(g.water); ctx.strokeStyle=F.line; ctx.lineWidth=Math.max(0.008,0.7/cam.s); ctx.stroke(g.line);
+  ctx.fillStyle='#e2574c'; ctx.fill(g.dotA); ctx.fillStyle='#3f7fbf'; ctx.fill(g.dotB);
+  ctx.fillStyle=C['bld-shadow']; for(const q of p.sh) ctx.fill(q); ctx.fillStyle='rgba(30,60,30,.18)'; for(const q of p.ts) ctx.fill(q); }
+const BLD_RC=()=>[C['bld-roof'],C['bld-roof2'],'#c47a62','#9c7266','#7d8794','#b39478'];
+function bldPaintRoofs(p){ const RC=BLD_RC(), e=Math.max(0.6/cam.s,0.012);
+  ctx.fillStyle=C['bld-side']; ctx.translate(e,e); for(const q of p.rim) ctx.fill(q); ctx.translate(-e,-e);
+  for(let k=0;k<6;k++){ ctx.fillStyle=RC[k]; for(const q of p.rf[k]) ctx.fill(q); }
+  ctx.fillStyle=isDark()?'#2f5a34':'#79a95e'; for(const q of p.tr) ctx.fill(q); }
+function bldTilesIn(x0,y0,x1,y1){ const o=[]; for(let ty=Math.max(0,Math.floor((y0-1)/BLD_T));ty<=Math.floor((y1+1)/BLD_T)&&ty*BLD_T<H;ty++) for(let tx=Math.max(0,Math.floor((x0-1)/BLD_T));tx<=Math.floor((x1+1)/BLD_T)&&tx*BLD_T<W;tx++) o.push([tx,ty]); return o; }

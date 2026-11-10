@@ -17,24 +17,29 @@ function buildHeat(){
 }
 function mkPath(pieces){ const p=new Path2D(); for(const pts of pieces){ p.moveTo(pts[0][0],pts[0][1]); for(let k=1;k<pts.length;k++) p.lineTo(pts[k][0],pts[k][1]); } return p; }
 // the street web: one path per road class, plus the newest streets so they can fade in
+const RD_CH=48;        // streets are also kept in chunks of this many cells, so a close view strokes only what it shows
 function buildRoadPaths(){
   // three sets: streets already in the cached map layer, streets added since that layer was painted (drawn on top
   // until the next repaint, so the layer need not be redrawn every month) and this month's streets, which fade in
-  const R=G.rn, mk5=()=>[0,1,2,3,4].map(()=>new Path2D()); P2.rd=mk5(); P2.rdNew=mk5(); P2.rdPend=mk5(); P2.rdVer=R?R.ver:-1; if(!R) return;
+  const R=G.rn, mk5=()=>[0,1,2,3,4].map(()=>new Path2D()); P2.rd=mk5(); P2.rdNew=mk5(); P2.rdPend=mk5(); P2.rdT=new Map(); P2.rdVer=R?R.ver:-1; if(!R) return;
   const fresh=months, up=P2.upMonth==null?-1e9:P2.upMonth; let nf=0, np=0;
-  for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e], p=(R.et[e]>=fresh&&months>0)?(nf++,P2.rdNew[R.ec[e]]):R.et[e]>=up?(np++,P2.rdPend[R.ec[e]]):P2.rd[R.ec[e]]; p.moveTo(R.x[a],R.y[a]); p.lineTo(R.x[b],R.y[b]); }
+  for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e], c=R.ec[e], isNew=R.et[e]>=fresh&&months>0, isPend=!isNew&&R.et[e]>=up, p=isNew?(nf++,P2.rdNew[c]):isPend?(np++,P2.rdPend[c]):P2.rd[c]; p.moveTo(R.x[a],R.y[a]); p.lineTo(R.x[b],R.y[b]);
+    if(!isNew&&!isPend){ const k=Math.floor((R.x[a]+R.x[b])/2/RD_CH)+1000*Math.floor((R.y[a]+R.y[b])/2/RD_CH); let t=P2.rdT.get(k); if(!t){ t=mk5(); P2.rdT.set(k,t); } t[c].moveTo(R.x[a],R.y[a]); t[c].lineTo(R.x[b],R.y[b]); } }
   P2.rdAt=performance.now(); P2.rdHasNew=nf>0; P2.rdHasPend=np>0;
 }
 const RD_W=[[0.9,0],[1.5,0.6],[2.3,1.2],[3.1,1.8],[3.2,0]];   // least casing / centre widths in screen px
 // far out a road is a line of a few pixels; close in it takes its true width, so buildings stand beside it, not on it
-function strokeRoads(c,px,col,alphaNew,lanesA,which){
-  const rd=P2.rd; if(!rd) return; const sets=which==='old'?[rd]:which==='new'?[P2.rdNew]:which==='pend'?[P2.rdPend]:[rd,P2.rdPend,P2.rdNew];
+function strokeRoads(c,px,col,alphaNew,lanesA,which,view){
+  const rd=P2.rd; if(!rd) return; let sets=which==='old'?[rd]:which==='new'?[P2.rdNew]:which==='pend'?[P2.rdPend]:[rd,P2.rdPend,P2.rdNew]; const old=sets;
+  // a close view: only the chunks it shows
+  if(which==='old'&&view&&P2.rdT&&(view[2]-view[0])*(view[3]-view[1])<W*H*0.35){ sets=[]; for(let cy=Math.floor((view[1]-3)/RD_CH);cy<=Math.floor((view[3]+3)/RD_CH);cy++) for(let cx=Math.floor((view[0]-3)/RD_CH);cx<=Math.floor((view[2]+3)/RD_CH);cx++){ const t=P2.rdT.get(cx+1000*cy); if(t) sets.push(t); } }
+  const isOld=set=>which==='old'||set===rd;
   const wide=ROAD_W[0]>=2.4*px;      // streets wide enough on screen to be drawn as streets: kerbs and a pale roadway
-  for(let k=0;k<5;k++){ for(const set of sets){ const p=set[k], a=set===rd?1:alphaNew; if(a<=0.01) continue;
+  for(let k=0;k<5;k++){ for(const set of sets){ const p=set[k], a=isOld(set)?1:alphaNew; if(a<=0.01) continue;
       if(k===0&&!wide){ if(lanesA<=0.02) continue; c.globalAlpha=a*lanesA*0.85; c.strokeStyle=col.edge; c.lineWidth=Math.max(ROAD_W[0]*0.8,RD_W[0][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
       if(k===4){ c.globalAlpha=a; c.strokeStyle=col.hwy; c.lineWidth=Math.max(ROAD_W[4],RD_W[4][0]*px); c.stroke(p); c.globalAlpha=1; continue; }
       c.globalAlpha=a; c.strokeStyle=col.edge; c.lineWidth=Math.max(ROAD_W[k],RD_W[k][0]*px); c.stroke(p); c.globalAlpha=1; } }
-  for(let k=wide?0:1;k<4;k++) for(const set of sets){ const a=set===rd?1:alphaNew; if(a<=0.01) continue; c.globalAlpha=a; c.strokeStyle=col.core; c.lineWidth=k===0?ROAD_W[0]-2*px:Math.max(ROAD_W[k]-Math.max(2*px,0.03),RD_W[k][1]*px); c.stroke(set[k]); c.globalAlpha=1; }
+  for(let k=wide?0:1;k<4;k++) for(const set of sets){ const a=isOld(set)?1:alphaNew; if(a<=0.01) continue; c.globalAlpha=a; c.strokeStyle=col.core; c.lineWidth=k===0?ROAD_W[0]-2*px:Math.max(ROAD_W[k]-Math.max(2*px,0.03),RD_W[k][1]*px); c.stroke(set[k]); c.globalAlpha=1; }
   if(wide&&which==='old'){ c.strokeStyle=col.core; c.globalAlpha=0.55; c.lineWidth=Math.max(px,0.012); c.setLineDash([0.12,0.1]); for(const set of sets) c.stroke(set[4]); c.setLineDash([]); c.globalAlpha=1; }
 }
 function buildPaths(){

@@ -49,3 +49,6 @@ function hpop(h){ const top=h[0], last=h.pop(); if(h.length){ h[0]=last; let i=0
 
 // write markup only when it actually changed: rebuilding unchanged DOM costs layout and style work for nothing
 function setHTML(el,html){ if(!el) return; if(el._h!==html){ el.innerHTML=html; el._h=html; } }
+// is this point in the water, or within m cells of it? The coast comes from the height field and the rivers from their
+// own distance field, both read between the cells, so the answer follows the drawn shoreline rather than whole cells
+function wetAt(x,y,m){ m=m||0; if(x<0||y<0||x>W-1||y>H-1) return true; if(bilinear(G.h,x,y)<G.sea+0.004+m*0.012) return true; return !!G.rivSD&&bilinear(G.rivSD,x,y)<m; }

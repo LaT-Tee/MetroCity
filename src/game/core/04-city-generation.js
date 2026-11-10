@@ -43,18 +43,20 @@ function generate(seed){
 
   // --- rivers: the cheapest way down to the sea from far inland (valleys are cheap, a slow noise makes them wander),
   //     so a river always reaches the coast, widens on the way and a tributary can join it
-  const rivers=[];
+  const rivers=[], rivSD=new Float32Array(n);     // rivSD: distance from each cell to the nearest river bank (negative in the water)
   { const cost=new Float32Array(n).fill(Infinity), from=new Int32Array(n).fill(-1), done=new Uint8Array(n);
     HPQ.n=0; for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){ const i=y*W+x; if(seaC[i]&&(!water[i-1]||!water[i+1]||!water[i-W]||!water[i+W])){ cost[i]=0; hqPush(0,i); } }
     const NB=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
     while(HPQ.n){ const u=hqPop(); if(done[u]) continue; done[u]=1; const ux=u%W, uy=(u/W)|0, cu=cost[u];
       for(const [dx,dy,dl] of NB){ const vx=ux+dx, vy=uy+dy; if(vx<0||vy<0||vx>=W||vy>=H) continue; const v=vy*W+vx; if(done[v]||seaC[v]) continue;
         const m=water[v]?0.25:1+6*e[v]+5*smooth(fbm(N3,vx*0.03+60,vy*0.03+60,2),-0.28,0.28)+2.5*smooth(N4(vx*0.11+9,vy*0.11+9),-0.3,0.3), ng=cu+dl*m; if(ng<cost[v]){ cost[v]=ng; from[v]=u; hqPush(ng,v); } } }
-    const riv=new Uint8Array(n), trace=s0=>{ const p=[]; for(let u=s0,g=0;u>=0&&g<4000;u=from[u],g++){ p.push([u%W,(u/W)|0]); if(riv[u]) break; } return p; };
+    const riv=new Uint8Array(n); rivSD.fill(9); const trace=s0=>{ const p=[]; for(let u=s0,g=0;u>=0&&g<4000;u=from[u],g++){ p.push([u%W,(u/W)|0]); if(riv[u]) break; } return p; };
     const pickSrc=(minLen,score)=>{ let best=null, bsc=-1e9; for(let tr=0;tr<400;tr++){ const x=Math.floor(R2()*W), y=Math.floor(R2()*H), i=y*W+x; if(water[i]||!isFinite(cost[i])) continue; const p=trace(i); if(p.length<minLen) continue; const sc=score(p,x,y); if(sc>bsc){ bsc=sc; best=p; } } return best; };
     const lay=(cells,w0,w1)=>{ let pts=chaikin(rdp(cells,1.1),3); pts.w0=w0; pts.w1=w1; rivers.push(pts);
       const fine=[]; for(let k=1;k<pts.length;k++){ const a=pts[k-1], b=pts[k], m=Math.max(1,Math.ceil(dist(a[0],a[1],b[0],b[1])/0.5)); for(let q=0;q<m;q++) fine.push([lerp(a[0],b[0],q/m),lerp(a[1],b[1],q/m)]); }
-      fine.forEach(([x,y],k)=>{ const r=Math.max(0.5,(w0+(w1-w0)*k/fine.length)/2-0.2), r2=r*r; for(let yy=Math.floor(y-r);yy<=Math.ceil(y+r);yy++) for(let xx=Math.floor(x-r);xx<=Math.ceil(x+r);xx++){ if(xx<0||yy<0||xx>=W||yy>=H) continue; if((xx-x)**2+(yy-y)**2<=r2){ const i=yy*W+xx; riv[i]=1; if(!water[i]) water[i]=2; } } });
+      fine.forEach(([x,y],k)=>{ const hw=(w0+(w1-w0)*k/fine.length)/2, r=hw+2.2;
+        for(let yy=Math.floor(y-r);yy<=Math.ceil(y+r);yy++) for(let xx=Math.floor(x-r);xx<=Math.ceil(x+r);xx++){ if(xx<0||yy<0||xx>=W||yy>=H) continue; const i=yy*W+xx, sd=Math.hypot(xx-x,yy-y)-hw; if(sd<rivSD[i]) rivSD[i]=sd;
+          if(sd<=Math.max(-0.2,0.5-hw)){ riv[i]=1; if(!water[i]) water[i]=2; } } });
       for(const [x,y] of cells) riv[y*W+x]=1; };
     const inMid=p=>{ let c=0; for(const [x,y] of p) if(x>150&&x<450&&y>115&&y<305) c++; return c; };
     const main_=pickSrc(110,p=>inMid(p)+p.length*0.35);
@@ -290,7 +292,7 @@ function generate(seed){
 
   const B=STAGES[0], citySeed=mkRoot(main.x,main.y,true);
   let sumIn=0; for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++) sumIn+=D[y*W+x];
-  const Gl={seed,h,sea,hmax,water,e,dw,pk,D,J,centers,plazas,inds,villages,districts,dist_i,rivers,rail,arterials,highways,locals,
+  const Gl={seed,h,sea,hmax,water,e,dw,pk,D,J,rivSD,centers,plazas,inds,villages,districts,dist_i,rivers,rail,arterials,highways,locals,
     fac:{station:st,airport:ap,coach},popTotal:sumIn*900,citySeed,bounds:B.slice(),stage:0,roadUse,extraRoads:[],projects:[],lastProj:0};
   Gl.agents=buildAgents(Gl,B,STAGE_AGENTS[0],R);
   return Gl;
