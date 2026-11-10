@@ -18,6 +18,7 @@ function baseRows(job,count){
       r=c.sh[0]; g=c.sh[1]; b=c.sh[2]; mix(c.sea,smooth(sea-hv,0,0.05)); const wr=r,wg=g,wb=b;
       r=c.land[0]; g=c.land[1]; b=c.land[2];
       mix(c.hill,smooth((hv-sea)/(hmax-sea),0.42,0.8)*0.95);
+      if(G.shade){ const sv=bilinear(G.shade,fx,fy); if(sv>0){ const k=sv*0.28; r+=(255-r)*k*(c.land[0]>128?1:0.25); g+=(255-g)*k*(c.land[0]>128?1:0.25); b+=(255-b)*k*(c.land[0]>128?1:0.25); } else { const k=1+sv*0.17; r*=k; g*=k; b*=k; } }
       const dv=urban?Math.max(0,bilinear(D,fx,fy)):0, pv=bilinear(pk,fx,fy);
       const park=smooth(pv,0.26,0.31), forest=smooth(pv,0.12,0.22)*(1-smooth(dv,0.04,0.18)), gr=Math.max(park,forest*0.75);
       mix(park>forest?c.park:c.forest,gr);

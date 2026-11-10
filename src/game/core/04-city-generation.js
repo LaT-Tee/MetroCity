@@ -292,7 +292,9 @@ function generate(seed){
 
   const B=STAGES[0], citySeed=mkRoot(main.x,main.y,true);
   let sumIn=0; for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++) sumIn+=D[y*W+x];
-  const Gl={seed,h,sea,hmax,water,e,dw,pk,D,J,rivSD,centers,plazas,inds,villages,districts,dist_i,rivers,rail,arterials,highways,locals,
+  // relief: how much each cell faces the light from the north-west, for shading hills and mountains on the map
+  const shade=new Float32Array(n); for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){ const i=y*W+x; if(water[i]) continue; shade[i]=clamp(((h[i-1]-h[i+1])+(h[i-W]-h[i+W]))/(hmax-sea)*11,-1,1)*smooth(e[i],0.15,0.45); }
+  const Gl={seed,h,sea,hmax,water,e,dw,pk,D,J,rivSD,shade,centers,plazas,inds,villages,districts,dist_i,rivers,rail,arterials,highways,locals,
     fac:{station:st,airport:ap,coach},popTotal:sumIn*900,citySeed,bounds:B.slice(),stage:0,roadUse,extraRoads:[],projects:[],lastProj:0};
   Gl.agents=buildAgents(Gl,B,STAGE_AGENTS[0],R);
   return Gl;
