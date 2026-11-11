@@ -116,7 +116,8 @@ const W3D_KIND={
   shop:['shopTex',7,4.5,[0xffffff,0xf7f2ea,0xf1f4f6],{roughness:0.55}],
   shed:['shedTex',8,9,[0xe6eaee,0xd9e1e8,0xc9d4de,0xe8e3d8],{roughness:0.6,metalness:0.2}],
   house:['houseTex',4.2,2.9,W3D_HOUSE,{roughness:0.9}] };
-function w3dUnit(){ const g=new w3d.T.BoxGeometry(1,1,1); g.translate(0.5,0.5,0.5); return g; }
+// the unit box every building mass is an instance of; its underside is never seen, so it has none (a sixth fewer triangles in a city of boxes)
+function w3dUnit(){ const g=new w3d.T.BoxGeometry(1,1,1); g.translate(0.5,0.5,0.5); const ix=Array.from(g.index.array); ix.splice(18,6); g.setIndex(ix); g.clearGroups(); [0,1,2,4,5].forEach((m,k)=>g.addGroup(k*6,6,m)); return g; }
 // a pitched roof over the unit square: ridge along x (ax 0) or along z (ax 1), eaves at y 0, ridge at y 1
 function w3dRoofGeo(ax){ const T=w3d.T, g=new T.BufferGeometry(), v=ax===0
     ?[0,0,0, 1,1,0.5, 1,0,0, 0,0,0, 0,1,0.5, 1,1,0.5,  0,0,1, 1,0,1, 1,1,0.5, 0,0,1, 1,1,0.5, 0,1,0.5,  0,0,0, 0,0,1, 0,1,0.5,  1,0,0, 1,1,0.5, 1,0,1]
@@ -139,6 +140,8 @@ function w3dBoxes(){ const T=w3d.T, lists={}, plain=[], cyl=[], grow=[], H3=BZ3;
     // set every new building to a fraction of its height
     growTo(f){ for(const g of grow){ const q=g.q, a=q[4], b=q[5]; q[4]=a*f; q[5]=Math.max(b*f,1e-4); place(GM,q,GR,GP); q[4]=a; q[5]=b; g.m.setMatrixAt(g.i,GM); g.m.instanceMatrix.needsUpdate=true; } },
     shed(b,hh){ frame(b); const h=Math.min(b.h,0.09)*H3; put('shed',b.x,b.y,b.w,b.d,0,h,pal('shed',hh)); pl([b.x+b.w*0.2,b.y+b.d*0.2,b.w*0.15,b.d*0.15,h,0.006,0xb9bec4]); },
+    // a building far off in the haze: one mass, no more
+    block(b,hh){ frame(b); const k=b.h*150>48?'glass':'ribbon'; put(k,b.x,b.y,b.w,b.d,0,b.h*H3,pal(k,hh>>>12)); },
     mall(b,hh){ frame(b); const H=Math.max(b.h*H3,0.07), sh=4.5*H3/150*1.4; put('shop',b.x,b.y,b.w,b.d,0,sh,pal('shop',hh)); put('ribbon',b.x,b.y,b.w,b.d,sh,H-sh,pal('ribbon',hh>>>5));
       pl([b.x+b.w*0.2,b.y+b.d*0.96,b.w*0.6,0.004,H,0.022,[0xd9534f,0x3f7fbf,0xe0a030,0x4f9e62][hh&3]]); pl([b.x+b.w*0.06,b.y+b.d*0.08,b.w*0.5,b.d*0.6,H,0.004,0xcdd2d8]); pl([b.x+b.w*0.62,b.y+b.d*0.2,b.w*0.3,b.d*0.5,H,0.012,0xb7bcc2]); },
     building(b,d,hh,detail,kind){ frame(b); const hm=b.h*150, H=b.h*H3, r=(hh>>>4)&255, tower=!kind&&(hm>48||(b.h>0.28&&(hh&3)===0));
@@ -238,7 +241,8 @@ function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, a
     const mk=(k,fn,srgb)=>{ const cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(tw*k)); cv.height=Math.max(1,Math.round(th*k)); const g=cv.getContext('2d'); g.imageSmoothingEnabled=true;
       fn(g,tx0,ty0,tw,th,cv.width/tw); const tx=new T.CanvasTexture(cv); tx.colorSpace=srgb?T.SRGBColorSpace:T.NoColorSpace; tx.anisotropy=an; w3d.R.initTexture(tx); return tx; };
     const tx=mk(ppc,paint,true), rt=paintRough?mk(ppc/2,paintRough,false):null;
-    const sg=tw<20?2:1, geo=new T.PlaneGeometry(tw,th,Math.min(128,Math.ceil(tw*sg)),Math.min(128,Math.ceil(th*sg))); { const pa=geo.attributes.position; let any=false; for(let v=0;v<pa.count;v++){ const hv=w3dHt(tx0+tw/2+pa.getX(v),ty0+th/2-pa.getY(v)); if(hv>1e-4){ pa.setZ(v,hv); any=true; } } if(any) geo.computeVertexNormals(); }
+    let hilly=false; for(let b=ty0;b<=ty0+th&&!hilly;b+=1) for(let a=tx0;a<=tx0+tw;a+=1) if(w3dHt(a,b)>1e-4){ hilly=true; break; }
+    const sg=tw<20?2:1, geo=hilly?new T.PlaneGeometry(tw,th,Math.min(128,Math.ceil(tw*sg)),Math.min(128,Math.ceil(th*sg))):new T.PlaneGeometry(tw,th); if(hilly){ const pa=geo.attributes.position; for(let v=0;v<pa.count;v++){ const hv=w3dHt(tx0+tw/2+pa.getX(v),ty0+th/2-pa.getY(v)); if(hv>1e-4) pa.setZ(v,hv); } geo.computeVertexNormals(); }
     const m=new T.Mesh(geo,mat(tx,rt)); m.rotation.x=-Math.PI/2; m.position.set(tx0+tw/2,y,ty0+th/2); m.receiveShadow=true; put(m); yield; } }
 // material settings for anything lying on the ground: it is left out where a cutting has been marked (see the mask in w3dBuild)
 function w3dCut(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:1,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
@@ -582,36 +586,39 @@ function* w3dLocalGen(cx,cy,grp,far){
     for(let a=-z.len/2;a<=z.len/2;a+=0.06) for(let c=-z.half;c<=z.half;c+=0.06){ const x=z.x+z.hx*a+nx*c, y=z.y+z.hy*a+ny*c; near.add(Math.floor(x*8)*100000+Math.floor(y*8)); } }
   yield;
   const hit=b=>{ const m=b.a?0.04+Math.abs(b.w-b.d)*0.5:0.04; for(let yy=Math.floor((b.y-m)*8);yy<=Math.floor((b.y+b.d+m)*8);yy++) for(let xx=Math.floor((b.x-m)*8);xx<=Math.floor((b.x+b.w+m)*8);xx++) if(near.has(xx*100000+yy)) return true; return false; };
-  const R=30, house=[], spires=[], ind=(G.projects||[]).filter(p=>p.type==='p_ind'||p.type==='p_port'), bx=w3dBoxes();
+  // Buildings are drawn in full only as far as the haze lets them be seen, and only those close enough to throw a shadow the viewer could
+  // see are given to the shadow pass (it draws every instance of a mesh it is given, in view or not): near ones with roof details in one
+  // set, the rest plainer in another.
+  const R=26, RN=11, house=[], spires=[], ind=(G.projects||[]).filter(p=>p.type==='p_ind'||p.type==='p_port'), bx=w3dBoxes(), bxM=w3dBoxes();
   const HR=6, HN=2*(R+2)*HR, hg={x0:cx-R-2,y0:cy-R-2,res:HR,n:HN,a:new Float32Array(HN*HN)};
   const keys=new Set(), prevK=w3d.bKeys, prevC=w3d.bKC, hgrow=[]; let nBorn=0;
   bldInRect(cx-R,cy-R,cx+R,cy+R,b=>{ if(dist(b.x,b.y,cx,cy)>R||hit(b)) return;
-    const bk=Math.round(b.x*40)*200003+Math.round(b.y*40), isNew=!!prevK&&!prevK.has(bk)&&dist(b.x,b.y,prevC[0],prevC[1])<R-2; keys.add(bk); if(isNew) nBorn++; bx.setBorn(isNew); const h0=house.length;
+    const bk=Math.round(b.x*40)*200003+Math.round(b.y*40), isNew=!!prevK&&!prevK.has(bk)&&dist(b.x,b.y,prevC[0],prevC[1])<R-2; keys.add(bk); if(isNew) nBorn++; const nearB=dist(b.x,b.y,cx,cy)<=RN, B_=nearB?bx:bxM; B_.setBorn(isNew); const h0=house.length;
     { const q=bldCorners(b), hv=b.h*BZ3, i0=Math.max(0,Math.floor((Math.min(q[0],q[2],q[4],q[6])-hg.x0)*HR)), i1=Math.min(HN-1,Math.floor((Math.max(q[0],q[2],q[4],q[6])-hg.x0)*HR)), j0=Math.max(0,Math.floor((Math.min(q[1],q[3],q[5],q[7])-hg.y0)*HR)), j1=Math.min(HN-1,Math.floor((Math.max(q[1],q[3],q[5],q[7])-hg.y0)*HR));
       for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++) if(hg.a[j*HN+i]<hv) hg.a[j*HN+i]=hv; } const i=Math.round(b.y)*W+Math.round(b.x), d=G.D[i]||0, hm=b.h*150, hh=hashInt(i*13+Math.round(b.x*97)+Math.round(b.y*61));
     if(b.sp==='church'){ house.push({x:b.x,y:b.y,w:b.w,d:b.d,h:b.h*1.25,r:(hh&~0xf0)|0x20,a:b.a||0,px:b.x+b.w/2,pz:b.y+b.d/2,wall:0xe9e3d7}); spires.push(b); return; }
-    if(b.sp==='mall'){ bx.mall(b,hh); return; } if(b.sp==='school'){ bx.building(b,d,hh,true,'brick'); return; }
+    if(b.sp==='mall'){ B_.mall(b,hh); return; } if(b.sp==='school'){ B_.building(b,d,hh,nearB,'brick'); return; }
     if(b.sp==='library'){ house.push({x:b.x,y:b.y,w:b.w,d:b.d,h:b.h*1.3,r:(hh&~0xf0)|0x40,a:b.a||0,px:b.x+b.w/2,pz:b.y+b.d/2,wall:0xe6dfd0}); return; }
-    if(b.sp==='gym'){ bx.building(b,d,hh,true,'shed'); return; } if(b.sp==='gov'||b.sp==='hospital'){ bx.building(b,d,hh,true,'plaster'); return; }
-    if(ind.some(p=>dist(p.x,p.y,b.x,b.y)<6)&&hm<30){ bx.shed(b,hh); return; }
+    if(b.sp==='gym'){ B_.building(b,d,hh,nearB,'shed'); return; } if(b.sp==='gov'||b.sp==='hospital'){ B_.building(b,d,hh,nearB,'plaster'); return; }
+    if(ind.some(p=>dist(p.x,p.y,b.x,b.y)<6)&&hm<30){ B_.shed(b,hh); return; }
     if(hm<14&&d<0.5){ const nx=Math.max(1,Math.round(b.w/0.1)), ny=Math.max(1,Math.round(b.d/0.09)), sx=b.w/nx, sy=b.d/ny;   // a plot of detached houses
       for(let a=0;a<nx;a++) for(let c=0;c<ny;c++){ const r=hashInt(hh+a*31+c*7), one=nx*ny===1; house.push({born:isNew,x:b.x+a*sx+(one?0:sx*0.12),y:b.y+c*sy+(one?0:sy*0.12),w:one?sx:sx*(0.62+(r&15)/80),d:one?sy:sy*(0.6+((r>>4)&15)/80),h:b.h*(0.8+((r>>8)&15)/40),r,a:b.a||0,px:b.x+b.w/2,pz:b.y+b.d/2}); } return; }
-    bx.building(b,d,hh,true); });
+    B_.building(b,d,hh,nearB); });
   { const put=(x,z,hv)=>{ const i=Math.floor((x-hg.x0)*HR), j=Math.floor((z-hg.y0)*HR); if(i>=0&&j>=0&&i<HN&&j<HN&&hg.a[j*HN+i]<hv) hg.a[j*HN+i]=hv; };
     for(const q of (w3d.stSpots||[])){ if(!q.h||Math.abs(q.x-cx)>R+8||Math.abs(q.y-cy)>R+8) continue; const nx=-q.hy, ny=q.hx; for(let a=-q.len/2;a<=q.len/2;a+=0.1) for(let c=-q.half;c<=q.half;c+=0.1) put(q.x+q.hx*a+nx*c,q.y+q.hy*a+ny*c,q.h); }
     for(const L of lines){ const P=L._p3; if(L.stops.length<2||!P) continue; for(let i=0;i<P.pts.length;i++){ const y=P.Y[i]; if(y<0.004) continue; const p=P.pts[i]; if(Math.abs(p[0]-cx)>R||Math.abs(p[1]-cy)>R) continue; for(const [ax,az] of [[0,0],[0.1,0],[-0.1,0],[0,0.1],[0,-0.1]]) put(p[0]+ax,p[1]+az,y+0.05); } } }
   yield;
   // houses: plastered or sided walls under pitched roofs in tile, slate or sheet metal, the ridge along the longer side
-  if(house.length){ const M=new T.Matrix4(), R=new T.Matrix4(), Pv=new T.Matrix4(), col=new T.Color(), mats=w3dMats(), hg0=w3dUnit(), hrep=new Float32Array(house.length*3), hw=new T.InstancedMesh(hg0,[mats.house,mats.house,mats.roof,mats.roof,mats.house,mats.house],house.length), turn=o=>{ if(o.a){ R.makeRotationY(-o.a); Pv.makeTranslation(o.px,0,o.pz); M.premultiply(Pv.clone().invert()).premultiply(R).premultiply(Pv); } };
+  for(const [house_,cast] of [[house.filter(o=>dist(o.x,o.y,cx,cy)<=RN),true],[house.filter(o=>dist(o.x,o.y,cx,cy)>RN),false]]) if(house_.length){ const house=house_, M=new T.Matrix4(), R=new T.Matrix4(), Pv=new T.Matrix4(), col=new T.Color(), mats=w3dMats(), hg0=w3dUnit(), hrep=new Float32Array(house.length*3), hw=new T.InstancedMesh(hg0,[mats.house,mats.house,mats.roof,mats.roof,mats.house,mats.house],house.length), turn=o=>{ if(o.a){ R.makeRotationY(-o.a); Pv.makeTranslation(o.px,0,o.pz); M.premultiply(Pv.clone().invert()).premultiply(R).premultiply(Pv); } };
     house.forEach((o,i)=>{ hrep[i*3]=Math.max(1,Math.round(o.w*150/4.2)); hrep[i*3+1]=Math.max(1,Math.round(o.h*150*0.7/2.9)); hrep[i*3+2]=Math.max(1,Math.round(o.d*150/4.2)); });
     hg0.setAttribute('aRep',new T.InstancedBufferAttribute(hrep,3));
-    house.forEach((o,i)=>{ M.makeScale(o.w,o.h*BZ3*0.7,o.d).setPosition(o.x,0,o.y); turn(o); hw.setMatrixAt(i,M); if(o.born) hgrow.push(f=>{ M.makeScale(o.w,Math.max(o.h*BZ3*0.7*f,1e-4),o.d).setPosition(o.x,0,o.y); turn(o); hw.setMatrixAt(i,M); hw.instanceMatrix.needsUpdate=true; }); col.set(o.wall||W3D_HOUSE[o.r%W3D_HOUSE.length]); hw.setColorAt(i,col); }); hw.castShadow=hw.receiveShadow=true; add(hw);
+    house.forEach((o,i)=>{ M.makeScale(o.w,o.h*BZ3*0.7,o.d).setPosition(o.x,0,o.y); turn(o); hw.setMatrixAt(i,M); if(o.born) hgrow.push(f=>{ M.makeScale(o.w,Math.max(o.h*BZ3*0.7*f,1e-4),o.d).setPosition(o.x,0,o.y); turn(o); hw.setMatrixAt(i,M); hw.instanceMatrix.needsUpdate=true; }); col.set(o.wall||W3D_HOUSE[o.r%W3D_HOUSE.length]); hw.setColorAt(i,col); }); hw.castShadow=cast; hw.receiveShadow=true; add(hw);
     for(const ax of [0,1]){ const L=house.filter(o=>(o.w>=o.d)===(ax===0)); if(!L.length) continue; const rm=new T.InstancedMesh(w3dRoofGeo(ax),mats.houseRoof,L.length);
       L.forEach((o,i)=>{ const ex=0.012; M.makeScale(o.w+ex,o.h*BZ3*(0.4+((o.r>>14)&7)/40),o.d+ex).setPosition(o.x-ex/2,o.h*BZ3*0.7,o.y-ex/2); turn(o); rm.setMatrixAt(i,M); if(o.born) hgrow.push(f=>{ M.makeScale(o.w+ex,Math.max(o.h*BZ3*(0.4+((o.r>>14)&7)/40)*smooth(f,0.7,1),1e-4),o.d+ex).setPosition(o.x-ex/2,o.h*BZ3*0.7*f,o.y-ex/2); turn(o); rm.setMatrixAt(i,M); rm.instanceMatrix.needsUpdate=true; }); col.set(W3D_ROOF[(o.r>>4)%W3D_ROOF.length]); rm.setColorAt(i,col); });
-      rm.castShadow=rm.receiveShadow=true; add(rm); } }
+      rm.castShadow=cast; rm.receiveShadow=true; add(rm); } }
   yield;
   // blocks and towers, grouped by facade so each kind is one draw call
-  for(const m of bx.meshes(true)){ add(m); yield; }
+  for(const m of bx.meshes(true)){ add(m); yield; } for(const m of bxM.meshes(false)){ m.receiveShadow=true; add(m); yield; }
   // trees: in parks and woods, and lining residential streets
   const M=new T.Matrix4(), col=new T.Color(), trees=[]; const r2=27;
   for(let y=Math.floor(cy-r2);y<=cy+r2;y++) for(let x=Math.floor(cx-r2);x<=cx+r2;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]||(G.air&&G.air[i])) continue; const pk=G.pk[i], d=G.D[i];
@@ -632,24 +639,29 @@ function* w3dLocalGen(cx,cy,grp,far){
     trees.length=0; for(const t of keepT) trees.push(t); }
   if(trees.length){ const greens=dark?[0x2e4a2c,0x34522f,0x2a4230]:[0x5f8f45,0x6e9a4c,0x4f7f3f,0x7aa356,0x587f3a], V=new T.Vector3(), Q=new T.Quaternion(), Sc=new T.Vector3(), up=new T.Vector3(0,1,0);
     // three kinds of tree: a broad crown in two masses, a conifer in two tiers, a tall narrow one; the number a tree carries picks its kind and its green
-    const TR=new T.Matrix4(), geo=(kind,det)=>{ const tr={g:new T.CylinderGeometry(0.0011,0.0017,0.012,5),m:new T.Matrix4().makeTranslation(0,0.006,0),c:0x6b5440};
-        if(kind===1) return w3dMerge([tr,{g:new T.ConeGeometry(0.0068,0.017,det?8:6),m:new T.Matrix4().makeTranslation(0,0.0165,0),c:0xffffff},{g:new T.ConeGeometry(0.0048,0.014,det?8:6),m:new T.Matrix4().makeTranslation(0,0.027,0),c:0xf0f0f0}]);
-        if(kind===2) return w3dMerge([tr,{g:new T.IcosahedronGeometry(0.006,det),m:new T.Matrix4().makeTranslation(0,0.021,0).multiply(TR.makeScale(0.8,1.9,0.8)),c:0xffffff}]);
-        return w3dMerge([tr,{g:new T.IcosahedronGeometry(0.0082,det),m:new T.Matrix4().makeTranslation(0,0.0165,0).multiply(TR.makeScale(1,0.82,1)),c:0xffffff},{g:new T.IcosahedronGeometry(0.0058,det),m:new T.Matrix4().makeTranslation(0.0032,0.0225,0.0018),c:0xe9e9e9},{g:new T.IcosahedronGeometry(0.005,det),m:new T.Matrix4().makeTranslation(-0.0036,0.0195,-0.002),c:0xdcdcdc}]); };
+    // Trees are most of what there is to draw in a town, so they are modelled twice: near the viewer with a trunk and a crown in
+    // several masses, further off as one or two plain solids of the same outline (a fifth of the triangles; at that distance it shows no difference).
+    const TR=new T.Matrix4(), geo=(kind,det)=>{ const tr={g:new T.CylinderGeometry(0.0011,0.0017,0.012,5,1,true),m:new T.Matrix4().makeTranslation(0,0.006,0),c:0x6b5440};
+        if(kind===1) return w3dMerge(det?[tr,{g:new T.ConeGeometry(0.0068,0.017,7,1,true),m:new T.Matrix4().makeTranslation(0,0.0165,0),c:0xffffff},{g:new T.ConeGeometry(0.0048,0.014,7,1,true),m:new T.Matrix4().makeTranslation(0,0.027,0),c:0xf0f0f0}]
+                                    :[{g:new T.ConeGeometry(0.0066,0.03,5,1,true),m:new T.Matrix4().makeTranslation(0,0.019,0),c:0xf6f6f6}]);
+        if(kind===2) return w3dMerge(det?[tr,{g:new T.IcosahedronGeometry(0.006,1),m:new T.Matrix4().makeTranslation(0,0.021,0).multiply(TR.makeScale(0.8,1.9,0.8)),c:0xffffff}]
+                                    :[{g:new T.IcosahedronGeometry(0.006,0),m:new T.Matrix4().makeTranslation(0,0.019,0).multiply(TR.makeScale(0.8,2.1,0.8)),c:0xffffff}]);
+        return w3dMerge(det?[tr,{g:new T.IcosahedronGeometry(0.0082,1),m:new T.Matrix4().makeTranslation(0,0.0165,0).multiply(TR.makeScale(1,0.82,1)),c:0xffffff},{g:new T.IcosahedronGeometry(0.0058,0),m:new T.Matrix4().makeTranslation(0.0032,0.0225,0.0018),c:0xe9e9e9},{g:new T.IcosahedronGeometry(0.005,0),m:new T.Matrix4().makeTranslation(-0.0036,0.0195,-0.002),c:0xdcdcdc}]
+                       :[{g:new T.IcosahedronGeometry(0.0088,0),m:new T.Matrix4().makeTranslation(0,0.0165,0).multiply(TR.makeScale(1,1.05,1)),c:0xf4f4f4}]); };
     const kindOf=p=>{ if(p[4]!=null) return p[4]; const k=(p[3]>>>3)%10; return k<7?0:k<9?1:2; }, GR=[greens,dark?[0x24402a,0x2a4630]:[0x3f6f45,0x4a7a4c,0x356338],dark?[0x2e4a2c]:[0x6a9a4a,0x7aa356]];
     const mk=(list,det,shadow)=>{ for(let kind=0;kind<3;kind++){ const L=list.filter(p=>kindOf(p)===kind); if(!L.length) continue;
         const tm=new T.InstancedMesh(geo(kind,det),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,flatShading:true})),L.length), gp=GR[kind];
         L.forEach((p,i)=>{ Q.setFromAxisAngle(up,(p[3]&255)/40); Sc.set(p[2],p[2]*(0.9+((p[3]>>8)&63)/150),p[2]); M.compose(V.set(p[0],w3dHt(p[0],p[1]),p[1]),Q,Sc); tm.setMatrixAt(i,M); col.set(gp[(p[3]>>>11)%gp.length]); tm.setColorAt(i,col); });
         tm.castShadow=shadow; tm.receiveShadow=true; add(tm); } };
-    mk(trees.filter(p=>dist(p[0],p[1],cx,cy)<=8),1,true); yield; mk(trees.filter(p=>dist(p[0],p[1],cx,cy)>8),0,false); }
+    mk(trees.filter(p=>dist(p[0],p[1],cx,cy)<=6),1,true); yield; mk(trees.filter(p=>{ const d=dist(p[0],p[1],cx,cy); return d>6&&(d<17||(p[3]&3)!==0); }),0,false); }      /* in the haze a quarter of them are left out */
   yield;
   // the skyline further out: the same facades, without shadows, softened by the haze
-  { const fb=w3dBoxes(); bldInRect(cx-70,cy-70,cx+70,cy+70,b=>{ const dd=dist(b.x,b.y,cx,cy); if(dd>R&&dd<70&&b.h>0.1){ const i=Math.round(b.y)*W+Math.round(b.x); fb.building(b,G.D[i]||0,hashInt(i*13+Math.round(b.x*97)+Math.round(b.y*61)),false); } });
+  { const fb=w3dBoxes(); bldInRect(cx-56,cy-56,cx+56,cy+56,b=>{ const dd=dist(b.x,b.y,cx,cy); if(dd>R&&dd<56&&b.h>0.13){ const i=Math.round(b.y)*W+Math.round(b.x); fb.block(b,hashInt(i*13+Math.round(b.x*97)+Math.round(b.y*61))); } });
     for(const m of fb.meshes(false)){ add(m); yield; } }
   // traffic on the streets near the line
   yield; const cars=far||!w3d.cars?w3dCars(cx,cy,m=>w3d.S.add(m)):w3d.cars;      /* the traffic carries on across rebuilds */
   // what was not here at the last look goes up over a quarter of a minute rather than appearing between two frames
-  const G2=nBorn>0&&nBorn<700?{t:0,bx,hgrow}:null; if(G2){ bx.growTo(0); hgrow.forEach(f=>f(0)); }
+  const G2=nBorn>0&&nBorn<700?{t:0,bx:{growTo:f=>{ bx.growTo(f); bxM.growTo(f); }},hgrow}:null; if(G2){ G2.bx.growTo(0); hgrow.forEach(f=>f(0)); }
   return ()=>{ const old=w3d.local.slice(), drop=l=>{ for(const g of l) w3dTrash([...g.children,g]); }; if(w3d.reveal){ old.push(...w3d.reveal.old); w3d.reveal=null; }
     grp.visible=true; w3d.local=[grp]; if(far||!old.length) drop(old); else { const kids=grp.children.slice(); kids.forEach(k=>{ k.visible=false; }); w3d.reveal={kids,old,drop}; }
     if(cars!==w3d.cars){ if(w3d.cars) w3dTrash([w3d.cars.m]); w3d.cars=cars; } w3d.hg=hg; w3d.bKeys=keys; w3d.bKC=[cx,cy]; w3d.grow=G2; }; }
