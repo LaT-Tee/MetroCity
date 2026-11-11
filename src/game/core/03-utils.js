@@ -52,3 +52,16 @@ function setHTML(el,html){ if(!el) return; if(el._h!==html){ el.innerHTML=html; 
 // is this point in the water, or within m cells of it? The coast comes from the height field and the rivers from their
 // own distance field, both read between the cells, so the answer follows the drawn shoreline rather than whole cells
 function wetAt(x,y,m){ m=m||0; if(x<0||y<0||x>W-1||y>H-1) return true; if(bilinear(G.h,x,y)<G.sea+0.004+m*0.012) return true; return !!G.rivSD&&bilinear(G.rivSD,x,y)<m; }
+/* The ground an airport takes, as a mask over the cells. Bit 1 is the airfield itself (runways, taxiways, apron) and the
+   terminal block: nothing else exists there, no street crosses it, nothing is built, planted or laid out as a park.
+   Bit 2 is the precinct round it and in front of the terminal: the access road comes in here, but nothing is built or
+   planted. Everything that puts things on the map asks this mask, so an airport is never something else as well. */
+function airFrame(ap){ const ca=Math.cos(ap.a), sa=Math.sin(ap.a), tz=(ap.term.x-ap.x)*-sa+(ap.term.y-ap.y)*ca, ts=tz>=0?1:-1; return {ca,sa,tz:Math.abs(tz),ts}; }
+// where the road from the city arrives: in front of the terminal, on the side away from the runways
+function airGate(ap){ const f=airFrame(ap), d=f.tz+1.7; return {x:ap.x-f.sa*f.ts*d,y:ap.y+f.ca*f.ts*d}; }
+function airMaskOf(list){ const m=new Uint8Array(W*H);
+  for(const ap of list){ const f=airFrame(ap);
+    for(let y=Math.max(0,Math.floor(ap.y-15));y<=Math.min(H-1,Math.ceil(ap.y+15));y++) for(let x=Math.max(0,Math.floor(ap.x-15));x<=Math.min(W-1,Math.ceil(ap.x+15));x++){
+      const dx=x-ap.x, dy=y-ap.y, lx=dx*f.ca+dy*f.sa, lz=(-dx*f.sa+dy*f.ca)*f.ts; if(Math.abs(lx)>12.6||lz<-5.2||lz>f.tz+2.8) continue;
+      m[y*W+x]|=(Math.abs(lx)<=11.9&&lz>=-4.5&&lz<f.tz-0.4)||(Math.abs(lx)<=4.8&&lz<f.tz+1.3)?1:2; } }
+  return m; }

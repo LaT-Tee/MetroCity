@@ -61,7 +61,7 @@ function bldTile(tx,ty){
     for(let pass=0;pass<2;pass++){ const g=pass?0:gap; for(let gy=gy0;gy<=gy1;gy++) for(let gx=gx0;gx<=gx1;gx++){ const px=ox+(gx+0.5)/BLD_OC-cx, py=oy+(gy+0.5)/BLD_OC-cy, u=px*ca+py*sa, v=-px*sa+py*ca;
         if(Math.abs(u)<=hw+g&&Math.abs(v)<=hd+g){ if(pass) occ[gy*ON+gx]=1; else if(occ[gy*ON+gx]) return false; } } }
     occ[ci]=1; return true; };
-  const okGround=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); if(xi<B[0]||yi<B[1]||xi>=B[2]||yi>=B[3]) return -1; const i=yi*W+xi; return water[i]||pk[i]>0.255?-1:D[i]; };
+  const okGround=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); if(xi<B[0]||yi<B[1]||xi>=B[2]||yi>=B[3]) return -1; const i=yi*W+xi; return water[i]||pk[i]>0.255||(G.air&&G.air[i])?-1:D[i]; };
   const inTile=(x,y)=>x>=x0-0.5&&x<x0+BLD_T-0.5&&y>=y0-0.5&&y<y0+BLD_T-0.5;
   // the whole footprint on dry land, a little back from the bank
   const dry=(cx,cy,hw,hd,ca,sa)=>{ const ux=hw*ca, uy=hw*sa, vx=-hd*sa, vy=hd*ca; return !(wetAt(cx,cy,0.06)||wetAt(cx-ux-vx,cy-uy-vy,0.05)||wetAt(cx+ux-vx,cy+uy-vy,0.05)||wetAt(cx+ux+vx,cy+uy+vy,0.05)||wetAt(cx-ux+vx,cy-uy+vy,0.05)); };
@@ -135,6 +135,16 @@ function bldInRect(x0,y0,x1,y1,cb){
 function bldFeatInRect(x0,y0,x1,y1,cb){ for(let ty=Math.floor((y0-1)/BLD_T);ty<=Math.floor((y1+1)/BLD_T);ty++) for(let tx=Math.floor((x0-1)/BLD_T);tx<=Math.floor((x1+1)/BLD_T);tx++){ if(tx<0||ty<0||tx*BLD_T>=W||ty*BLD_T>=H) continue; for(const f of bldTile(tx,ty).feat) if(f.x+f.w+0.3>=x0&&f.x-0.3<=x1&&f.y+f.d+0.3>=y0&&f.y-0.3<=y1) cb(f); } }
 // a point of a plot given along (u) and across (v) it, each from -1 to 1
 function featPt(f,u,v){ const ca=Math.cos(f.a), sa=Math.sin(f.a), lx=u*f.w/2, lz=v*f.d/2; return [f.x+f.w/2+lx*ca-lz*sa,f.y+f.d/2+lx*sa+lz*ca]; }
+// The trees of a park or a churchyard, as [along, across, size, number] with along/across from -1 to 1. A park is laid
+// out, not sown: a row inside each edge, an avenue either side of the two paths, and a clump in one or two of the lawns.
+function featTrees(f){ const o=[], put=(u,v,s,k)=>o.push([u,v,s,hashInt(f.r+k*7919)]);
+  if(f.k==='church'){ let k=0; for(const u of [-0.85,0.85]) for(let v=-0.8;v<=0.85;v+=0.4) put(u,v,0.85,k++); put(-0.4,0.86,0.8,k++); put(0.4,0.86,0.8,k++); return o; }
+  const nu=Math.max(3,Math.round(f.w/0.085)), nv=Math.max(3,Math.round(f.d/0.085)); let k=0;
+  for(let i=0;i<=nu;i++){ const u=-0.9+1.8*i/nu; if(Math.abs(u)<0.14) continue; put(u,-0.9,0.9,k++); put(u,0.9,0.9,k++); }
+  for(let i=1;i<nv;i++){ const v=-0.9+1.8*i/nv; if(Math.abs(v)<0.14) continue; put(-0.9,v,0.9,k++); put(0.9,v,0.9,k++); }
+  if(f.w>0.55) for(let i=1;i<nu;i++){ const u=-0.9+1.8*i/nu; if(Math.abs(u)<0.2||Math.abs(u)>0.8) continue; put(u,-0.13,0.7,k++); put(u,0.13,0.7,k++); }
+  const q=f.r>>>3, cl=[[-0.5,-0.5],[0.5,-0.5],[-0.5,0.5],[0.5,0.5]]; for(const c of [cl[q&3],cl[(q>>2)&3]]){ if(f.w>0.7&&c[0]>0&&c[1]>0) continue; for(let j=0;j<5;j++){ const h=hashInt(f.r+j*131+c[0]*17+c[1]*29); put(c[0]+((h&255)/255-0.5)*0.34,c[1]+(((h>>8)&255)/255-0.5)*0.34,0.9+((h>>16)&63)/90,k++); } }
+  return o; }
 // the four corners of a building's footprint, turned about its centre
 function bldCorners(b,dx,dy){ const cx=b.x+b.w/2+(dx||0), cy=b.y+b.d/2+(dy||0), hw=b.w/2, hd=b.d/2; if(!b.a) return [cx-hw,cy-hd,cx+hw,cy-hd,cx+hw,cy+hd,cx-hw,cy+hd];
   const ca=Math.cos(b.a), sa=Math.sin(b.a), ux=hw*ca, uy=hw*sa, vx=-hd*sa, vy=hd*ca; return [cx-ux-vx,cy-uy-vy,cx+ux-vx,cy+uy-vy,cx+ux+vx,cy+uy+vy,cx-ux+vx,cy-uy+vy]; }
@@ -158,13 +168,12 @@ function bldPaths(t,tx,ty){ if(t.p) return t.p;
     poly(rimB.next(),q); poly(rfB[b.h*150<14?2+(b.c&3):(b.c&1)].next(),q); }
   const tz=0.06, tree=(px,py,r)=>{ if(G.rn){ const h=rnNearEdge(G.rn,px,py,0.22); if(h&&h.d<ROAD_W[G.rn.ec[h.e]]/2+r*0.7) return; }      /* not in the roadway */
     const ts=tsB.next(), tr=trB.next(); ts.moveTo(px+r+0.04,py+0.03); ts.arc(px+0.04,py+0.03,r,0,6.283); tr.moveTo(px+r,py-tz*0.4); tr.arc(px,py-tz*0.4,r,0,6.283); };
-  for(let y=ty*BLD_T;y<(ty+1)*BLD_T;y++) for(let x=tx*BLD_T;x<(tx+1)*BLD_T;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]) continue; const pk=G.pk[i], n=pk>0.27?6:pk>0.255?3:(pk>0.12&&G.D[i]<0.05)?4:0;
+  for(let y=ty*BLD_T;y<(ty+1)*BLD_T;y++) for(let x=tx*BLD_T;x<(tx+1)*BLD_T;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]||(G.air&&G.air[i])) continue; const pk=G.pk[i], n=pk>0.27?6:pk>0.255?3:(pk>0.12&&G.D[i]<0.05)?4:0;
     for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), px=x-0.5+(h&1023)/1023, py=y-0.5+((h>>10)&1023)/1023; if(!wetAt(px,py,0.05)) tree(px,py,0.07+((h>>20)&63)/63*0.05); } }
   // grounds: one path per kind, plus white markings, footpaths and ponds
   const g={park:new Path2D(),play:new Path2D(),plaza:new Path2D(),pitch:new Path2D(),lot:new Path2D(),yard:new Path2D(),water:new Path2D(),line:new Path2D(),path:new Path2D(),dotA:new Path2D(),dotB:new Path2D()};
   for(const f of t.feat){ const q=bldCorners(f), P=(u,v)=>featPt(f,u,v), ln=(p,a,b)=>{ p.moveTo(a[0],a[1]); p.lineTo(b[0],b[1]); }, kind={school:'yard',church:'park',mall:'lot',library:'plaza',gov:'plaza',hospital:'plaza',gym:'yard',stadium:'yard'}[f.k]||f.k; poly(g[kind],q);
-    if(f.k==='park'||f.k==='church'){ let h=f.r; const n=Math.round(f.w*f.d*(f.k==='park'?34:16));
-      for(let k=0;k<n;k++){ h=hashInt(h+k); const u=((h&1023)/1023*2-1)*0.9, v=(((h>>10)&1023)/1023*2-1)*0.9; if(f.k==='church'&&Math.abs(u)<0.6&&v<0.7) continue; if(Math.abs(u)<0.12||Math.abs(v)<0.1) continue; const c=P(u,v); tree(c[0],c[1],0.035+((h>>20)&63)/63*0.03); }
+    if(f.k==='park'||f.k==='church'){ for(const [u,v,sz] of featTrees(f)){ const c=P(u,v); tree(c[0],c[1],0.036*sz); }
       if(f.k==='park'){ ln(g.path,P(-1,0),P(1,0)); ln(g.path,P(0,-1),P(0,1)); if(f.w>0.7){ const c=P(0.45,0.45); g.water.moveTo(c[0]+f.w*0.14,c[1]); g.water.ellipse(c[0],c[1],f.w*0.14,f.d*0.12,f.a,0,6.283); } } }
     else if(f.k==='stadium'){ const m=0.5; poly(g.pitch,[...P(-m,-m),...P(m,-m),...P(m,m),...P(-m,m)]); ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); for(const e of [0.66,0.82,0.96]){ ln(g.path,P(-e,-e),P(e,-e)); ln(g.path,P(e,-e),P(e,e)); ln(g.path,P(e,e),P(-e,e)); ln(g.path,P(-e,e),P(-e,-e)); } }
     else if(f.k==='pitch'){ const m=0.9; ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); const c=P(0,0); g.line.moveTo(c[0]+f.d*0.16,c[1]); g.line.arc(c[0],c[1],f.d*0.16,0,6.283); }

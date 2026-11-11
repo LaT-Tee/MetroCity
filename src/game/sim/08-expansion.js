@@ -20,7 +20,7 @@ function freshSeed(x,y){
 function evolvePlaces(){
   const ev=[];
   for(const p of [...G.villages,...G.centers.filter(c=>c.type==='sub'||c.type==='twin')]){
-    if(!inB(p.x,p.y)) continue;
+    if(!inB(p.x,p.y)||p.gone) continue;
     p.age=(p.age||0)+1; if(p.age<12) continue;                       // at most one step per game year
     const t=tierOf(p), pop=popAround(p.x,p.y,9); let nt=t;
     if(t>=1&&!servedNear(p.x,p.y,16)) continue;                       // villages grow into towns by themselves; beyond that needs the metro
@@ -41,6 +41,7 @@ function evolvePlaces(){
 function placeState(){ const nb=G.villages.filter(v=>!v.born).length; return {fac2:G.fac2||[], roads:[], rn:G.rn?rnEncode(G.rn):null, ra:G.roadsAdded||0, dq:encodeD(), v:G.villages.slice(0,nb).map(v=>v.name.k), born:G.villages.filter(v=>v.born).map(v=>[Math.round(v.x*10)/10,Math.round(v.y*10)/10,v.name.s,v.name.k]), c:G.centers.map(c=>c.name.k), boosts:growth.boosts, pj:(G.projects||[]).map(p=>[p.t,p.x,p.y,p.s,p.m0,p.done?1:0]), lp:G.lastProj||0}; }
 function applyPlaceState(ps){
   if(!ps) return;
+  G.fac2=(ps.fac2||[]).slice(); G.air=airMaskOf([G.fac.airport,...G.fac2.filter(o=>o.t==='air')]);      /* before the streets are read back: none are kept on an airfield */
   (ps.v||[]).forEach((k,i)=>{ if(G.villages[i]) G.villages[i].name.k=k; });
   (ps.born||[]).forEach(([x,y,sd,k])=>G.villages.push({x,y,name:{s:sd,k},s:3,w:0,ang:0,born:true}));
   (ps.c||[]).forEach((k,i)=>{ if(G.centers[i]) G.centers[i].name.k=k; });

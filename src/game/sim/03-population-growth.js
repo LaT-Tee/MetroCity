@@ -3,7 +3,7 @@ function initGrowth(){
   const n=W*H, S=new Float32Array(n), ap=G.fac.airport;
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=y*W+x; if(G.water[i]) continue;
     const park=smooth(G.pk[i],0.26,0.31), hill=smooth(G.e[i],0.45,0.78), ad=dist(x,y,ap.x,ap.y);
-    S[i]=(1-0.92*park)*(1-0.85*hill)*(ad<14?smooth(ad,10,14):1); }
+    S[i]=G.air&&G.air[i]?0:(1-0.92*park)*(1-0.85*hill)*(ad<14?smooth(ad,10,14):1); }
   growth={S,U:new Float32Array(n),D0:Float32Array.from(G.D),J0:Float32Array.from(G.J),pop0:G.popTotal,lastBaseD:Float32Array.from(G.D),lastBaseT:0,boosts:[]};
 }
 function growthTick(){ const g=growthGen(); let r; while(!(r=g.next()).done); return r.value; }

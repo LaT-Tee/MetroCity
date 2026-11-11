@@ -155,6 +155,7 @@ function generate(seed){
   if(!ap) ap={x:clamp(main.x+50,116,484),y:main.y,a:0};
   ap.term={x:ap.x-Math.sin(ap.a)*5.5, y:ap.y+Math.cos(ap.a)*5.5};
   if(!land(ap.term.x,ap.term.y)) ap.term={x:ap.x+Math.sin(ap.a)*5.5, y:ap.y-Math.cos(ap.a)*5.5};
+  const air=airMaskOf([ap]), gate=airGate(ap);
 
   // --- coach station
   let coach=null; b=-1e9;
@@ -207,7 +208,7 @@ function generate(seed){
     let d=smooth(A,0.12,1.15);
     d=Math.max(d,VL[i]);
     d*=1-0.85*smooth(pk[i],0.26,0.31);
-    const ad=dist(x,y,ap.x,ap.y); if(ad<14) d*=smooth(ad,9,14);
+    const ad=dist(x,y,ap.x,ap.y); if(ad<14) d*=smooth(ad,9,14); if(air[i]) d=0;
     D[i]=d;
   }
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -237,8 +238,8 @@ function generate(seed){
       const ux=u%W, uy=(u/W)|0;
       for(const [dx,dy,dl] of NB){
         const vx=ux+dx, vy=uy+dy; if(vx<wx0||vy<wy0||vx>wx1||vy>wy1) continue; const v=vy*W+vx; if(closedS[v]===run) continue;
-        let m=water[v]===1?28:water[v]===2?6:1+5*Math.max(0,e[v]-0.35)+2.5*smooth(pk[v],0.26,0.31);
-        const ru=roadUse[v]; if(ru) m=Math.min(m,ru>=2?0.3:0.45);
+        let m=water[v]===1?28:water[v]===2?6:1+5*Math.max(0,e[v]-0.35)+2.5*smooth(pk[v],0.26,0.31); if(air[v]&1) m=90;      /* no road crosses an airfield */
+        const ru=roadUse[v]; if(ru&&!(air[v]&1)) m=Math.min(m,ru>=2?0.3:0.45);
         const ng=G_(u)+dl*m; if(ng<G_(v)){ gC[v]=ng; prev[v]=u; stamp[v]=run; hqPush(ng+hh(v),v); }
       }
     }
@@ -266,7 +267,7 @@ function generate(seed){
   }
   const twin=centers.find(c=>c.type==='twin'); if(twin) route(main,twin,'hwy');
   for(const ex of exits.slice(0,4)) route(main,ex,'hwy');
-  route(main,ap.term,'hwy');
+  route(main,gate,'hwy');
   const cores=centers.filter(c=>c.type==='core'); for(const c of cores) route(main,c,'art');
   for(let k=0;k<cores.length;k++){ const a=cores[k], b=cores[(k+1)%cores.length]; if(cores.length>1&&dist(a.x,a.y,b.x,b.y)<26) route(a,b,'art'); }
   for(const c of centers.filter(c=>c.type==='sub'||c.type==='twin')){ let best=main,bd=dist(c.x,c.y,main.x,main.y); for(const o of cores){ const d=dist(c.x,c.y,o.x,o.y); if(d<bd){ bd=d; best=o; } } route(best,c,'art'); }
@@ -276,13 +277,14 @@ function generate(seed){
   { const rr=rnd(17,22), pts=[]; for(let k=0;k<10;k++){ const a=k*Math.PI/5+0.2; const p={x:main.x+Math.cos(a)*rr,y:main.y+Math.sin(a)*rr}; if(land(p.x,p.y)) pts.push(p); }
     if(pts.length>=6) for(let k=0;k<pts.length;k++){ const a=pts[k], b=pts[(k+1)%pts.length]; if(dist(a.x,a.y,b.x,b.y)<rr*1.4) route(a,b,'art'); } }
   // villages join the network: each links to the nearest already-connected place, plus a few loops
-  const linked=[main,...centers.slice(1),st,coach,...inds]; const pending=villages.slice();
+  for(const v of villages) if(air[ix(v.x,v.y)]) v.gone=true;
+  const linked=[main,...centers.slice(1),st,coach,...inds]; const pending=villages.filter(v=>!v.gone);
   while(pending.length){
     let bi=0,bt=null,bd=1e9;
     pending.forEach((v,k)=>{ for(const o of linked){ const d=dist(v.x,v.y,o.x,o.y); if(d<bd){ bd=d; bi=k; bt=o; } } });
     const v=pending.splice(bi,1)[0]; route(v,bt,'loc'); linked.push(v);
   }
-  for(const v of villages){ const others=villages.filter(o=>o!==v).sort((a,b)=>dist(v.x,v.y,a.x,a.y)-dist(v.x,v.y,b.x,b.y)); const o=others[1]; if(o&&dist(v.x,v.y,o.x,o.y)<38&&R()<0.45) route(v,o,'loc'); }
+  for(const v of villages){ const others=villages.filter(o=>o!==v).sort((a,b)=>dist(v.x,v.y,a.x,a.y)-dist(v.x,v.y,b.x,b.y)); const o=others[1]; if(o&&dist(v.x,v.y,o.x,o.y)<38&&R()<0.45&&!v.gone&&!o.gone) route(v,o,'loc'); }
   const arterials=roads.art, highways=roads.hwy, locals=roads.loc;
 
   const districts=[...centers,...villages];
@@ -294,7 +296,7 @@ function generate(seed){
   let sumIn=0; for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++) sumIn+=D[y*W+x];
   // relief: how much each cell faces the light from the north-west, for shading hills and mountains on the map
   const shade=new Float32Array(n); for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){ const i=y*W+x; if(water[i]) continue; shade[i]=clamp(((h[i-1]-h[i+1])+(h[i-W]-h[i+W]))/(hmax-sea)*11,-1,1)*smooth(e[i],0.15,0.45); }
-  const Gl={seed,h,sea,hmax,water,e,dw,pk,D,J,rivSD,shade,centers,plazas,inds,villages,districts,dist_i,rivers,rail,arterials,highways,locals,
+  const Gl={seed,h,sea,hmax,water,e,dw,pk,D,J,rivSD,shade,air,centers,plazas,inds,villages,districts,dist_i,rivers,rail,arterials,highways,locals,
     fac:{station:st,airport:ap,coach},popTotal:sumIn*900,citySeed,bounds:B.slice(),stage:0,roadUse,extraRoads:[],projects:[],lastProj:0};
   Gl.agents=buildAgents(Gl,B,STAGE_AGENTS[0],R);
   return Gl;

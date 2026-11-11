@@ -19,7 +19,7 @@ function baseRows(job,count){
       r=c.land[0]; g=c.land[1]; b=c.land[2];
       mix(c.hill,smooth((hv-sea)/(hmax-sea),0.42,0.8)*0.95);
       if(G.shade){ const sv=bilinear(G.shade,fx,fy); if(sv>0){ const k=sv*0.28; r+=(255-r)*k*(c.land[0]>128?1:0.25); g+=(255-g)*k*(c.land[0]>128?1:0.25); b+=(255-b)*k*(c.land[0]>128?1:0.25); } else { const k=1+sv*0.17; r*=k; g*=k; b*=k; } }
-      const dv=urban?Math.max(0,bilinear(D,fx,fy)):0, pv=bilinear(pk,fx,fy);
+      const onAir=G.air&&G.air[clamp(Math.round(fy),0,H-1)*W+clamp(Math.round(fx),0,W-1)], dv=urban&&!onAir?Math.max(0,bilinear(D,fx,fy)):0, pv=onAir?0:bilinear(pk,fx,fy);      /* an airfield is plain grass: no park, no wood, no town */
       const park=smooth(pv,0.26,0.31), forest=smooth(pv,0.12,0.22)*(1-smooth(dv,0.04,0.18)), gr=Math.max(park,forest*0.75);
       mix(park>forest?c.park:c.forest,gr);
       if(urban) mix(c.urb,smooth(dv,0.03,0.65)*(1-gr)*0.9);

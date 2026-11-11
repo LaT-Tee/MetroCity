@@ -219,10 +219,10 @@ function drawLabels(cnt){
     const [x,y]=toScreen(pt.x,pt.y-1.8); if(!inView(x,y)) continue; drawIcon(k,x,y-12); addBox([x-12,y-24,x+12,y]); if(s>2.4) label(nm(nmo),x,y+8,11.5,700,C.ink); }
   for(const p of (G.projects||[])){ if(!inB(p.x,p.y)) continue; const [x,y]=toScreen(p.x,p.y); if(!inView(x,y)) continue; drawProj(p,x,y-10); addBox([x-12,y-22,x+12,y+2]); if(s>2.0) label(nm(projName(p))+(p.done?'':' · '+t('projState')[0]),x,y+10,11,600,p.done?C.ink:C['ink-3']); }
   if(s>2.2) for(const c of G.centers){ if(!inB(c.x,c.y)) continue; const [x,y]=toScreen(c.x,c.y-c.s*0.25); if(inView(x,y)) label(nm(c.name),x,y,c.type==='main'||c.name.k==='core'?16:13.5,700,C['ink-2']); }
-  for(const v of G.villages){ const tr=tierOf(v); if(tr<2||!inB(v.x,v.y)) continue; const [x,y]=toScreen(v.x,v.y); if(inView(x,y)&&s>2.2) label(nm(v.name),x,y,tr>=3?15:13.5,700,C['ink-2']); }
+  for(const v of G.villages){ const tr=tierOf(v); if(tr<2||!inB(v.x,v.y)||v.gone) continue; const [x,y]=toScreen(v.x,v.y); if(inView(x,y)&&s>2.2) label(nm(v.name),x,y,tr>=3?15:13.5,700,C['ink-2']); }
   if(s>7.5||(s>4.2&&tool==='build')){ const order=stations.slice().sort((a,b)=>(cnt.get(b.id)||0)-(cnt.get(a.id)||0));
     for(const st of order){ const [x,y]=toScreen(st.x,st.y); if(!inView(x,y)) continue; const tr=(cnt.get(st.id)||0)>1; label(nm(st.name),x,y-Math.max(11,s*0.9)-4,tr?12.5:11.5,tr?700:500,C.ink); } }
-  if(s>3.2){ for(const v of G.villages){ const tr=tierOf(v); if(tr>=2||!inB(v.x,v.y)) continue; const [x,y]=toScreen(v.x,v.y); if(inView(x,y)) label(nm(v.name),x,y,tr?12:11,tr?600:500,C['ink-3']); }
+  if(s>3.2){ for(const v of G.villages){ const tr=tierOf(v); if(tr>=2||!inB(v.x,v.y)||v.gone) continue; const [x,y]=toScreen(v.x,v.y); if(inView(x,y)) label(nm(v.name),x,y,tr?12:11,tr?600:500,C['ink-3']); }
     for(const p of [...G.plazas,...G.inds]){ if(!inB(p.x,p.y)) continue; const [x,y]=toScreen(p.x,p.y); if(inView(x,y)) label(nm(p.name),x,y,11,500,C['ink-3']); } }
 }
 function drawPenTag(){

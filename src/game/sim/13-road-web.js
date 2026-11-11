@@ -60,7 +60,7 @@ function rnPolyline(R,pts,c){
 // how dense streets get: ~225 m blocks downtown, ~600 m at the fringe
 function rnSpacing(d){ return d>=1?1.25:d>=0.4?1.25+(1-d)/0.6*0.45:d>=0.05?1.7+(0.4-d)/0.35*1.5:3.4; }
 function rnOkTurn(R,a,dx,dy){ const l=Math.hypot(dx,dy)||1; for(const e of R.adj[a]){ const o=R.ea[e]===a?R.eb[e]:R.ea[e], ox=R.x[o]-R.x[a], oy=R.y[o]-R.y[a], ol=Math.hypot(ox,oy)||1; if((ox*dx+oy*dy)/(ol*l)>0.85) return false; } return true; }
-function rnLandOk(x,y){ const xi=Math.round(x), yi=Math.round(y); if(xi<0||yi<0||xi>=W||yi>=H) return false; const i=yi*W+xi; return !G.water[i]&&G.e[i]<0.74&&G.pk[i]<0.3&&!wetAt(x,y,0.22); }
+function rnLandOk(x,y){ const xi=Math.round(x), yi=Math.round(y); if(xi<0||yi<0||xi>=W||yi>=H) return false; const i=yi*W+xi; return !G.water[i]&&G.e[i]<0.74&&G.pk[i]<0.3&&!(G.air&&G.air[i])&&!wetAt(x,y,0.22); }
 function rnGrow(R,tries,rand){
   rand=rand||Math.random; const B=G.bounds; let added=0; if(R.x.length>RN_MAXN) return 0;
   // only places people live that are still far from any road
@@ -178,10 +178,12 @@ function rnEncode(R){
 function rnDecode(o){
   const R=rnNew(), nu=unb64(o.n).slice(), eu=unb64(o.e).slice(), cb=unb64(o.c), nb=new Uint16Array(nu.buffer,0,nu.length>>1), eb=new Uint16Array(eu.buffer,0,eu.length>>1);
   for(let i=0;i<nb.length;i+=2) rnAddNode(R,nb[i]/10,nb[i+1]/10);
-  for(let e=0;e<cb.length;e++){ const a=eb[2*e], b=eb[2*e+1]; if(a>=R.x.length||b>=R.x.length) continue; const k=R.ea.length; R.ea.push(a); R.eb.push(b); R.ec.push(cb[e]); R.ef.push(0); R.et.push(-99); R.adj[a].push(k); R.adj[b].push(k); rnCells(R,k,q=>rnPut(R.eg,q,k)); markRoad([[R.x[a],R.y[a]],[R.x[b],R.y[b]]],rnLv(cb[e])); }
+  for(let e=0;e<cb.length;e++){ const a=eb[2*e], b=eb[2*e+1]; if(a>=R.x.length||b>=R.x.length) continue; if(G.air&&G.air[Math.round((R.y[a]+R.y[b])/2)*W+Math.round((R.x[a]+R.x[b])/2)]&1) continue; const k=R.ea.length; R.ea.push(a); R.eb.push(b); R.ec.push(cb[e]); R.ef.push(0); R.et.push(-99); R.adj[a].push(k); R.adj[b].push(k); rnCells(R,k,q=>rnPut(R.eg,q,k)); markRoad([[R.x[a],R.y[a]],[R.x[b],R.y[b]]],rnLv(cb[e])); }
   return R;
 }
 
+// an airport has just taken its ground: the streets that lay on it go
+function rnPruneAir(){ if(!G.rn||!G.air) return; for(let i=0;i<W*H;i++) if(G.air[i]&1) G.roadUse[i]=0; const o=rnEncode(G.rn); G.rn.enc=null; G.rn=rnDecode(o); G.rn.ver=(G.rn.ver||0)+1+Math.floor(Math.random()*1e6); }
 function rnAccKey(){ return G.rn?Math.floor(G.rn.ea.length/150):'-'+G.extraRoads.length; }
 // monthly: streets creep outward, traffic is counted, once a year busy streets widen
 function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0){ rnWiden(R); rnTidy(R); } if(months%12===6) rnBridges(R); return R.ver!==v; }

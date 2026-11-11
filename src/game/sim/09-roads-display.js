@@ -12,7 +12,7 @@ function routeRoad(a,b,cls){
   while(HPQ.n){ const u=hqPop(); if(closed[u]===run) continue; closed[u]=run; if(u===t0){ found=true; break; }
     const ux=u%W, uy=(u/W)|0;
     for(const [dx,dy,dl] of NB){ const vx=ux+dx, vy=uy+dy; if(vx<x0||vy<y0||vx>x1||vy>y1) continue; const v=vy*W+vx; if(closed[v]===run) continue;
-      let m=water[v]===1?28:water[v]===2?6:1+5*Math.max(0,e[v]-0.35)+2.5*smooth(pk[v],0.26,0.31); if(ru[v]) m=Math.min(m,ru[v]>=2?0.3:0.45);
+      let m=water[v]===1?28:water[v]===2?6:1+5*Math.max(0,e[v]-0.35)+2.5*smooth(pk[v],0.26,0.31); if(G.air&&G.air[v]&1){ m=90; } else if(ru[v]) m=Math.min(m,ru[v]>=2?0.3:0.45);
       const ng=Gv(u)+dl*m; if(ng<Gv(v)){ gC[v]=ng; prev[v]=u; stamp[v]=run; hqPush(ng+hh(v),v); } } }
   if(!found) return [];
   const cells=[]; for(let u=t0;u!==-1;u=(stamp[u]===run?prev[u]:-1)) cells.push(u); cells.reverse();
