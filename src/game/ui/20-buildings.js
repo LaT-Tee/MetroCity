@@ -73,15 +73,16 @@ function bldTile(tx,ty){
     if(x<B[0]||y<B[1]||x>=B[2]||y>=B[3]) continue; const i=y*W+x; if(water[i]||pk[i]>0.255) continue; const d=D[i]; if(d<0.07) continue;
     let h=hashInt(i*31337+G.seed*7+5); const rnd=()=>{ h=hashInt(h); return (h&0xffff)/65536; };
     if(rnd()>(d<0.3?0.045:d<0.8?0.07:0.085)) continue;
-    const r=rnd()*100, k=d<0.3?(r<34?'park':r<58?'play':r<82?'pitch':'school'):d<0.8?(r<24?'park':r<38?'play':r<54?'plaza':r<64?'pitch':r<78?'lot':r<89?'school':'church'):(r<36?'plaza':r<60?'park':r<70?'lot':r<90?'mall':'church');
+    const r=rnd()*100, k=d<0.3?(r<30?'park':r<50?'play':r<68?'pitch':r<82?'school':r<91?'gym':'stadium'):d<0.8?(r<18?'park':r<28?'play':r<40?'plaza':r<48?'pitch':r<58?'lot':r<67?'school':r<75?'church':r<83?'library':r<89?'gym':r<95?'hospital':'stadium'):(r<28?'plaza':r<46?'park':r<54?'lot':r<70?'mall':r<76?'church':r<86?'gov':r<94?'library':'hospital');
     let fw,fd; const q=rnd(), q2=rnd();
     if(k==='park'){ fw=0.5+q*0.5; fd=0.4+q2*0.45; } else if(k==='play'){ fw=0.2+q*0.12; fd=0.18+q2*0.1; } else if(k==='plaza'){ fw=0.32+q*0.3; fd=0.3+q2*0.25; }
     else if(k==='pitch'){ if(q<0.5){ fw=0.72; fd=0.46; } else { fw=0.24; fd=0.14; } } else if(k==='lot'){ fw=0.3+q*0.22; fd=0.22+q2*0.14; }
-    else if(k==='school'){ fw=0.5+q*0.15; fd=0.4+q2*0.1; } else if(k==='church'){ fw=0.2+q*0.06; fd=0.3+q2*0.08; } else { fw=0.58+q*0.2; fd=0.42+q2*0.12; }
+    else if(k==='school'){ fw=0.5+q*0.15; fd=0.4+q2*0.1; } else if(k==='church'){ fw=0.2+q*0.06; fd=0.3+q2*0.08; } else if(k==='library'){ fw=0.3+q*0.1; fd=0.28+q2*0.08; } else if(k==='gym'){ fw=0.42+q*0.13; fd=0.3+q2*0.06; }
+    else if(k==='stadium'){ fw=1.0; fd=0.78; } else if(k==='gov'){ fw=0.5+q*0.12; fd=0.4+q2*0.08; } else if(k==='hospital'){ fw=0.5+q*0.1; fd=0.4+q2*0.06; } else { fw=0.58+q*0.2; fd=0.42+q2*0.12; }
     // face the nearest street
     let ang=0; { const l=rm.get(i); if(l&&l.length){ const sg=l[Math.floor(rnd()*l.length)%l.length]; ang=Math.atan2(sg[3]-sg[1],sg[2]-sg[0]); } }
     const ca=Math.cos(ang), sa=Math.sin(ang); let ok=false, cx=0, cy=0, sc=1;
-    for(let tr=0;tr<6&&!ok;tr++){ sc=[1,1,0.8,0.8,0.62,0.5][tr]; cx=x+(rnd()-0.5)*0.7; cy=y+(rnd()-0.5)*0.7; if(k==='pitch'&&sc<0.8&&fw>0.5) continue;
+    for(let tr=0;tr<6&&!ok;tr++){ sc=[1,1,0.8,0.8,0.62,0.5][tr]; cx=x+(rnd()-0.5)*0.7; cy=y+(rnd()-0.5)*0.7; if((k==='pitch'&&sc<0.8&&fw>0.5)||(k==='stadium'&&sc<0.8)) continue;
       ok=cx>ox+0.2&&cy>oy+0.2&&cx<ox+ON/BLD_OC-0.2&&cy<oy+ON/BLD_OC-0.2&&okGround(cx,cy)>=0.05&&!bldOnRoadR(rm,cx,cy,fw*sc/2+0.012,fd*sc/2+0.012,ca,sa)&&dry(cx,cy,fw*sc/2,fd*sc/2,ca,sa)&&claim(cx,cy,fw*sc/2,fd*sc/2,ca,sa,0.02); }
     if(!ok) continue; fw*=sc; fd*=sc;
     const f={k,x:cx-fw/2,y:cy-fd/2,w:fw,d:fd,a:ang,r:h>>>0}; if(inTile(cx,cy)) feats.push(f);
@@ -89,7 +90,10 @@ function bldTile(tx,ty){
     const sub=(lx,lz,w,dd,hm,sp)=>{ const bx=cx+lx*ca-lz*sa, by=cy+lx*sa+lz*ca; if(inTile(cx,cy)) out.push({x:bx-w/2,y:by-dd/2,w,d:dd,h:hm/150,c:(h>>>20)&3,a:ang,sp}); };
     if(k==='school'){ sub(0,-fd*0.32,fw*0.9,fd*0.26,11+q*4,'school'); sub(-fw*0.36,fd*0.06,fw*0.18,fd*0.44,8,'school'); }
     else if(k==='church') sub(0,-fd*0.08,fw*0.5,fd*0.72,11+q*3,'church');
-    else if(k==='mall') sub(0,-fd*0.2,fw*0.94,fd*0.56,13+q*5,'mall'); }
+    else if(k==='mall') sub(0,-fd*0.2,fw*0.94,fd*0.56,13+q*5,'mall');
+    else if(k==='library'){ f.hm=12; sub(0,-fd*0.1,fw*0.72,fd*0.58,12,'library'); } else if(k==='gym'){ f.hm=13; sub(0,-fd*0.04,fw*0.86,fd*0.78,13,'gym'); }
+    else if(k==='gov'){ f.hm=16+q*6; sub(0,-fd*0.16,fw*0.8,fd*0.42,f.hm,'gov'); }
+    else if(k==='hospital'){ f.hm=22+q*10; sub(0,-fd*0.22,fw*0.9,fd*0.28,f.hm,'hospital'); sub(-fw*0.32,fd*0.1,fw*0.2,fd*0.38,14,'hospital'); sub(fw*0.32,fd*0.1,fw*0.2,fd*0.38,14,'hospital'); } }
   // 1. plots along the streets
   if(R){ const es=[], seen=new Set(); for(let gy=Math.floor((y0-1.5)/RN_G);gy<=Math.floor((y0+BLD_T+1.5)/RN_G);gy++) for(let gx=Math.floor((x0-1.5)/RN_G);gx<=Math.floor((x0+BLD_T+1.5)/RN_G);gx++){ const l=R.eg.get(rnKey(gx,gy)); if(l) for(const e of l) if(!seen.has(e)){ seen.add(e); es.push(e); } }
     es.sort((p,q)=>p-q);
@@ -158,10 +162,11 @@ function bldPaths(t,tx,ty){ if(t.p) return t.p;
     for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), px=x-0.5+(h&1023)/1023, py=y-0.5+((h>>10)&1023)/1023; if(!wetAt(px,py,0.05)) tree(px,py,0.07+((h>>20)&63)/63*0.05); } }
   // grounds: one path per kind, plus white markings, footpaths and ponds
   const g={park:new Path2D(),play:new Path2D(),plaza:new Path2D(),pitch:new Path2D(),lot:new Path2D(),yard:new Path2D(),water:new Path2D(),line:new Path2D(),path:new Path2D(),dotA:new Path2D(),dotB:new Path2D()};
-  for(const f of t.feat){ const q=bldCorners(f), P=(u,v)=>featPt(f,u,v), ln=(p,a,b)=>{ p.moveTo(a[0],a[1]); p.lineTo(b[0],b[1]); }, kind=f.k==='school'?'yard':f.k==='church'?'park':f.k==='mall'?'lot':f.k; poly(g[kind],q);
+  for(const f of t.feat){ const q=bldCorners(f), P=(u,v)=>featPt(f,u,v), ln=(p,a,b)=>{ p.moveTo(a[0],a[1]); p.lineTo(b[0],b[1]); }, kind={school:'yard',church:'park',mall:'lot',library:'plaza',gov:'plaza',hospital:'plaza',gym:'yard',stadium:'yard'}[f.k]||f.k; poly(g[kind],q);
     if(f.k==='park'||f.k==='church'){ let h=f.r; const n=Math.round(f.w*f.d*(f.k==='park'?34:16));
       for(let k=0;k<n;k++){ h=hashInt(h+k); const u=((h&1023)/1023*2-1)*0.9, v=(((h>>10)&1023)/1023*2-1)*0.9; if(f.k==='church'&&Math.abs(u)<0.6&&v<0.7) continue; if(Math.abs(u)<0.12||Math.abs(v)<0.1) continue; const c=P(u,v); tree(c[0],c[1],0.035+((h>>20)&63)/63*0.03); }
       if(f.k==='park'){ ln(g.path,P(-1,0),P(1,0)); ln(g.path,P(0,-1),P(0,1)); if(f.w>0.7){ const c=P(0.45,0.45); g.water.moveTo(c[0]+f.w*0.14,c[1]); g.water.ellipse(c[0],c[1],f.w*0.14,f.d*0.12,f.a,0,6.283); } } }
+    else if(f.k==='stadium'){ const m=0.5; poly(g.pitch,[...P(-m,-m),...P(m,-m),...P(m,m),...P(-m,m)]); ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); for(const e of [0.66,0.82,0.96]){ ln(g.path,P(-e,-e),P(e,-e)); ln(g.path,P(e,-e),P(e,e)); ln(g.path,P(e,e),P(-e,e)); ln(g.path,P(-e,e),P(-e,-e)); } }
     else if(f.k==='pitch'){ const m=0.9; ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); const c=P(0,0); g.line.moveTo(c[0]+f.d*0.16,c[1]); g.line.arc(c[0],c[1],f.d*0.16,0,6.283); }
     else if(f.k==='lot'||f.k==='mall'){ const v0=f.k==='mall'?0.35:-0.8, n=Math.max(3,Math.round(f.w/0.035)); for(let k=0;k<=n;k++){ const u=-0.9+1.8*k/n; ln(g.line,P(u,v0),P(u,v0+0.3)); ln(g.line,P(u,0.9),P(u,0.6)); } }
     else if(f.k==='plaza'){ const c=P(0,0), r=Math.min(f.w,f.d)*0.2; g.water.moveTo(c[0]+r,c[1]); g.water.arc(c[0],c[1],r,0,6.283); g.dotB.moveTo(c[0]+r*0.3,c[1]); g.dotB.arc(c[0],c[1],r*0.3,0,6.283); for(const [u,v] of [[-0.7,-0.7],[0.7,-0.7],[0.7,0.7],[-0.7,0.7]]){ const e=P(u,v); tree(e[0],e[1],0.035); } }

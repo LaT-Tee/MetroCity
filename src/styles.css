@@ -381,3 +381,5 @@ body.watching .panel, body.watching .ach-pop, body.watching .sign, body.watching
 /* a bright carriage: pale wall panels, an aluminium frame and a black rubber seal round the glass */
 .cv3d.seat::after{box-shadow:0 0 0 3000px #d8d4cb,0 0 0 18px #c9c4ba,inset 0 0 0 7px #b8bcc2,inset 0 0 0 10px #2b2d31,inset 0 0 50px rgba(0,0,0,.18);z-index:4}
 .cv3d.seat .lbl{z-index:2}
+
+#musicBtn.off{opacity:.45}

@@ -1,6 +1,9 @@
 /* ---------- loop ---------- */
 let clockUIt=0, lastDt=0, frameEMA=16, slowN=0;
 function frame(ts){
+  // A screen that refreshes 120 or 144 times a second would have everything drawn twice as often for no visible gain, and the
+  // machine runs hot for it: frames are held to about sixty a second.
+  if(ts-lastTs<14.5){ requestAnimationFrame(frame); return; }
   const raw=ts-lastTs, dt=Math.min(0.1,raw/1000||0); lastTs=ts; lastDt=dt;
   // if frames keep arriving late the map is drawn a little less sharp: on a dense screen that is most of the work
   if(raw>0&&raw<250&&!(watch.on&&watch.view==='3d')){ frameEMA+=(raw-frameEMA)*0.04; if(frameEMA>22) slowN++; else slowN=Math.max(0,slowN-2);
@@ -14,7 +17,7 @@ function frame(ts){
   if(baseJob&&baseRows(baseJob,30)){ if(base2.width!==base.width){ base2.width=base.width; base2.height=base.height; } b2ctx.putImageData(baseJob.img,0,0); baseJob=null; baseFadeAt=ts; }
   frameN++; const busy=!!(stroke&&stroke.drawing)||!!camAnim||ts-lastInteract<400;
   if(watch.on&&watch.view==='3d'&&w3d.ready){ w3dFrame(dt); }
-  else if(busy||watch.on||drawEMA<13||frameN%2===0){ const t0=performance.now(); draw(); const dd=performance.now()-t0; drawEMA=drawEMA*0.9+dd*0.1; if(window.__mcProf&&dd>12) window.__mcProf.push(['draw',Math.round(dd)]); }
+  else if(busy||watch.on||frameN%2===0){      /* nothing being dragged, drawn or watched: the map is redrawn thirty times a second, which the slow trains do not show */ const t0=performance.now(); draw(); const dd=performance.now()-t0; drawEMA=drawEMA*0.9+dd*0.1; if(window.__mcProf&&dd>12) window.__mcProf.push(['draw',Math.round(dd)]); }
   if(ts-clockUIt>250){ clockUIt=ts; $('#clockLbl').textContent=t('year',{y:Math.floor(months/12)+1,m:months%12+1}); }
   requestAnimationFrame(frame);
 }

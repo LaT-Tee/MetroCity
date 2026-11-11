@@ -33,7 +33,11 @@ function* growthGen(){
   for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++){ const i=y*W+x; if(U[i]<0.05&&RA[i]<0.15&&D[i]>0.05){ const out=D[i]*0.002; D[i]-=out; pool+=out; } }
   yield;
   // the city grows on its own; a good metro makes it grow faster
-  const share=sim?sim.share:0, big=G.popTotal/growth.pop0; pool+=popIn()*(0.0018+0.006*share)*clamp(1.5-0.3*big,0.25,1)+popIn()*projectInflow();
+  // People do not keep arriving for ever. The city can hold so many for the land it has opened and the transport it
+  // offers (a metro more people use lets it hold more); arrivals slow as it fills and all but stop when it is full,
+  // so growth is quick at first and ever slower after, and the way to more is a better network or a bigger map.
+  const share=sim?sim.share:0, big=G.popTotal/growth.pop0, cap=1.45+2.4*share+0.45*(G.stage||0), room=clamp(1-(big-1)/(cap-1),0,1);
+  growth.room=room; pool+=popIn()*(0.0018+0.006*share)*(0.04+0.96*Math.pow(room,1.4))+popIn()*projectInflow()*(0.3+0.7*room);
   // where people settle: near the metro, near roads, next to existing neighbourhoods, wherever there is room
   for(let y=B[1];y<B[3];y++) for(let x=B[0];x<B[2];x++){ const i=y*W+x; let w=0;
     if(!G.water[i]&&S[i]>0.05){ const cap=S[i]*(1+0.6*Math.min(1,blur[i])+1.2*Math.min(1,U[i]/2.5)+0.5*Math.min(1,PA[i])); const room=cap-D[i];
@@ -86,8 +90,15 @@ function relocate(frac,rand){
   const cD=new Float64Array(n), cJ=new Float64Array(n); let s1=0,s2=0; for(let i=0;i<n;i++){ s1+=D[i]; cD[i]=s1; s2+=J[i]; cJ[i]=s2; }
   const pick=(c)=>{ const r=rand()*c[n-1]; let lo=0,hi=n-1; while(lo<hi){ const m=(lo+hi)>>1; if(c[m]<r) lo=m+1; else hi=m; } return lo; };
   const pt=i=>[(i%W)+rand()-.5,Math.floor(i/W)+rand()-.5];
+  // Someone whose commute stays far worse than most people's eventually gives up and moves nearer to work. Only a few
+  // do in any month (it takes years for a bad corridor to empty), so a demand the network never serves fades slowly
+  // rather than waiting for ever, and the player still has years in which serving it is the better answer.
+  const avgT=sim?sim.avg:0, crowd=growth&&growth.pop0?clamp(G.popTotal/growth.pop0-1,0,2):0;
   for(const a of G.agents){
-    if(rand()>=frac) continue;
+    if(avgT&&a.kind==='commute'&&a.t>Math.max(45,avgT*1.35)&&rand()<0.006+0.004*crowd){ let best=null, bd=dist(a.hx,a.hy,a.wx,a.wy)*0.8;
+      for(let tr=0;tr<8;tr++){ const [hx,hy]=pt(pick(cD)), d=dist(hx,hy,a.wx,a.wy); if(d>=4&&d<bd){ bd=d; best=[hx,hy]; } }
+      if(best){ a.hx=best[0]; a.hy=best[1]; tripProps(a,D,G.water); a.t0=roadTime(a,1); a.oc=null; a.moved=months; } continue; }
+    if(rand()>=frac*(1+0.35*crowd)) continue;      /* the more crowded the city, the more people are on the move */
     for(let tr=0;tr<6;tr++){ const [hx,hy]=pt(pick(cD)); if(dist(hx,hy,a.wx,a.wy)>=4){ a.hx=hx; a.hy=hy; break; } }
     if(a.kind==='commute'){ for(let tr=0;tr<20;tr++){ const [wx,wy]=pt(pick(cJ)); if(dist(a.hx,a.hy,wx,wy)>=4&&rand()<Math.exp(-dist(a.hx,a.hy,wx,wy)/55)){ a.wx=wx; a.wy=wy; break; } } }
     if(a.kind==='airport'){ const airs=[G.fac.airport.term,...(G.fac2||[]).filter(f=>f.t==='air').map(f=>f.term)]; let b0=airs[0]; for(const t of airs) if(dist(t.x,t.y,a.hx,a.hy)<dist(b0.x,b0.y,a.hx,a.hy)) b0=t; a.wx=b0.x+rand()*2-1; a.wy=b0.y+rand()*2-1; }

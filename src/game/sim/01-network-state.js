@@ -49,16 +49,20 @@ function lineLength(L){ ensurePaths(L); return L.paths.reduce((s,p)=>s+plen(p),0
 const UG_D=0.5, UG_RAMP=1.3;
 function densify(pts,step){ const o=[pts[0]]; for(let i=1;i<pts.length;i++){ const a=pts[i-1], b=pts[i], m=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/step)); for(let q=1;q<=m;q++) o.push([a[0]+(b[0]-a[0])*q/m,a[1]+(b[1]-a[1])*q/m]); } return o; }
 function lineLevels(L){
-  const key=netVersion+'|'+Math.floor(months/12)+'|'+G.seed; if(L._lvK===key&&L._lv) return L._lv;
+  const key=netVersion+'|'+Math.floor(months/12)+'|'+G.seed+'|'+(G.fac2||[]).length; if(L._lvK===key&&L._lv) return L._lv;
   ensurePaths(L); const pts=densify(linePathPts(L),0.5), n=pts.length, cum=new Float64Array(n), ug=new Uint8Array(n);
   for(let i=1;i<n;i++) cum[i]=cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
-  for(let i=0;i<n;i++){ const c=clamp(Math.round(pts[i][1]),0,H-1)*W+clamp(Math.round(pts[i][0]),0,W-1); ug[i]=G.water[c]?(i?ug[i-1]:0):G.D[c]>=UG_D?1:0; }
+  // under an airfield, a main-line station or a coach station the metro is always in tunnel: it arrives beneath the building, it does not run through it
+  const fz=[[G.fac.airport.x,G.fac.airport.y,12.5],[G.fac.airport.term.x,G.fac.airport.term.y,6.5],[G.fac.station.x,G.fac.station.y,3.4],[G.fac.coach.x,G.fac.coach.y,2.8]];
+  for(const f of (G.fac2||[])){ if(f.t==='air'){ fz.push([f.x,f.y,12.5],[f.term.x,f.term.y,6.5]); } else fz.push([f.x,f.y,f.t==='rail'?3.4:2.8]); }
+  const inFac=q=>{ for(const z of fz) if(Math.abs(q[0]-z[0])<z[2]&&Math.abs(q[1]-z[1])<z[2]&&(q[0]-z[0])**2+(q[1]-z[1])**2<z[2]*z[2]) return true; return false; }, forced=new Uint8Array(n);
+  for(let i=0;i<n;i++){ const c=clamp(Math.round(pts[i][1]),0,H-1)*W+clamp(Math.round(pts[i][0]),0,W-1); forced[i]=inFac(pts[i])?1:0; ug[i]=forced[i]?1:G.water[c]?(i?ug[i-1]:0):G.D[c]>=UG_D?1:0; }
   const runs=()=>{ const r=[]; let a=0; for(let i=1;i<=n;i++) if(i===n||ug[i]!==ug[a]){ r.push([a,i-1,ug[a]]); a=i; } return r; };
   for(const [a,b,v] of runs()) if(!v&&a>0&&b<n-1&&cum[b]-cum[a]<5) ug.fill(1,a,b+1);
-  for(const [a,b,v] of runs()) if(v&&cum[b]-cum[a]<4) ug.fill(0,a,b+1);
+  for(const [a,b,v] of runs()) if(v&&cum[b]-cum[a]<4){ let f=false; for(let i=a;i<=b;i++) if(forced[i]){ f=true; break; } if(!f) ug.fill(0,a,b+1); }
   // stations: level for the length of the platforms and a little more
   const sU=[0]; L.paths.forEach((q,i)=>sU.push(sU[i]+plen(q))); const at=u=>{ let lo=0, hi=n-1; while(lo<hi){ const m=(lo+hi)>>1; if(cum[m]<u) lo=m+1; else hi=m; } return lo; };
-  for(const u of sU){ const k=at(u), v=ug[k]; for(let i=at(u-1.6);i<n&&cum[i]<=u+1.6;i++) ug[i]=v; }
+  for(const u of sU){ const k=at(u), v=ug[k]; for(let i=at(u-1.6);i<n&&cum[i]<=u+1.6;i++) ug[i]=v||forced[i]; }
   const bd=[]; for(let i=1;i<n;i++) if(ug[i]!==ug[i-1]) bd.push((cum[i]+cum[i-1])/2);
   const dep=new Float32Array(n); for(let i=0;i<n;i++){ let m=1e9; for(const b of bd) m=Math.min(m,Math.abs(cum[i]-b)); dep[i]=bd.length?smooth(ug[i]?m:-m,-UG_RAMP,UG_RAMP):ug[i]; }
   L._lvK=key; return L._lv={pts,cum,ug,dep,bd,sU,len:cum[n-1],any:ug.some(v=>v)}; }

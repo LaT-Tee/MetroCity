@@ -22,6 +22,8 @@ function siteAirport(){
   let term={x:best.x-Math.sin(best.a)*5.5,y:best.y+Math.cos(best.a)*5.5}; if(G.water[Math.round(term.y)*W+Math.round(term.x)]) term={x:best.x+Math.sin(best.a)*5.5,y:best.y-Math.cos(best.a)*5.5};
   return {t:'air',x:best.x,y:best.y,a:best.a,term,s:p.name.s};
 }
+// an airfield takes its land: nobody lives on it and nothing is built there, however the city grows afterwards
+function airportClear(f){ if(!growth||!growth.S) return; const R=14; for(let y=Math.max(0,Math.floor(f.y-R));y<=Math.min(H-1,Math.ceil(f.y+R));y++) for(let x=Math.max(0,Math.floor(f.x-R));x<=Math.min(W-1,Math.ceil(f.x+R));x++){ const ad=dist(x,y,f.x,f.y); if(ad>=R) continue; const i=y*W+x; growth.S[i]*=smooth(ad,10,14); G.D[i]*=smooth(ad,9,14); if(growth.D0) growth.D0[i]=Math.min(growth.D0[i],G.D[i]); } }
 function facName(f){ return {k:f.t==='rail'?(f.v?'rail2b':'rail2'):f.t==='coach'?'coach2':'air2',s:f.s,d:f.d}; }
 function facPoint(f){ return f.t==='air'?f.term:f; }
 function checkFacilities(lv){
@@ -29,7 +31,7 @@ function checkFacilities(lv){
   const want=[['rail',lv>=3&&has('rail')<1||lv>=5&&has('rail')<2],['coach',lv>=3&&has('coach')<1||lv>=5&&has('coach')<2],['air',(has('air')<1&&(lv>=5||G.popTotal>=growth.pop0*1.5))||(has('air')<2&&(lv>=6||G.popTotal>=growth.pop0*2.2))]];
   for(const [t,ok] of want){ if(!ok||made.length) continue; const f=t==='rail'?siteRail():t==='coach'?siteCoach():siteAirport(); if(!f) continue;
     if(t==='rail'&&G.fac2.some(o=>o.t==='rail'&&o.d===f.d)) f.v=1;
-    G.fac2.push(f); const pt=facPoint(f); boostJobs(pt.x,pt.y,t==='air'?0.7:t==='rail'?0.35:0.2);
+    G.fac2.push(f); if(t==='air') airportClear(f); const pt=facPoint(f); boostJobs(pt.x,pt.y,t==='air'?0.7:t==='rail'?0.35:0.2);
     if(t==='air') routeRoad(pt,G.centers[0],'hwy'); else { const p=nearestPlace(pt.x,pt.y); if(p&&dist(p.x,p.y,pt.x,pt.y)>6) routeRoad(pt,p,'art'); }
     made.push(f); }
   return made;

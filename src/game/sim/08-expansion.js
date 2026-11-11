@@ -48,7 +48,7 @@ function applyPlaceState(ps){
   if(ps.rn){ try{ G.rn=rnDecode(ps.rn); }catch(e){ G.rn=null; } } G.roadsAdded=ps.ra||0;
   if(ps.dq){ try{ const D=decodeD(ps.dq); if(D){ G.D.set(D); for(let i=0;i<W*H;i++) G.J[i]=growth.J0[i]+0.45*Math.max(0,G.D[i]-growth.D0[i]); G.popTotal=popIn()*900; G.dRestored=true; } }catch(e){} }
   if(!G.rn) (ps.roads||[]).forEach(([c,flat])=>{ const p=[]; for(let k=0;k<flat.length;k+=2) p.push([flat[k],flat[k+1]]); G.extraRoads.push({c:c===2?'hwy':c?'art':'loc',p}); markRoad(p,c+1); });
-  G.fac2=(ps.fac2||[]).slice();
+  G.fac2=(ps.fac2||[]).slice(); G.fac2.forEach(f=>{ if(f.t==='air') airportClear(f); });
   G.projects=(ps.pj||[]).map(([t,x,y,s,m0,d])=>({t,x,y,s,m0,done:!!d})); G.lastProj=ps.lp||0;
 }
 function setStage(stage){ if(typeof bldBump==="function") bldBump();

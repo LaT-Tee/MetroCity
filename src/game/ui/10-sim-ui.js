@@ -175,13 +175,16 @@ function jaNameFor(L,taken){
   const co=(hashInt(G.citySeed+sector)%3===0?head(city):CO1)+CO2, coHas=lines.some(o=>o!==L&&o.jaName&&o.jaName.startsWith(co));
   const pick=list=>{ const ok=list.filter(Boolean); if(!ok.length) return []; const k=h(1)%ok.length; return [...ok.slice(k),...ok.slice(0,k)]; };   // the seed chooses among fitting styles, the rest are fallbacks
   let cands=[];
-  if(L.loop) cands=pick(['環状線',city+'環状線',head(jn(ss.reduce((x,y)=>dc(y)>dc(x)?y:x)))+'環状線']).concat(['外環状線','新環状線']);
+  // themed names some cities give their lines, chosen by the city and the line so they stay put
+  const NAT=['さくら','みどり','あおぞら','けやき','いちょう','ひかり','かもめ','はなみずき','つばさ','あさひ'], nat=NAT[h(5)%NAT.length]+'線', suf=['本線','線','線'][h(6)%3];
+  if(L.loop) cands=pick(['環状線',city+'環状線',head(jn(ss.reduce((x,y)=>dc(y)>dc(x)?y:x)))+'環状線','循環線',city+'循環線','山手線']).concat(['外環状線','新環状線','内環状線']);
   else {
-    if(airport&&dc(outer)>12) cands.push(...pick(['空港線',co+'空港線','空港アクセス線']));
-    if(seaShare>0.5) cands.push(...pick(['臨海線','湾岸線',city+'臨海線']));
-    if(thru) cands.push(...pick([ew&&'東西線',ns&&'南北線',big&&jn(big)+'線','中央線',sub&&'副都心線']));
-    else if(radial) cands.push(...pick([jn(outer)+'線',ini,coHas?co+jn(outer)+'線':co+'本線']));
-    else cands.push(...pick([coHas?co+jn(outer)+'線':co+'本線',ini,big&&jn(big)+'線',jn(outer)+'線']));
+    if(isRapid(L)) cands.push(...pick([co+'急行線',jn(outer)+'快速線',co+jn(outer)+'線','新'+jn(outer)+'線']));
+    if(airport&&dc(outer)>12) cands.push(...pick(['空港線',co+'空港線','空港アクセス線','空港快速線',jn(outer)+'空港線']));
+    if(seaShare>0.5) cands.push(...pick(['臨海線','湾岸線',city+'臨海線','海岸線','港線','みなと線']));
+    if(thru) cands.push(...pick([ew&&'東西線',ns&&'南北線',big&&jn(big)+'線','中央線',sub&&'副都心線','都心線',big&&jn(big)+'筋線','大通線',nat,sub&&'新都心線']));
+    else if(radial) cands.push(...pick([jn(outer)+'線',ini,coHas?co+jn(outer)+'線':co+'本線',jn(outer)+suf,nat,jn(outer)+'街道線']));
+    else cands.push(...pick([coHas?co+jn(outer)+'線':co+'本線',ini,big&&jn(big)+'線',jn(outer)+'線',nat,jn(inner)+jn(outer)+'線',big&&jn(big)+'支線']));
     cands.push(ew&&'東西線',ns&&'南北線','中央線',big&&jn(big)+'線',jn(outer)+'線',co+jn(outer)+'線',jn(inner)+jn(outer)+'線');
     cands.push(...['新','第二'].flatMap(p=>[ew&&p+'東西線',ns&&p+'南北線'])); }
   return cands.find(c=>c&&!taken.has(c))||null;

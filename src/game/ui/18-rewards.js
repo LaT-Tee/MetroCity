@@ -46,7 +46,7 @@ function progressCheck(silent){
   // station upgrades
   for(const st of stations){ const nl=stationLevel(sim.stBoard[st.id]||0), ol=st.lv||0;
     if(nl>ol&&nl>=2&&!silent){ toast(t('stUp',{s:nm(st.name),l:t('stLv')[nl]})); SFX.up(); floats.push({x:st.x,y:st.y,txt:nm(st.name)+' '+t('stLv')[nl],t0:performance.now(),big:true}); }
-    st.lv=nl; }
+    st.lv=Math.max(ol,nl); }      /* a grade once earned is kept: ridership wobbles from month to month, and a station announced as a hub does not stop being one */
   // city level
   const lv=updateLevel();
   if(prevLevel>=0&&lv>prevLevel&&!silent){ toast(t('lvlUp',{l:t('lvl')[lv]})); SFX.level(); burst(170,vw/2,vh*0.35,2.4); }

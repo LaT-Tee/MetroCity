@@ -23,6 +23,8 @@ function baseRows(job,count){
       const park=smooth(pv,0.26,0.31), forest=smooth(pv,0.12,0.22)*(1-smooth(dv,0.04,0.18)), gr=Math.max(park,forest*0.75);
       mix(park>forest?c.park:c.forest,gr);
       if(urban) mix(c.urb,smooth(dv,0.03,0.65)*(1-gr)*0.9);
+      // the shore (3D ground): sand where it is open country, a pale concrete quay where the town comes down to the water
+      if(c.sand){ const sh=1-smooth((hv-sea)/(hmax-sea),0.004,0.03); if(sh>0){ const q=smooth(dv,0.12,0.3); mix(c.sand,sh*(1-q)*0.92); mix(c.quay,sh*q*0.85); } }
       if(dv>1){ const k=smooth(dv,1,2.2)*0.13*(1-gr); r*=1-k; g*=1-k; b*=1-k*0.7; }
       const o=(py*bw+pxx)*4;
       px[o]=wr+(r-wr)*landT; px[o+1]=wg+(g-wg)*landT; px[o+2]=wb+(b-wb)*landT; px[o+3]=255;

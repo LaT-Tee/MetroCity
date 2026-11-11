@@ -1,14 +1,14 @@
 /* ================= language ================= */
 let LANG = 'zh';
 /* Native-style place names: each place keeps one seed, and every language builds its own name from it. */
-const ZH_ROOT_V1="中山 信义 大安 忠孝 民生 光华 文昌 望江 临海 青石 白鹭 金沙 云锦 长乐 和平 新民 凤鸣 翠湖 春熙 银杏 海棠 松林 枫桥 星港 鼓楼 东湖 南岭 北辰 西园 观澜 栖霞 石门 柳岸 梅林 桂园 清风 明珠 永安 太平 兴华 晨光 龙湾 渔港 潮音 汀兰 沙湾 竹园 荷塘 紫荆 锦绣 澄湖 芦洲 丹枫 玉泉 双桥 红树 半山 云台 霞浦 南浦 江湾 朝阳 宝塔 书院 茶亭 花港 安澜 静海 长滩 士林 板桥 景美 万华 松山 南港 永和 内湖 天母 复兴 仁爱 建国 中正 博爱 敦化 民权 新生 五福 七贤 青年 府前 学府 东门 西湖 北门 南门 前镇 小港 大同 光复 中兴 福田 罗湖 龙华 前海 滨江 钱塘 望京 东坝".split(' ');
+const ZH_ROOT_V1="月桂 听雨 大安 杏花 百合 流萤 文昌 望江 临海 青石 白鹭 金沙 云锦 长乐 雁鸣 新禾 凤鸣 翠湖 春熙 银杏 海棠 松林 枫桥 星港 鼓楼 东湖 南岭 北辰 西园 观澜 栖霞 石门 柳岸 梅林 桂园 清风 明珠 永安 太平 杏林 晨光 龙湾 渔港 潮音 汀兰 沙湾 竹园 荷塘 紫荆 锦绣 澄湖 芦洲 丹枫 玉泉 双桥 红树 半山 云台 霞浦 南浦 江湾 朝阳 宝塔 书院 茶亭 花港 安澜 静海 长滩 士林 板桥 景美 万华 松山 南港 永和 内湖 天母 芙蓉 采薇 栗园 梧桐 白桦 敦化 鹿鸣 晴岚 五福 七贤 青柠 府前 学府 东门 西湖 北门 南门 前镇 小港 麦田 萤火 槐荫 福田 罗湖 龙华 前海 滨江 钱塘 望京 东坝".split(' ');
 const ZH_CA_V1=[['澄','Chéng'],['临','Lín'],['青','Qīng'],['沧','Cāng'],['汀','Tīng'],['栖','Qī'],['岚','Lán'],['澜','Lán'],['鹭','Lù'],['枫','Fēng'],['泊','Bó'],['潮','Cháo'],['屿','Yǔ'],['滨','Bīn'],['浔','Xún'],['云','Yún'],['嘉','Jiā'],['永','Yǒng'],['宁','Níng'],['海','Hǎi']];
 const ZH_CB_V1=[['港','gǎng'],['州','zhōu'],['川','chuān'],['湾','wān'],['宁','níng'],['阳','yáng'],['津','jīn'],['城','chéng'],['浦','pǔ'],['门','mén'],['江','jiāng'],['海','hǎi'],['安','ān'],['山','shān']];
 const JA_P_V1=[['桜','Sakura'],['若葉','Wakaba'],['青葉','Aoba'],['緑','Midori'],['東雲','Shinonome'],['朝日','Asahi'],['星','Hoshi'],['宮','Miya'],['高','Taka'],['中','Naka'],['本','Moto'],['新','Shin'],['松','Matsu'],['竹','Take'],['梅','Ume'],['藤','Fuji'],['柳','Yanagi'],['石','Ishi'],['水','Mizu'],['浜','Hama'],['岡','Oka'],['森','Mori'],['白','Shira'],['汐','Shio'],['鷹','Taka'],['鶴','Tsuru'],['亀','Kame'],['柏','Kashiwa'],['栗','Kuri'],['杉','Sugi'],['桃','Momo'],['菊','Kiku'],['光','Hikari'],['旭','Asahi'],['泉','Izumi'],['月','Tsuki'],['花','Hana'],['大','Ō'],['小','Ko'],['金','Kana']];
 const JA_S_V1=[['ヶ丘','gaoka'],['台','dai'],['町','machi'],['野','no'],['原','hara'],['沢','sawa'],['田','da'],['浜','hama'],['崎','saki'],['島','jima'],['山','yama'],['谷','ya'],['橋','bashi'],['坂','zaka'],['見','mi'],['里','sato'],['瀬','se'],['川','kawa'],['木','gi'],['平','daira'],['井','i'],['戸','do']];
 const EN_P_V1="Ash Brad Kings Thorn Wex Hather Mill Stan Elm Hart Lang Rother Black White Ox Bram Church Fen Marl Sand Stow Ald Bur Chel Dun Gran Lin Wor Hal Ever Fair Brook Kirk Clay Wind Sel Pen Whit Brent Coll Hamble Cran Stour".split(' ');
 const EN_S_V1="ford bridge ley bury ham ton field wick worth combe stead well by gate hurst den moor wood cliffe mere".split(' ');
-const ZH_ROOT="中山 信义 大安 忠孝 民生 光华 文昌 望江 临海 青石 白鹭 金沙 云锦 长乐 和平 新民 凤鸣 翠湖 春熙 银杏 海棠 松林 枫桥 星港 鼓楼 东湖 南岭 北辰 西园 观澜 栖霞 石门 柳岸 梅林 桂园 清风 明珠 永安 太平 兴华 晨光 龙湾 渔港 潮音 汀兰 沙湾 竹园 荷塘 紫荆 锦绣 澄湖 芦洲 丹枫 玉泉 双桥 红树 半山 云台 霞浦 南浦 江湾 朝阳 宝塔 书院 茶亭 花港 安澜 静海 长滩 士林 板桥 景美 万华 松山 南港 永和 内湖 天母 复兴 仁爱 建国 中正 博爱 敦化 民权 新生 五福 七贤 青年 府前 学府 东门 西湖 北门 南门 前镇 小港 大同 光复 中兴 福田 罗湖 龙华 前海 滨江 钱塘 望京 东坝".split(' ');
+const ZH_ROOT="月桂 听雨 大安 杏花 百合 流萤 文昌 望江 临海 青石 白鹭 金沙 云锦 长乐 雁鸣 新禾 凤鸣 翠湖 春熙 银杏 海棠 松林 枫桥 星港 鼓楼 东湖 南岭 北辰 西园 观澜 栖霞 石门 柳岸 梅林 桂园 清风 明珠 永安 太平 杏林 晨光 龙湾 渔港 潮音 汀兰 沙湾 竹园 荷塘 紫荆 锦绣 澄湖 芦洲 丹枫 玉泉 双桥 红树 半山 云台 霞浦 南浦 江湾 朝阳 宝塔 书院 茶亭 花港 安澜 静海 长滩 士林 板桥 景美 万华 松山 南港 永和 内湖 天母 芙蓉 采薇 栗园 梧桐 白桦 敦化 鹿鸣 晴岚 五福 七贤 青柠 府前 学府 东门 西湖 北门 南门 前镇 小港 麦田 萤火 槐荫 福田 罗湖 龙华 前海 滨江 钱塘 望京 东坝 听泉 观云 望月 抱朴 知春 问梅 漱玉 枕流 栖梧 采菱 踏青 拾翠 流霞 落雁 鸣蝉 飞絮 烟雨 晚晴 初雪 新荷 小满 芒种 白露 霜降 惊蛰 谷雨 清明 夏至 冬青 木兰 丁香 茉莉 蔷薇 杜鹃 芍药 牡丹 海桐 合欢 紫藤 银桦 香樟 水杉 红枫 乌桕 黄栌 石榴 枇杷 樱桃 橘园 茶园 稻香 麦浪 桑田 菱角 莲池 藕花 芦花 蒲苇 荻花 青萍 云栖 云霄 云梦 星河 星桥 晨曦 朝霞 暮云 夕照 晓风 长亭 短亭 古井 老街 石板 青瓦 白墙 粉墙 画舫 书香 墨池 砚台 琴台 棋盘 鹤鸣 燕归 鹿苑 鱼跃 蝶舞 莺啼".split(' ');
 const ZH_BAD=new Set(['上台','下台','后台','前台','后门','上门','下门','后院','三口','五口','七口','九口','月口','高门','白门','红门','南口','北口','东口','西口','上口','下口','前口','后口','长口','新口','红口','三门','五门','七门','九门','杏口','双口']);   // combinations that read as ordinary words, not places
 const ZH_A='金银玉翠青碧丹红白紫云霞星月春秋安宁平和永兴福寿康泰嘉华德龙凤鹤鹿松柏梅竹兰桂桃杏柳杨枫樟石泉溪双三五七九长高新古东西南北上下前后望观迎朝晓'.split(''), ZH_B='园苑庄坊里营屯集寨亭台门口林坪田原堡湖湾港浦洲滩渡桥塘溪泉山岭岗坡峰'.split('');
 const ZH_CA=[['澄','Chéng'],['临','Lín'],['青','Qīng'],['沧','Cāng'],['汀','Tīng'],['栖','Qī'],['岚','Lán'],['澜','Lán'],['鹭','Lù'],['枫','Fēng'],['泊','Bó'],['潮','Cháo'],['屿','Yǔ'],['滨','Bīn'],['浔','Xún'],['云','Yún'],['嘉','Jiā'],['永','Yǒng'],['宁','Níng'],['海','Hǎi']];
@@ -79,7 +79,7 @@ const EN_WET_S=['ford','bridge','mere','mouth','haven','holme','sey'], EN_WET_P=
 function rootKind(sd,city){
   const z=city?cityRoot(sd,'zh'):rootName(sd,'zh'), j=rootName(sd,'ja'), e=rootName(sd,'en'), el=e.toLowerCase();
   const wet=[...z].some(c=>ZH_WET.includes(c))||[...j].some(c=>JA_WET.includes(c))||EN_WET_S.some(x=>el.endsWith(x))||EN_WET_P.some(x=>e.startsWith(x));
-  const hill=(z!=='中山'&&[...z].some(c=>ZH_HILL.includes(c)))||[...j].some(c=>JA_HILL.includes(c))||EN_HILL_S.some(x=>el.endsWith(x));
+  const hill=[...z].some(c=>ZH_HILL.includes(c))||[...j].some(c=>JA_HILL.includes(c))||EN_HILL_S.some(x=>el.endsWith(x));
   return {wet,hill};
 }
 // terrain class around a point: 'sea' (sea or lake shore), 'river', 'hill' or 'land'
