@@ -19,7 +19,7 @@ async function w3dStart(){
   box.innerHTML=''; box.appendChild(R.domElement);
   const S=new T.Scene(), cam3=new T.PerspectiveCamera(60,1,0.0015,120);
   const hemi=new T.HemisphereLight(0xd6e6ff,0x8e8d88,0.9), sun=new T.DirectionalLight(0xfff0dc,2.6); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
-  Object.assign(sun.shadow.camera,{left:-W3D_SH,right:W3D_SH,top:W3D_SH,bottom:-W3D_SH,near:0.5,far:50}); sun.shadow.bias=-0.00025; sun.shadow.normalBias=0.0035; sun.shadow.radius=1.6; S.add(hemi,sun,sun.target);
+  Object.assign(sun.shadow.camera,{left:-W3D_SH,right:W3D_SH,top:W3D_SH,bottom:-W3D_SH,near:0.5,far:50}); sun.shadow.bias=-0.00025; sun.shadow.normalBias=0.0035; sun.shadow.radius=1.6; S.add(hemi,sun,sun.target); hemi.layers.enable(1); sun.layers.enable(1);
   Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null}); 
   R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; });
   R.domElement.addEventListener('pointerup',e=>{ if(!w3d.down||Math.hypot(e.clientX-w3d.down[0],e.clientY-w3d.down[1])>6) return; w3dTap(e.clientX,e.clientY); });
@@ -240,8 +240,43 @@ function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, a
     const m=new T.Mesh(geo,mat(tx,rt)); m.rotation.x=-Math.PI/2; m.position.set(tx0+tw/2,y,ty0+th/2); m.receiveShadow=true; put(m); yield; } }
 // material settings for anything lying on the ground: it is left out where a cutting has been marked (see the mask in w3dBuild)
 function w3dCut(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:1,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
-// (surfaces used to get a see-through twin here; the train is now shown through the city by an overlay instead, see w3dGhost)
 function w3dSee(m){ return m; }
+/* Seeing the metro through the city, without making anything in the city transparent. The frame is drawn in layers:
+   1. the whole scene as usual, every surface solid (the fast path);
+   2. only what lies underground (trains, rails, tunnel floors, station halls, platforms) once more, into a texture
+      of its own, with nothing in front of it;
+   3. that texture laid over the picture at part strength, in a soft region round the watched train and its way ahead.
+   The result is what you would get if everything between the camera and the metro (ground, streets, buildings,
+   trees) were made the same degree transparent, but it costs one small extra pass and one blend, whatever stands
+   in the way. */
+function w3dRender(){ const T=w3d.T, R=w3d.R, cam=w3d.cam3, k=w3d.seeW||0; R.render(w3d.S,cam); if(k<=0.001||!w3d.seeAt) return;
+  const bw=R.domElement.width, bh=R.domElement.height;
+  if(!w3d.urt||w3d.urt.width!==bw||w3d.urt.height!==bh){ if(w3d.urt) w3d.urt.dispose(); w3d.urt=new T.WebGLRenderTarget(bw,bh,{type:T.HalfFloatType,samples:2,depthBuffer:true}); }
+  if(!w3d.cq){ const m=new T.ShaderMaterial({transparent:true,depthTest:false,depthWrite:false,uniforms:{tU:{value:null},uM:{value:new T.Vector4()},uE:{value:new T.Vector4(1,0,1,1)},uK:{value:0}},
+      vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader:`uniform sampler2D tU; uniform vec4 uM; uniform vec4 uE; uniform float uK; varying vec2 vUv;
+        void main(){ vec4 c=texture2D(tU,vUv); if(c.a<0.004) discard; vec2 d=gl_FragCoord.xy-uM.xy; float r=length(vec2(dot(d,uE.xy)*uE.z,dot(d,vec2(-uE.y,uE.x))*uE.w));
+          gl_FragColor=vec4(c.rgb/max(c.a,0.004),c.a*uK*(1.0-smoothstep(0.25,1.0,r)));
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`}); const q=new T.Mesh(new T.PlaneGeometry(2,2),m); q.frustumCulled=false; const sc=new T.Scene(); sc.add(q); w3d.cq={sc,m,cam:new T.OrthographicCamera(-1,1,1,-1,0,1)}; }
+  // 2. the underground alone
+  const bg=w3d.S.background, fg=w3d.S.fog, au=R.shadowMap.autoUpdate, nu=R.shadowMap.needsUpdate; w3d.S.background=null; R.shadowMap.autoUpdate=false; R.shadowMap.needsUpdate=false;
+  // A cutaway, so it reads as looking in, not as a picture pasted on: of the walls and roofs of tunnels and halls only
+  // what lies behind their nearest surface is drawn (first their nearest depth alone, then everything deeper than it),
+  // which leaves the far wall and takes away the roof and the wall on the camera's side; then floors, platforms and trains.
+  const ac0=R.autoClear; R.autoClear=false; R.setRenderTarget(w3d.urt); R.setClearColor(0x000000,0); R.clear();
+  if(!w3d.preM) w3d.preM=new T.MeshBasicMaterial({colorWrite:false,side:T.DoubleSide});
+  cam.layers.set(2); w3d.S.overrideMaterial=w3d.preM; R.render(w3d.S,cam); w3d.S.overrideMaterial=null;
+  for(const m of (w3d.shellM||[])){ m.depthFunc=T.GreaterDepth; m.depthWrite=false; } R.render(w3d.S,cam); for(const m of (w3d.shellM||[])){ m.depthFunc=T.LessEqualDepth; m.depthWrite=true; }
+  R.clearDepth(); cam.layers.set(1); R.render(w3d.S,cam); cam.layers.set(0); R.setRenderTarget(null); R.autoClear=ac0; w3d.S.background=bg; R.shadowMap.autoUpdate=au; R.shadowMap.needsUpdate=nu;
+  // 3. laid over the picture, round the train and along its route
+  const [x,yT,z,u3,sg,P3,len3]=w3d.seeAt, v=w3d.seeV||(w3d.seeV=new T.Vector3()), at=u=>{ const uu=clamp(u,0,len3), p=polyAt(P3.pts,P3.cum,uu); v.set(p[0],w3dHAt(P3,uu)+0.014,p[1]).project(cam); return v.z>1||v.z<-1||Math.abs(v.x)>4||Math.abs(v.y)>4?null:[(v.x+1)/2*bw,(v.y+1)/2*bh]; };
+  const sm=at(u3)||[bw/2,bh/2]; let s0=null, s1=null; for(const d of [0.55,0.3,0.1]) if((s0=at(u3-sg*d))) break; for(const d of [1.25,0.9,0.6,0.3]) if((s1=at(u3+sg*d))) break; s0=s0||sm; s1=s1||sm;
+  let dx=s1[0]-s0[0], dy=s1[1]-s0[1]; const L=Math.hypot(dx,dy)||1; dx/=L; dy/=L; const la=clamp(L/2+bh*0.1,bh*0.2,bh*0.6), sb=clamp(la*0.62,bh*0.17,bh*0.3), tg=[(s0[0]+s1[0])/2,(s0[1]+s1[1])/2,dx,dy,la,sb];
+  let S=w3d.seeS; if(!S) S=w3d.seeS=tg; else { if(S[2]*tg[2]+S[3]*tg[3]<0){ tg[2]=-tg[2]; tg[3]=-tg[3]; } const f=Math.min(1,(w3d.seeDt||0.016)*7); for(let i=0;i<6;i++) S[i]+=(tg[i]-S[i])*f; }
+  const al=Math.hypot(S[2],S[3])||1, U=w3d.cq.m.uniforms; U.tU.value=w3d.urt.texture; U.uM.value.set(S[0],S[1],0,0); U.uE.value.set(S[2]/al,S[3]/al,1/S[4],1/S[5]); U.uK.value=0.66*k;      /* the city in front keeps a third of its strength: the underground is seen through it, not instead of it */
+  const ac=R.autoClear; R.autoClear=false; R.render(w3d.cq.sc,w3d.cq.cam); R.autoClear=ac; }
 function w3dTrash(list){ if(list&&list.length) (w3d.trash||(w3d.trash=[])).push(...list); }
 // old pieces are let go a few a frame, not all on the frame they are replaced
 function w3dEmpty(){ if(w3d.trash&&w3d.trash.length){ w3dClear(w3d.trash.splice(0,3)); } }
@@ -301,7 +336,7 @@ function w3dBuild(){
       for(const s of [1,-1]) w3dAdd(new T.Mesh(w3dRibbon(o3(pc,s*(DECK+0.0002)),0.0004,TRK-0.002,0.006),new T.MeshStandardMaterial({color:lc,roughness:0.5}))); }
     // parapets stop at the stations, where the platforms take their place
     for(const [a,b] of w3dMinus(above,stCut(false))){ const pc=w3dPart(P,a,b); for(const s of [1,-1]) w3dAdd(new T.Mesh(w3dRibbon(o3(pc,s*(DECK-0.0015)),0.0015,TRK+0.008,0.008),concrete)).castShadow=true; }
-    { const pc=w3dPart(P,0,len); for(const r of [W3D_TO+0.0048,W3D_TO-0.0048,-W3D_TO+0.0048,-W3D_TO-0.0048]) w3dAdd(new T.Mesh(w3dRibbon(o3(pc,r),0.0008,TRK+0.0016,0.0016),railM)); }
+    { const pc=w3dPart(P,0,len); for(const r of [W3D_TO+0.0048,W3D_TO-0.0048,-W3D_TO+0.0048,-W3D_TO-0.0048]) w3dAdd(new T.Mesh(w3dRibbon(o3(pc,r),0.0008,TRK+0.0016,0.0016),railM)).layers.enable(1); }
     for(const [a,b] of cutS){ const pc=w3dPart(P,Math.max(0,a-0.05),Math.min(len,b+0.05)); cuts.push(pc); }
     for(const [a,b] of w3dMinus(below,stCut(true))) tubes.push(w3dPart(P,a,b));
     const pts=P.pts; let accM=0; for(let i=1;i<pts.length;i++){ const d=dist(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); accM+=d;
@@ -315,7 +350,7 @@ function w3dBuild(){
     for(const dx of [-0.39,-0.13,0.13,0.39]){ parts.push(w3dBox(0.0095,0.0165,0.0197,dx*CAR,0.0118,0,0xcfd4da),w3dBox(0.0035,0.0065,0.01975,dx*CAR-0.0024,0.0158,0,0x3a4856),w3dBox(0.0035,0.0065,0.01975,dx*CAR+0.0024,0.0158,0,0x3a4856)); }   /* four doors a side, each with two windows */
     for(const e of [-1,1]) parts.push(w3dBox(0.003,0.011,0.015,e*(CAR/2+0.0004),0.0148,0,0x1d2530),w3dBox(0.0031,0.0022,0.0152,e*(CAR/2+0.0004),0.0068,0,lcs));
     const tg=w3dMerge(parts), tmat=new T.MeshStandardMaterial({vertexColors:true,roughness:0.32,metalness:0.35}), g0=trainAt(L,0), tm=new T.InstancedMesh(tg,tmat,g0.n*W3D_CARS);
-    tm.castShadow=true; tm.frustumCulled=false; w3dAdd(tm); w3d.trains.push({L,m:tm,n:g0.n,geo:tg}); }
+    tm.castShadow=true; tm.frustumCulled=false; tm.layers.enable(1); w3dAdd(tm); w3d.trains.push({L,m:tm,n:g0.n,geo:tg}); }
   if(piers.length){ const pg=w3dMerge([{g:new T.CylinderGeometry(0.0075,0.009,TRK-0.014,10),m:new T.Matrix4().makeTranslation(0,(TRK-0.014)/2,0),c:dark?0x77767a:0xbdb9b1},w3dBox(0.014,0.006,DECK*1.8,0,TRK-0.017,0,dark?0x77767a:0xbdb9b1)]);
     const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.9}),piers.length), M=new T.Matrix4(), Q=new T.Quaternion(), up=new T.Vector3(0,1,0), V=new T.Vector3(), Sc=new T.Vector3();
     piers.forEach((p,i)=>{ Q.setFromAxisAngle(up,-p[2]); M.compose(V.set(p[0],0,p[1]),Q,Sc.set(1,p[3],1)); pm.setMatrixAt(i,M); }); pm.castShadow=true; pm.receiveShadow=true; w3dAdd(pm); }
@@ -328,7 +363,8 @@ function w3dBuild(){
   for(const pc of cuts){ const flat=pc.map(q=>[q[0],q[1]]), mk=new T.Mesh(w3dRibbon(flat,TUN_W-0.0006,0.0012,0),new T.MeshBasicMaterial({colorWrite:false,depthWrite:false,stencilWrite:true,stencilRef:1,stencilFunc:T.AlwaysStencilFunc,stencilFail:T.ReplaceStencilOp,stencilZFail:T.ReplaceStencilOp,stencilZPass:T.ReplaceStencilOp}));
     mk.renderOrder=-10; w3dAdd(mk); const tr=w3dAdd(new T.Mesh(w3dTrough(pc,TUN_W,0.011),new T.MeshStandardMaterial({color:0xb9b6ae,roughness:0.9,side:T.DoubleSide}))); tr.receiveShadow=true; }
   if(tubes.length){ const B=G.bounds, ep=new T.Mesh(new T.PlaneGeometry(B[2]-B[0]+40,B[3]-B[1]+40),new T.MeshBasicMaterial({color:0x17181b,fog:false})); ep.rotation.x=Math.PI/2; ep.position.set((B[0]+B[2])/2,-0.0015,(B[1]+B[3])/2); w3dAdd(ep); }
-  if(tubes.length){ w3dTunnelTex(); const tm=w3dSee(new T.MeshBasicMaterial({map:w3d.tunTex,vertexColors:true,side:T.DoubleSide,fog:false})); for(const pc of tubes){ w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[0]),tm)); w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[2,4,6]),tm)); }
+  w3d.shellM=[];      /* materials of tunnel and hall walls and roofs: drawn specially when the underground is looked into (w3dRender) */
+  if(tubes.length){ w3dTunnelTex(); const tm=w3dSee(new T.MeshBasicMaterial({map:w3d.tunTex,vertexColors:true,side:T.DoubleSide,fog:false})); const tmS=tm.clone(); w3d.shellM.push(tmS); for(const pc of tubes){ w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[0]),tm)).layers.enable(1); { const sh=w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[2,4,6]),tmS)); sh.layers.enable(2); } }
     // deep earth under everything, seen through the thinned ground round a train underground
     const B=G.bounds, ef=new T.Mesh(new T.PlaneGeometry(B[2]-B[0]+40,B[3]-B[1]+40),new T.MeshBasicMaterial({color:0x4d463d,fog:false})); ef.rotation.x=-Math.PI/2; ef.position.set((B[0]+B[2])/2,UGY*2.9,(B[1]+B[3])/2); w3dAdd(ef); }
   // stations: platforms beside the outermost tracks, a canopy over all of them with the line colours on its edge,
@@ -374,16 +410,11 @@ function w3dBuild(){
       const up=groups.filter(g=>g[0].y>=0); if(up.length>=2){ const cx=up.reduce((a,g)=>a+g[0].p[0],0)/up.length, cy=up.reduce((a,g)=>a+g[0].p[1],0)/up.length; parts.push(w3dBox(0.2,TRK-0.055,0.2,cx,0.035+(TRK-0.055)/2,cy,0xdcd8cf),w3dBox(0.21,0.004,0.21,cx,TRK-0.018,cy,0xeeeeea),w3dBox(0.17,0.018,0.202,cx,0.05,cy,0x9fb4c2),w3dBox(0.202,0.018,0.17,cx,0.05,cy,0x9fb4c2)); for(const [ax,az] of [[-0.09,-0.09],[0.09,-0.09],[0.09,0.09],[-0.09,0.09]]) parts.push(w3dBox(0.008,0.035,0.008,cx+ax,0.0175,cy+az,0xa9b0b9)); spots.push({x:cx,y:cy,hx:1,hy:0,len:0.3,half:0.15}); } }
     w3dLandmarks(parts,spots);
     w3d.stSpots=spots; if(parts.length){ const sm=new T.Mesh(w3dMerge(parts),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.6,metalness:0.05}))); sm.castShadow=true; sm.receiveShadow=true; w3dAdd(sm); }
-    if(uparts.length) w3dAdd(new T.Mesh(w3dMerge(uparts),new T.MeshBasicMaterial({vertexColors:true,fog:false})));
-    if(hall.length) w3dAdd(new T.Mesh(w3dMerge(hall),new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide})));
-    if(hallX.length) w3dAdd(new T.Mesh(w3dMerge(hallX),w3dSee(new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide})))); }
+    if(uparts.length) w3dAdd(new T.Mesh(w3dMerge(uparts),new T.MeshBasicMaterial({vertexColors:true,fog:false}))).layers.enable(1);
+    if(hall.length) w3dAdd(new T.Mesh(w3dMerge(hall),new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide}))).layers.enable(1);
+    if(hallX.length){ const hm=new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide}); w3d.shellM.push(hm); w3dAdd(new T.Mesh(w3dMerge(hallX),hm)).layers.enable(2); } }
   // the rider's own train (seen from outside in the chase view)
-  w3d.myTrain=null; const L0=lines.find(l=>l.stops.length>=2); if(L0){ const tr=w3d.trains[0]; w3d.myTrain=w3dAdd(new T.InstancedMesh(tr.geo,new T.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.35}),W3D_CARS)); w3d.myTrain.castShadow=true; w3d.myTrain.frustumCulled=false; }
-  // the overlay that shows the watched train and the route ahead through the city (see the frame loop)
-  w3d.ghost=null; w3d.route=null;
-  if(w3d.trains.length){ const gm=new T.InstancedMesh(w3d.trains[0].geo,new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0.6,depthTest:false,depthWrite:false,fog:false}),W3D_CARS); gm.renderOrder=1000; gm.frustumCulled=false; gm.visible=false; w3d.ghost=w3dAdd(gm);
-    const N=36, g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(new Float32Array(N*2*3),3)); g.setAttribute('color',new T.BufferAttribute(new Float32Array(N*2*4),4)); const ix=[]; for(let i=0;i<N-1;i++){ const o=i*2; ix.push(o,o+2,o+1, o+1,o+2,o+3); } g.setIndex(ix);
-    const rm=new T.Mesh(g,new T.MeshBasicMaterial({vertexColors:true,transparent:true,depthTest:false,depthWrite:false,fog:false,side:T.DoubleSide})); rm.renderOrder=999; rm.frustumCulled=false; rm.visible=false; w3d.route=w3dAdd(rm); w3d.routeN=N; }
+  w3d.myTrain=null; const L0=lines.find(l=>l.stops.length>=2); if(L0){ const tr=w3d.trains[0]; w3d.myTrain=w3dAdd(new T.InstancedMesh(tr.geo,new T.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.35}),W3D_CARS)); w3d.myTrain.castShadow=true; w3d.myTrain.layers.enable(1); w3d.myTrain.frustumCulled=false; }
   w3d.bcStale=true; w3d.labels.forEach(l=>l.el.remove()); w3d.labels=[]; }
 function w3dNear(L,x,y){ const P=L._p3?L._p3.pts:null; if(!P) return [x,y,0]; const C=L._p3.cum; let bd=1e9, bx=x, by=y, bu=0; for(let i=1;i<P.length;i++){ const a=P[i-1], b=P[i], dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy||1e-9, q=clamp(((x-a[0])*dx+(y-a[1])*dy)/l2,0,1), xx=a[0]+dx*q, yy=a[1]+dy*q, d=(xx-x)**2+(yy-y)**2; if(d<bd){ bd=d; bx=xx; by=yy; bu=C[i-1]+(C[i]-C[i-1])*q; } } return [bx,by,bu]; }
 // the track's height at distance u along a line's 3D path
@@ -712,7 +743,7 @@ function w3dTap(cx,cy){ const r=w3d.R.domElement.getBoundingClientRect(), T=w3d.
   if(best){ const L=best.L, sc=stopCum(L), u=best.p.f*sc[sc.length-1]; let k0=0; if(best.p.dir>0){ for(let j=0;j<sc.length;j++) if(sc[j]<=u) k0=j; } else { k0=sc.length-1; for(let j=sc.length-1;j>=0;j--) if(sc[j]>=u) k0=j; }
     const s=pickTrain(L,Math.min(k0,L.stops.length-1),best.p.dir); if(s){ watch.subj=s; watch.user=0; renderWatchBar(); } } }
 function w3dFrame(dt){
-  if(!w3d.active||!w3d.ready) return; bldFreeze=true; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
+  if(!w3d.active||!w3d.ready) return; bldFreeze=true; w3d.seeDt=dt; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
   const st=watch.st, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
   // the other trains glide along at the same calm pace as yours
@@ -749,35 +780,30 @@ function w3dFrame(dt){
     const C=w3d.cc||(w3d.cc={t:Math.random()*50,slow:0,ug:0,s:0.15}); C.slow+=((st.speed>0.02?0:1)-C.slow)*Math.min(1,dt*0.7); C.t+=dt*(1-0.8*C.slow); C.ug+=((yT<0.02?1:0)-C.ug)*Math.min(1,dt*1.2);
     const calm=1-0.85*C.slow, back=lerp(0.5+0.08*Math.sin(C.t*0.17+2),0.42,C.slow), sPref=(0.2*Math.sin(C.t*0.26)+0.07*Math.sin(C.t*0.11+1.3))*calm*(1-0.5*C.ug);
     const base=Math.max(yT,0)+lerp(0.075+0.045*(0.5+0.5*Math.sin(C.t*0.19+0.5))*calm+0.02*Math.sin(C.t*0.47)*calm,0.3,C.ug), ty=Math.max(yT,-0.02)+0.012, top=(px,pz)=>Math.max(w3dHgt(px,pz),w3dHt(px,pz));
+    // Its place is on the track the train has just run over, a set distance back, not straight behind the train's nose:
+    // through a curve it follows the curve at the train's own pace instead of being swung round like a tail.
+    const slot=(sv,d)=>{ if(!P3) return [x-hx*(back-d)+nx*sv,z-hz*(back-d)+nz*sv,hx,hz]; const uu=clamp(u3+sg*(d-back),0,len3), p=polyAt(P3.pts,P3.cum,uu), h=polyHead(P3.pts,P3.cum,uu,0.25), ax=h[0]*sg, az=h[1]*sg, o=sv+W3D_TO; return [p[0]-az*o,p[1]+ax*o,ax,az]; };
     // how high a place s to the side of the line would have to be flown, now and for the next block and a half
-    const needAt=sv=>{ const wx=x-hx*back+nx*sv, wz=z-hz*back+nz*sv; let nd=base;
-      for(const d of [-0.12,0,0.15,0.32,0.5,0.75,1.0,1.3,1.6]) for(const e of [-0.06,0,0.06]){ const g=top(wx+hx*d+nx*e,wz+hz*d+nz*e); if(g>0&&g+0.035>nd) nd=g+0.035; }
-      if(C.ug<0.5) for(let q=4;q<=9;q++){ const f=q/10, g=top(x+(wx-x)*f,z+(wz-z)*f); if(g>0){ const yn=ty+(g+0.02-ty)/f; if(yn>nd) nd=yn; } }
+    const needAt=sv=>{ let nd=base, w0=null;
+      for(const d of [-0.12,0,0.15,0.32,0.5,0.75,1.0,1.3,1.6]){ const q=slot(sv,d); if(d===0) w0=q; for(const e of [-0.06,0,0.06]){ const g=top(q[0]-q[3]*e,q[1]+q[2]*e); if(g>0&&g+0.035>nd) nd=g+0.035; } }
+      if(C.ug<0.5) for(let q=4;q<=9;q++){ const f=q/10, g=top(x+(w0[0]-x)*f,z+(w0[1]-z)*f); if(g>0){ const yn=ty+(g+0.02-ty)/f; if(yn>nd) nd=yn; } }
       return Math.min(nd,1.2); };
-    let bestS=C.s, bestC=1e9, bestN=base; for(const sv of [-0.46,-0.32,-0.2,-0.1,0,0.1,0.2,0.32,0.46]){ const nd=needAt(sv), cost=(nd-base)*4+Math.abs(sv-sPref)*0.5+Math.abs(sv-(C.sT==null?C.s:C.sT))*0.35; if(cost<bestC){ bestC=cost; bestS=sv; bestN=nd; } }
-    C.sT=bestS; const wx=x-hx*back+nx*C.s, wz=z-hz*back+nz*C.s, need=Math.max(bestN,needAt(C.s));      /* on the way across to the chosen place it clears what is under it now */
-    if(!C.p||dist(C.p[0],C.p[2],wx,wz)>2){ C.s=bestS; C.sv=0; const w0=[x-hx*back+nx*bestS,need,z-hz*back+nz*bestS]; C.p=w0; C.v=[0,0,0]; }
-    // soft springs: across the line slowly, along it tightly, up a little quicker than down; a hard push only if something is actually touched
-    { const ks=1.6, as=ks*(C.sT-C.s)-2*Math.sqrt(ks)*(C.sv||0); C.sv=(C.sv||0)+as*dt; C.s+=C.sv*dt;
-      const sp=(i,tg,k)=>{ const a=k*(tg-C.p[i])-2*Math.sqrt(k)*C.v[i]; C.v[i]+=a*dt; C.p[i]+=C.v[i]*dt; }; sp(0,wx,14); sp(2,wz,14);
-      const hit=top(C.p[0],C.p[2])+0.012; sp(1,need,C.p[1]<hit?30:need>C.p[1]?3.2:1.4); if(C.p[1]<hit-0.02) C.p[1]=hit-0.02; }
-    cp=C.p.slice(); ct=[x+hx*0.16,ty,z+hz*0.16]; kp=60; kt=5;
-    // bank a little into each move across
-    C.roll=(C.roll||0)+(clamp(-(C.sv||0)*0.9,-0.16,0.16)-(C.roll||0))*Math.min(1,dt*2.5); }
+    let bestS=C.s, bestC=1e9, bestN=base; for(const sv of [-0.46,-0.32,-0.2,-0.1,0,0.1,0.2,0.32,0.46]){ const nd=needAt(sv), cost=(nd-base)*4+Math.abs(sv-sPref)*0.5+Math.abs(sv-(C.sT==null?C.s:C.sT))*0.5; if(cost<bestC){ bestC=cost; bestS=sv; bestN=nd; } }
+    C.sT=bestS; const sl=slot(C.s,0), wx=sl[0], wz=sl[1], need=Math.max(bestN,needAt(C.s));      /* on the way across to the chosen place it clears what is under it now */
+    if(!C.p||dist(C.p[0],C.p[2],wx,wz)>2){ C.s=bestS; C.sv=0; const q=slot(bestS,0); C.p=[q[0],need,q[1]]; C.v=[0,0,0]; C.hd=Math.atan2(q[3],q[2]); C.roll=0; }
+    // soft springs all round: it drifts across the line, trails the train with a little give, rises a touch quicker than it sinks; a firm push only if it actually touches something
+    { const ks=0.8, as=ks*(C.sT-C.s)-2*Math.sqrt(ks)*(C.sv||0); C.sv=(C.sv||0)+as*dt; C.s+=C.sv*dt;
+      const sp=(i,tg,k)=>{ const a=k*(tg-C.p[i])-2*Math.sqrt(k)*C.v[i]; C.v[i]+=a*dt; C.p[i]+=C.v[i]*dt; }; sp(0,wx,5); sp(2,wz,5);
+      const hit=top(C.p[0],C.p[2])+0.012; sp(1,need,C.p[1]<hit?24:need>C.p[1]?2.2:1.0); if(C.p[1]<hit-0.02) C.p[1]=hit-0.02; }
+    cp=C.p.slice(); ct=[x+hx*0.16,ty,z+hz*0.16]; kp=60; kt=3.2;
+    // banking: it leans into a turn as far as the turn is tight and its speed is high, and into each move across the line
+    { const hd=Math.atan2(sl[3],sl[2]); let dh=hd-(C.hd==null?hd:C.hd); dh=Math.atan2(Math.sin(dh),Math.cos(dh)); C.hd=hd; const rate=dt>0?dh/dt:0; C.yr=(C.yr||0)+(clamp(rate,-1.5,1.5)-(C.yr||0))*Math.min(1,dt*2.5);
+      C.roll=(C.roll||0)+(clamp(C.yr*0.55+(C.sv||0)*1.6,-0.32,0.32)-(C.roll||0))*Math.min(1,dt*2.2); } }
   const snap=!w3d.camPos||dist(w3d.camPos[0],w3d.camPos[2],cp[0],cp[2])>1.8, a1=snap?1:1-Math.exp(-dt*kp), a2=snap?1:1-Math.exp(-dt*kt);
   w3d.camPos=w3d.camPos&&!snap?w3d.camPos.map((v,i)=>v+(cp[i]-v)*a1):cp; w3d.camTgt=w3d.camTgt&&!snap?w3d.camTgt.map((v,i)=>v+(ct[i]-v)*a2):ct;
-  w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt); if(!seat&&w3d.cc&&w3d.cc.roll) w3d.cam3.rotateZ(w3d.cc.roll); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; }
-  /* Seeing the train underground. Nothing in the city is made transparent (that is costly: every surface would have to
-     be drawn as a blended one). Instead, while the train is below ground and the view is from outside, a second copy
-     of the train and a band along the next stretch of its route are drawn last of all, ignoring what is in front of
-     them, at part strength: the train and the way ahead show through the ground and the buildings like a shadow
-     on glass. It fades in and out over a moment and costs a handful of triangles. */
-  { w3d.seeOn=!seat&&!!P3&&st.mode==='ride'&&(yT<0?true:yT>0.03?false:!!w3d.seeOn); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1); const W_=w3d.seeW, gh=w3d.ghost, rt=w3d.route;
-    if(gh){ gh.visible=W_>0&&!!P3; if(gh.visible){ const tr=w3d.trains.find(o=>o.L===st.L); if(tr&&gh.geometry!==tr.geo) gh.geometry=tr.geo; gh.material.opacity=0.62*W_; w3dSetCars(gh,0,st.L,u3,sg); gh.instanceMatrix.needsUpdate=true; } }
-    if(rt){ rt.visible=W_>0&&!!P3; if(rt.visible){ const N=w3d.routeN, pa=rt.geometry.attributes.position, ca=rt.geometry.attributes.color, col=w3d.routeC||(w3d.routeC=new T.Color()); col.set(lineColor(st.L));
-        for(let i=0;i<N;i++){ const f=i/(N-1), u=clamp(u3+sg*(-0.5+f*5),0,len3), p=polyAt(P3.pts,P3.cum,u), h=polyHead(P3.pts,P3.cum,u,0.08), y=w3dHAt(P3,u)+0.003, ox=-h[1]*sg*W3D_TO, oz=h[0]*sg*W3D_TO, hw=0.011, a=W_*0.5*Math.min(1,f*8)*Math.pow(1-f,0.7)*(w3dHAt(P3,u)<0.01?1:0.25);
-          pa.setXYZ(i*2,p[0]+ox-h[1]*hw,y,p[1]+oz+h[0]*hw); pa.setXYZ(i*2+1,p[0]+ox+h[1]*hw,y,p[1]+oz-h[0]*hw); ca.setXYZW(i*2,col.r,col.g,col.b,a); ca.setXYZW(i*2+1,col.r,col.g,col.b,a); }
-        pa.needsUpdate=true; ca.needsUpdate=true; } } }
+  w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt); if(!seat&&w3d.cc&&w3d.cc.roll) w3d.cam3.rotateZ(-w3d.cc.roll); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; }
+  // how strongly the underground shows through (see w3dRender): on while the watched train is below ground and seen from outside, fading in and out
+  { w3d.seeOn=!seat&&!!P3&&(yT<0?true:yT>0.03?false:!!w3d.seeOn); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1); w3d.seeAt=P3?[x,yT,z,u3,sg,P3,len3]:null; }
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;
@@ -787,7 +813,7 @@ function w3dFrame(dt){
     if(A.n>50&&A.e>23&&w3d.pr>0.75){ w3d.pr=Math.max(0.75,w3d.pr-0.25); R.setPixelRatio(w3d.pr); A.n=0; }
     else if(A.n>300&&A.e<12.5&&w3d.pr<w3d.prMax){ w3d.pr=Math.min(w3d.prMax,w3d.pr+0.25); R.setPixelRatio(w3d.pr); A.n=0; }
     R.shadowMap.autoUpdate=false; R.shadowMap.needsUpdate=A.e<21||(A.f&1)===0; }
-  R.render(w3d.S,w3d.cam3); w3dEmpty(); w3dLabels(); }
+  w3dRender(); w3dEmpty(); w3dLabels(); }
 // Where the watched train is along its line's 3D track. The ride knows which two stops it is between and how far along;
 // that maps straight onto the track, so the position can only move forward (searching for the nearest piece of track
 // jumped back and forth wherever the line bends close to itself or is drawn aside into a station).
