@@ -218,7 +218,7 @@ function* w3dGroundGen(){ w3dTerrain();
     (g,x0,y0,w,h,k)=>{ g.fillStyle='#f0f0f0'; g.fillRect(0,0,g.canvas.width,g.canvas.height); g.setTransform(k,0,0,k,-x0*k,-y0*k); g.fillStyle='#262626';
       for(let y=Math.max(B[1],Math.floor(y0));y<Math.min(B[3],y0+h+1);y++) for(let x=Math.max(B[0],Math.floor(x0));x<Math.min(B[2],x0+w+1);x++) if(G.water[y*W+x]) g.fillRect(x-0.5,y-0.5,1,1);
       g.strokeStyle='#262626'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18); g.stroke(r.p); } },
-    (tx,rt)=>w3dSee(new T.MeshStandardMaterial({map:tx,roughnessMap:rt,roughness:1,metalness:0.02,...w3dCut()})),m=>{ m.renderOrder=-5; out.push(m); });
+    (tx,rt)=>w3dSee(new T.MeshStandardMaterial({map:tx,roughnessMap:rt,roughness:1,metalness:0.02,polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:4,...w3dCut()})),      /* the far ground is pushed back a little in depth, so the sharp ground near the viewer and everything lying on it wins without needing an offset of its own */m=>{ m.renderOrder=-5; out.push(m); });
   // swap in the finished ground; the old one goes after the next frame, once the new one has been drawn
   return ()=>{ w3d.groundCanvas=c; out.forEach(m=>w3d.S.add(m)); w3dTrash(w3d.gnd); w3d.gnd=out; }; }
 // the world rectangle (x0,y0,w,h) as n×n ground tiles at ppc pixels a cell: each tile is painted, uploaded and placed on its own step
@@ -765,7 +765,7 @@ function* w3dLocalGround(cx,cy,add){
         g.moveTo(x-0.5,y-0.5+((h&255)/255)); g.bezierCurveTo(x-0.1,y-0.3,x+0.1,y+0.3,x+0.5,y-0.5+(((h>>8)&255)/255)); } g.stroke();
       if(P2.rail){ g.strokeStyle=dark?'#4a443e':'#9a8f84'; g.lineWidth=0.09; g.stroke(P2.rail); g.strokeStyle=dark?'#2a2a2a':'#4a4440'; g.lineWidth=0.006; for(const o of [-0.012,0.012]){ g.save(); g.translate(0,o); g.stroke(P2.rail); g.restore(); } }
       w3dStreets(g,w3dEdgesIn(tx0,ty0,tx0+tw,ty0+th,E),wd,[[0.034,pave],[0.006,dark?'#3a3c42':'#777a80'],[0,asph],[-0.0035,k=>k===4?'#e8c547':'rgba(255,255,255,.85)',k=>k===4?[]:[0.025,0.03],2]]); },
-    null,tx=>w3dSee(new T.MeshStandardMaterial({map:tx,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,...w3dCut()})),m=>{ m.renderOrder=-4; add(m); }); }
+    null,tx=>w3dSee(new T.MeshStandardMaterial({map:tx,roughness:0.95,...w3dCut()})),m=>{ m.renderOrder=-4; add(m); }); }
 // a point a given fraction along a line's 3D path (with its bundle offset)
 function w3dOn(L,f,dir){ const P=L._p3; if(!P||P.pts.length<2){ const g=trainAt(L,0); return {x:g.x,y:g.y,hx:1,hy:0}; } const len=P.cum[P.cum.length-1], u=clamp(f,0,1)*len, i=Math.max(1,trainSeg(P.cum,u)), q=(u-P.cum[i-1])/((P.cum[i]-P.cum[i-1])||1), a=P.pts[i-1], b=P.pts[i];
   const hx=(b[0]-a[0])*(dir||1), hy=(b[1]-a[1])*(dir||1), hl=Math.hypot(hx,hy)||1; return {x:lerp(a[0],b[0],q),y:lerp(a[1],b[1],q),hx:hx/hl,hy:hy/hl}; }
