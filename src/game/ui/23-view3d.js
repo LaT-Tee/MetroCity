@@ -415,7 +415,7 @@ function w3dBuild(){
   // stations: platforms beside the outermost tracks, a canopy over all of them with the line colours on its edge,
   // columns, name boards, benches and a concourse under the viaduct; lines running side by side share one station.
   // Underground the same platforms stand in a lit hall, with an entrance pavilion on the street above.
-  { const parts=[], uparts=[], hall=[], hallX=[], spots=[], plats=[], signs=[]; w3d.plats=plats; w3dLandmarks(parts,spots,signs); const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
+  { const stB=w3dBoxes(), parts=[], uparts=[], hall=[], hallX=[], spots=[], plats=[], signs=[]; w3d.plats=plats; w3dLandmarks(parts,spots,signs); const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
     for(const st of stations){ const here=[]; for(const L of lines){ if(L.stops.length<2||!L._p3||!L._p3.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const u=L._p3.sU[k], p=polyAt(L._p3.pts,L._p3.cum,u), h=polyHead(L._p3.pts,L._p3.cum,u,0.2); here.push({L,p,h,y:w3dHAt(L._p3,u)}); }
       const groups=[]; for(const o of here){ const g=groups.find(g=>Math.abs(g[0].h[0]*o.h[0]+g[0].h[1]*o.h[1])>0.85&&dist(g[0].p[0],g[0].p[1],o.p[0],o.p[1])<0.7&&Math.abs(g[0].y-o.y)<0.03); if(g) g.push(o); else groups.push([o]); }
       if(here.length) w3d.stY.set(st.id,Math.max(...here.map(o=>o.y)));
@@ -452,8 +452,7 @@ function w3dBuild(){
               plats.push({x:sx,y:sy,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; } }
           if(!found){ plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; } const so=ez>=mid?1:-1;
           if(bigSt){ // a busy station gets a station building over its entrance: shops at street level, floors above, its name across the front
-            const zc=ez+so*0.03, hb=0.07+0.012*Math.min(3,here.length); S(0.3,0.003,0.17,ex,0.0015,zc,0xc9c7c1); S(0.26,0.022,0.11,ex,0.014,zc,0xe9e5de); S(0.262,0.011,0.112,ex,0.0125,zc,0x55697a); S(0.26,hb-0.025,0.11,ex,0.025+(hb-0.025)/2,zc,0xd9dde2);
-            for(let y=0.036;y<hb-0.006;y+=0.013) S(0.262,0.006,0.112,ex,y,zc,0x4a6072); S(0.27,0.003,0.12,ex,hb+0.0015,zc,0xbfc4ca); S(0.06,0.012,0.04,ex-0.07,hb+0.009,zc,0xb7bcc2); S(0.1,0.003,0.03,ex,0.0245,zc+so*0.07,cano);
+            const zc=ez+so*0.03, hb=0.07+0.012*Math.min(3,here.length); S(0.3,0.003,0.17,ex,0.0015,zc,0xc9c7c1); { const wx=cx+hx*ex+nx*zc, wz=cy+hy*ex+ny*zc; stB.mall({x:wx-0.13,y:wz-0.055,w:0.26,d:0.11,h:hb/BZ3,a:Math.atan2(hy,hx)},(st.id*2654435761>>>0)); }      /* a station building is a shopping building: shop fronts at street level, banded glazing above, not rows of flat windows */ S(0.27,0.003,0.12,ex,hb+0.0015,zc,0xbfc4ca); S(0.06,0.012,0.04,ex-0.07,hb+0.009,zc,0xb7bcc2); S(0.1,0.003,0.03,ex,0.0245,zc+so*0.07,cano);
             signs.push({m:Gm.clone().multiply(new T.Matrix4().makeTranslation(ex,0.031,zc+so*0.0565)).multiply(new T.Matrix4().makeRotationY(so>0?0:Math.PI)),w:0.2,h:0.014,text:nm(st.name),c:lc});
             spots.push({x:cx+hx*ex+nx*zc,y:cy+hy*ex+ny*zc,hx,hy,len:0.32,half:0.09,h:hb+0.02,g:1}); }
           else { S(0.12,0.0025,0.075,ex,0.00125,ez,0xc9c7c1); S(0.07,0.02,0.035,ex,0.01,ez,glass); S(0.082,0.003,0.045,ex,0.0215,ez,cano); S(0.082,0.004,0.0015,ex,0.0185,ez+0.022,lc); S(0.012,0.012,0.012,ex+0.06,0.03,ez,lc); S(0.0018,0.026,0.0018,ex+0.06,0.013,ez,col);
@@ -472,6 +471,7 @@ function w3dBuild(){
         g.fillStyle='#1b2030'; let fs=34; g.font='700 '+fs+'px '+FONT(); while(fs>14&&g.measureText(q.text).width>440){ fs-=2; g.font='700 '+fs+'px '+FONT(); } g.fillText(q.text,cxp+278,cyp+33);
         const u0=cxp/1024, u1=(cxp+512)/1024, v1=1-cyp/cv.height, v0=1-(cyp+64)/cv.height, hw=q.w/2, hh=q.h/2; for(const [x,y,u,v] of [[-hw,-hh,u0,v0],[hw,-hh,u1,v0],[hw,hh,u1,v1],[-hw,-hh,u0,v0],[hw,hh,u1,v1],[-hw,hh,u0,v1]]){ V.set(x,y,0).applyMatrix4(q.m); pos.push(V.x,V.y,V.z); uv.push(u,v); } });
       const tx=new T.CanvasTexture(cv); tx.colorSpace=T.SRGBColorSpace; tx.anisotropy=8; const sg=new T.BufferGeometry(); sg.setAttribute('position',new T.Float32BufferAttribute(pos,3)); sg.setAttribute('uv',new T.Float32BufferAttribute(uv,2)); w3dAdd(new T.Mesh(sg,new T.MeshBasicMaterial({map:tx,side:T.DoubleSide}))); }
+    for(const m of stB.meshes(true)) w3dAdd(m);
     w3d.stSpots=spots; if(parts.length){ const sm=new T.Mesh(w3dMerge(parts),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.6,metalness:0.05}))); sm.castShadow=true; sm.receiveShadow=true; w3dAdd(sm); }
     if(uparts.length) w3dAdd(new T.Mesh(w3dMerge(uparts),new T.MeshBasicMaterial({vertexColors:true,fog:false}))).layers.enable(1);
     if(hall.length) w3dAdd(new T.Mesh(w3dMerge(hall),new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide}))).layers.enable(1);
@@ -545,7 +545,7 @@ function w3dBump(P,u,dY,flat,ease){ for(let v=0;v<P.pts.length;v++){ const du=Ma
 function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[])) m=Math.min(m,Math.abs(s-u)); return m; };
   const sep=()=>{ for(let pass=0;pass<5;pass++){ let n=0;
     for(const c of w3dCrossings()){ if(c.par>0.94) continue; const ya=w3dHAt(c.A,c.ua), yb=w3dHAt(c.B,c.ub), gapY=Math.abs(ya-yb); if(gapY>=0.058) continue;
-      const ra=room(c.A,c.ua), rb=room(c.B,c.ub), mvA=ra>rb, P=mvA?c.A:c.B, u=mvA?c.ua:c.ub, r=Math.max(ra,rb), yM=mvA?ya:yb, yO=mvA?yb:ya, ease=clamp(r-W3D_PLAT/2-0.05,0.6,3.6); if(r<W3D_PLAT/2+0.25){ // both are at their platforms here (an interchange): one whole station moves a level, platforms and all
+      const ra=room(c.A,c.ua), rb=room(c.B,c.ub), mvA=ra>rb, P=mvA?c.A:c.B, u=mvA?c.ua:c.ub, r=Math.max(ra,rb), yM=mvA?ya:yb, yO=mvA?yb:ya, ease=clamp(r-W3D_PLAT/2-0.05,0.6,3.6); if(r<W3D_PLAT/2+0.7){ // both are at their platforms here (an interchange): one whole station moves a level, platforms and all
         const both=ya>0.003&&yb>0.003, mA=both?ya>=yb:ya<=yb, P2=mA?c.A:c.B, u2=mA?c.ua:c.ub, y2=mA?ya:yb, yo=mA?yb:ya; w3dBump(P2,u2,both?(yo+0.072)-y2:(yo-0.068)-y2,W3D_PLAT/2+0.3,W3D_PLAT/2+2.2); n++; continue; } n++;
       // up over it if both are in the air and the other is not higher already; otherwise down under it
       const up=yO>0.003&&yM>0.003, dY=up?(yO+0.072)-yM:(yO-0.068)-yM; w3dBump(P,u,dY,Math.min(0.5,ease*0.3),ease); }
@@ -569,6 +569,8 @@ function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[]))
    canopy over the bays, coaches waiting) and every airport (runways with their markings, taxiways, a terminal with
    piers, a control tower, aircraft at the stands, hangars). All of it goes into the same mesh as the metro stations. */
 function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBoxes();
+  // a block in one of the city's own facade materials, placed in a landmark's frame (centre cx,cz, turned by a)
+  const texAt=(cx,cz,a,lx,lz,w,d,h,kind,hh)=>{ const ca=Math.cos(a), sa=Math.sin(a), wx=cx+ca*lx-sa*lz, wz=cz+sa*lx+ca*lz; texB.building({x:wx-w/2,y:wz-d/2,w,d,h:h/BZ3,a},0,hh||7,false,kind); };
   const frame=(x,z,a)=>{ const Fm=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-a)); return {Fm,B:(w,h,d,lx,y,lz,c)=>{ const q=w3dBox(w,h,d,lx,y,lz,c); q.m=Fm.clone().multiply(q.m); parts.push(q); },
     R:(w,h,d,lx,y,lz,c,rot)=>{ parts.push({g:new T.BoxGeometry(w,h,d),m:Fm.clone().multiply(new T.Matrix4().makeTranslation(lx,y,lz)).multiply(rot),c}); },
     C:(r0,r1,h,lx,y,lz,c,seg,rot)=>{ let m=Fm.clone().multiply(new T.Matrix4().makeTranslation(lx,y,lz)); if(rot) m=m.multiply(rot); parts.push({g:new T.CylinderGeometry(r0,r1,h,seg||14),m,c}); }}; };
@@ -614,15 +616,10 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
     const nx=-Math.sin(a), ny=Math.cos(a); spots.push({x:c[0]+nx*sd*0.07,y:c[1]+ny*sd*0.07,hx:Math.cos(a),hy:Math.sin(a),len:PL+0.1,half:0.25,h:0.24,g:1,lm:1}); w3d.hubs.push({x:c[0]+nx*sd*0.135,y:c[1]+ny*sd*0.135,r:1.7});
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.098,hz+sd*0.0562)).multiply(new T.Matrix4().makeRotationY(sd>0?0:Math.PI)),w:0.19,h:0.014,text:nm(st===G.fac.station?{k:'rail'}:facName(st)),c:'#3c4252'}); }
   // --- coach station
-  for(const co of [G.fac.coach,...(G.fac2||[]).filter(f=>f.t==='coach')]){ const h=G.rn?rnNearEdge(G.rn,co.x,co.y,2.5):null; let a=0, x=co.x, z=co.y; const dryC=(x,z,a)=>{ const ca=Math.cos(a), sa=Math.sin(a); for(const lx of [-0.3,0,0.3]) for(const lz of [-0.19,0,0.19]) if(waterSD(x+ca*lx-sa*lz,z+sa*lx+ca*lz)<0.04) return false; return true; };
-    if(h){ const e=h.e, R=G.rn; a=Math.atan2(R.y[R.eb[e]]-R.y[R.ea[e]],R.x[R.eb[e]]-R.x[R.ea[e]]); const nx=-Math.sin(a), ny=Math.cos(a), s0=((co.x-h.px)*nx+(co.y-h.py)*ny)>=0?1:-1, off=ROAD_W[R.ec[e]]/2+0.19;
-      // beside its street, on whichever side (and how far along) the whole yard is on dry land
-      let got=false; for(const t of [0,0.4,-0.4,0.8,-0.8,1.3,-1.3]){ for(const s2 of [s0,-s0]){ const px=h.px+Math.cos(a)*t+nx*s2*off, pz=h.py+Math.sin(a)*t+ny*s2*off; if(dryC(px,pz,a)&&(t===0||!w3dOnRoad(px,pz,0.2))){ x=px; z=pz; got=true; break; } } if(got) break; }
-      if(!got){ x=h.px+nx*s0*off; z=h.py+ny*s0*off; } }
-    if(!dryC(x,z,a)){ const d=dryNear(x,z,0.45,8); if(d){ x=d[0]; z=d[1]; } }
+  for(const co of [G.fac.coach,...(G.fac2||[]).filter(f=>f.t==='coach')]){ const cs=coachSite(co), x=cs.x, z=cs.y, a=cs.a;
     const F=frame(x,z,a), RY=t=>new T.Matrix4().makeRotationY(t), RX=t=>new T.Matrix4().makeRotationX(t); F.B(0.6,0.0014,0.36,0,0.0007,0,0x55585e); F.B(0.6,0.003,0.006,0,0.0015,0.178,0xb9b6ae); for(const e of [-1,1]) F.B(0.006,0.003,0.36,e*0.298,0.0015,0,0xb9b6ae);
     // the hall: glass front to the street under a floating roof, a clock and a sign pylon
-    F.B(0.4,0.05,0.075,0,0.025,-0.135,0xe7e3da); F.B(0.36,0.034,0.0008,0,0.022,-0.1732,0x4f6678); for(let k=-4;k<=4;k++) F.B(0.0025,0.036,0.0012,k*0.04,0.022,-0.1736,0xdfe3e7); F.B(0.44,0.005,0.1,0,0.0535,-0.14,0x2f6fae); F.B(0.45,0.0015,0.11,0,0.0568,-0.14,0xe9ecef);
+    texAt(x,z,a,0,-0.135,0.4,0.075,0.05,'plaster',hashInt(Math.round(x*13+z*7))); F.B(0.36,0.034,0.0008,0,0.022,-0.1732,0x4f6678); for(let k=-4;k<=4;k++) F.B(0.0025,0.036,0.0012,k*0.04,0.022,-0.1736,0xdfe3e7); F.B(0.44,0.005,0.1,0,0.0535,-0.14,0x2f6fae); F.B(0.45,0.0015,0.11,0,0.0568,-0.14,0xe9ecef);
     F.B(0.012,0.11,0.012,-0.25,0.055,-0.14,0xdfe3e7); F.B(0.05,0.03,0.014,-0.25,0.1,-0.14,0x0f7a5c);
     // seven bays set at an angle under a saw-tooth canopy, a coach in most of them
     const BC=[0xd9534f,0x2f6fae,0xf2f2f2,0x4f9e62,0xe0a030,0x7a5aa6,0xf2f2f2];
@@ -639,8 +636,8 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
     for(const [z,L,w] of [[-2.6,19,1.1],[2.2,15,0.9]]){ F.B(L,0.006,w,0,0.003,z,RW); for(let x=-L/2+1;x<L/2-0.8;x+=0.5) F.B(0.25,0.001,0.035,x,0.0062,z,wl); for(const e of [-1,1]){ for(let k=-3;k<=3;k++) F.B(0.35,0.001,0.05,e*(L/2-0.4),0.0062,z+k*w*0.12,wl); F.B(L,0.001,0.02,0,0.0062,z+e*(w/2-0.05),wl); } }
     F.B(0.22,0.005,4.8,-5,0.0025,-0.2,0x4a4d53); F.B(0.22,0.005,4.8,5,0.0025,-0.2,0x4a4d53); F.B(0.22,0.005,Math.abs(tz)-0.6,0,0.0025,ts*(Math.abs(tz)-0.6)/2+ts*2.2*0+ts*0.0,0x4a4d53); F.B(10,0.005,0.22,0,0.0025,tz-ts*1.9,0x4a4d53);
     F.B(8.6,0.0048,1.5,0,0.0024,tz-ts*1.05,0xb5b4ae);                                                               // apron
-    F.B(6,0.11,0.55,0,0.055,tz+ts*0.2,0xa9c0d2); F.B(6.06,0.006,0.62,0,0.113,tz+ts*0.2,0xe9ecef); F.B(6,0.03,0.56,0,0.015,tz+ts*0.2,0xdfe3e7); for(let x=-2.8;x<=2.8;x+=0.4) F.B(0.02,0.11,0.56,x,0.055,tz+ts*0.2,0xd6dbe0);
-    F.B(1.2,0.15,0.3,0,0.075,tz+ts*0.55,0xc6d3de); F.B(1.26,0.006,0.36,0,0.153,tz+ts*0.55,0xe9ecef); F.B(5.6,0.012,0.4,0,0.122,tz+ts*0.2,0xdfe4e8); F.B(4.6,0.01,0.26,0,0.133,tz+ts*0.2,0xeef1f3);
+    texAt(ap.x,ap.y,a,0,tz+ts*0.2,6,0.55,0.11,'glass',3); F.B(6.06,0.006,0.62,0,0.113,tz+ts*0.2,0xe9ecef); F.B(6,0.03,0.56,0,0.015,tz+ts*0.2,0xdfe3e7); for(let x=-2.8;x<=2.8;x+=0.4) F.B(0.02,0.11,0.56,x,0.055,tz+ts*0.2,0xd6dbe0);
+    texAt(ap.x,ap.y,a,0,tz+ts*0.55,1.2,0.3,0.15,'dglass',5); F.B(1.26,0.006,0.36,0,0.153,tz+ts*0.55,0xe9ecef); F.B(5.6,0.012,0.4,0,0.122,tz+ts*0.2,0xdfe4e8); F.B(4.6,0.01,0.26,0,0.133,tz+ts*0.2,0xeef1f3);
     for(let x=-2.9;x<=2.9;x+=0.2) F.B(0.006,0.085,0.004,x,0.072,tz+ts*0.477,0x6f8496); { const DY=0.046, dz=tz+ts*0.84, RL=1.5, sl=Math.atan2(DY,RL), rl=Math.hypot(DY,RL), asph=0x4a4d53, CC=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0xe8c020,0x6c7076];
       // a car: body, glazed cabin, roof, four wheels. along: lying along the front (x) or nose-in (z)
       const car=(lx,y,lz,c,along)=>{ const q=(w,h,d,ox,oy,oz,cc)=>along?F.B(w,h,d,lx+ox,y+oy,lz+oz,cc):F.B(d,h,w,lx+oz,y+oy,lz+ox,cc); q(0.027,0.0048,0.0118,0,0.0042,0,c); q(0.015,0.0038,0.0106,-0.0015,0.0084,0,0x26303a); q(0.0135,0.0008,0.0098,-0.0015,0.0106,0,c); for(const ex of [-0.0085,0.0085]) for(const ez of [-0.0052,0.0052]) q(0.0048,0.0036,0.0018,ex,0.0018,ez,0x15171a); };
@@ -660,7 +657,7 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
       // a jet bridge off each pier, with its round head
       for(const e of [-1,1]){ F.B(0.2,0.014,0.016,px+e*0.16,0.045,tz-ts*0.62,0xd9dee3); F.C(0.016,0.016,0.018,px+e*0.27,0.045,tz-ts*0.62,0xc3cad1,10); F.B(0.006,0.038,0.006,px+e*0.27,0.019,tz-ts*0.62,0x8f98a3); } }
     F.C(0.045,0.06,0.5,3.6,0.25,tz+ts*0.75,0xdfe3e7,14); F.C(0.085,0.065,0.05,3.6,0.525,tz+ts*0.75,0x2f3f4f,14); F.C(0.09,0.09,0.008,3.6,0.554,tz+ts*0.75,0xe9ecef,14); F.B(0.004,0.06,0.004,3.6,0.59,tz+ts*0.75,0xc8423a);      // control tower
-    for(const hx of [-4,-3.1]){ F.B(0.75,0.16,0.6,hx,0.08,tz+ts*0.3,0xcdd3d9); F.B(0.77,0.02,0.62,hx,0.17,tz+ts*0.3,0x9aa5b0); F.B(0.6,0.12,0.004,hx,0.06,tz+ts*0.3-ts*0.302,0x56616c); }
+    for(const hx of [-4,-3.1]){ texAt(ap.x,ap.y,a,hx,tz+ts*0.3,0.75,0.6,0.16,'shed',hx<-3.5?2:6); F.B(0.77,0.02,0.62,hx,0.17,tz+ts*0.3,0x9aa5b0); F.B(0.6,0.12,0.004,hx,0.06,tz+ts*0.3-ts*0.302,0x56616c); }
     { const nxa=-sa, nya=ca, at=(lx,lz)=>[ap.x+ca*lx+nxa*lz,ap.y+sa*lx+nya*lz]; let q=at(0,tz+ts*0.3); spots.push({x:q[0],y:q[1],hx:ca,hy:sa,len:6.3,half:0.75,h:0.2}); q=at(3.6,tz+ts*0.75); spots.push({x:q[0],y:q[1],hx:ca,hy:sa,len:0.3,half:0.15,h:0.66}); q=at(-3.55,tz+ts*0.3); spots.push({x:q[0],y:q[1],hx:ca,hy:sa,len:1.8,half:0.36,h:0.22}); q=at(0,tz-ts*0.85); spots.push({x:q[0],y:q[1],hx:ca,hy:sa,len:5.4,half:0.5,h:0.14}); }
     }
   // --- the city's developments, each a landmark of its own kind (a building site with a crane until it opens)
@@ -835,7 +832,7 @@ function w3dRoadMesh(cx,cy,R){
      water, on a ramp either side, with piers standing in the bed. The rise is worked out along each street: the stretch
      over the water is at full height, and it falls away over RAMP cells beyond; junctions pass the height on to the
      streets that meet there, so a ramp can run on into the next street. */
-  const br=[], BRC=0xbdb9b1, RAMP=0.55, wetI=new Map(), geo=e=>{ const a=Rn.ea[e], b=Rn.eb[e]; return [Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],Math.hypot(Rn.x[b]-Rn.x[a],Rn.y[b]-Rn.y[a])]; };
+  const br=[], BRC=0xbdb9b1, RAMP=0.95, wetI=new Map(), geo=e=>{ const a=Rn.ea[e], b=Rn.eb[e]; return [Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],Math.hypot(Rn.x[b]-Rn.x[a],Rn.y[b]-Rn.y[a])]; };
   for(const e of es){ const [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; let s0=-1, s1=-1; const n=Math.max(2,Math.ceil(l/0.08)); for(let k=0;k<=n;k++){ const t=k/n; if(waterSD(ax+(bx-ax)*t,az+(bz-az)*t)<0.03){ if(s0<0) s0=t*l; s1=t*l; } } if(s0>=0) wetI.set(e,[s0,s1]); }
   const own=(e,sd)=>{ const w=wetI.get(e); if(!w) return 0; const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; return W3D_BR*(1-smooth(d,0,RAMP)); };
   for(const [n,o] of nodes) o.y=0; for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); na.y=Math.max(na.y,own(e,0)); nb.y=Math.max(nb.y,own(e,l)); }
