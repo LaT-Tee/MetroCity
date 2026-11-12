@@ -543,18 +543,27 @@ function w3dCrossings(){ const Ls=lines.filter(L=>L.stops.length>=2&&L._p3), gri
   return out; }
 function w3dBump(P,u,dY,flat,ease){ for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-u); if(du<ease) P.Y[v]+=dY*(1-smooth(du,flat,ease)); } }
 function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[])) m=Math.min(m,Math.abs(s-u)); return m; };
-  for(let pass=0;pass<5;pass++){ let n=0;
+  const sep=()=>{ for(let pass=0;pass<5;pass++){ let n=0;
     for(const c of w3dCrossings()){ if(c.par>0.94) continue; const ya=w3dHAt(c.A,c.ua), yb=w3dHAt(c.B,c.ub), gapY=Math.abs(ya-yb); if(gapY>=0.058) continue;
-      const ra=room(c.A,c.ua), rb=room(c.B,c.ub), mvA=ra>rb, P=mvA?c.A:c.B, u=mvA?c.ua:c.ub, r=Math.max(ra,rb), yM=mvA?ya:yb, yO=mvA?yb:ya, ease=clamp(r-W3D_PLAT/2-0.05,0.6,3.6); if(r<W3D_PLAT/2+0.25) continue; n++;
+      const ra=room(c.A,c.ua), rb=room(c.B,c.ub), mvA=ra>rb, P=mvA?c.A:c.B, u=mvA?c.ua:c.ub, r=Math.max(ra,rb), yM=mvA?ya:yb, yO=mvA?yb:ya, ease=clamp(r-W3D_PLAT/2-0.05,0.6,3.6); if(r<W3D_PLAT/2+0.25){ // both are at their platforms here (an interchange): one whole station moves a level, platforms and all
+        const both=ya>0.003&&yb>0.003, mA=both?ya>=yb:ya<=yb, P2=mA?c.A:c.B, u2=mA?c.ua:c.ub, y2=mA?ya:yb, yo=mA?yb:ya; w3dBump(P2,u2,both?(yo+0.072)-y2:(yo-0.068)-y2,W3D_PLAT/2+0.3,W3D_PLAT/2+2.2); n++; continue; } n++;
       // up over it if both are in the air and the other is not higher already; otherwise down under it
       const up=yO>0.003&&yM>0.003, dY=up?(yO+0.072)-yM:(yO-0.068)-yM; w3dBump(P,u,dY,Math.min(0.5,ease*0.3),ease); }
-    if(!n) break; }
+    if(!n) break; } }; sep();
   // nothing at water level
   for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; const n=P.pts.length, wet=P.pts.map(q=>waterSD(q[0],q[1])<0.12); let a=-1;
     for(let v=0;v<=n;v++){ const bad=v<n&&wet[v]&&P.Y[v]>-0.116&&P.Y[v]<0.05; if(bad&&a<0) a=v; if(!bad&&a>=0){ const b=v-1; let ym=0; for(let k=a;k<=b;k++) ym+=P.Y[k]; ym/=(b-a+1);
         // over it or under it, whichever the line is nearer to; the points either side ease to that height, but never back into the band
         const down=ym<-0.01, T=down?-0.12:0.054, u=(P.cum[a]+P.cum[b])/2, hw=(P.cum[b]-P.cum[a])/2+0.2;
-        for(let k=0;k<n;k++){ const du=Math.abs(P.cum[k]-u); if(du>=hw+1.6||((k<a||k>b)&&wet[k])) continue; const ny=lerp(P.Y[k],T,1-smooth(du,hw,hw+1.6)); P.Y[k]=down?Math.min(P.Y[k],ny):Math.max(P.Y[k],ny); } a=-1; } } } }
+        for(let k=0;k<n;k++){ const du=Math.abs(P.cum[k]-u); if(du>=hw+1.6||((k<a||k>b)&&wet[k])) continue; const ny=lerp(P.Y[k],T,1-smooth(du,hw,hw+1.6)); P.Y[k]=down?Math.min(P.Y[k],ny):Math.max(P.Y[k],ny); } a=-1; } } }
+  // A station stands on level track: a line still climbing or sinking where it stops is levelled through the platforms (at
+  // the height it had in the middle of them, or just clear of street level if that was neither above nor below it), and
+  // takes up its slope again beyond their ends.
+  for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2||!P.sU) continue; const flat=W3D_PLAT/2+0.12, fix=[];
+    for(const u of P.sU){ let ys=w3dHAt(P,u); const band=ys>-0.055&&ys<0.03; if(!band&&Math.abs(w3dHAt(P,u-0.4)-ys)<0.003&&Math.abs(w3dHAt(P,u+0.4)-ys)<0.003) continue; if(band) ys=ys<-0.012?-0.068:0.034; fix.push([u,ys]); }
+    // each point answers to the station nearest it only, so two stations close together cannot pull each other's platforms out of level
+    if(fix.length) for(let v=0;v<P.pts.length;v++){ let bd=1e9, by=0, near=1e9; for(const u of P.sU) near=Math.min(near,Math.abs(P.cum[v]-u)); for(const [u,ys] of fix){ const du=Math.abs(P.cum[v]-u); if(du<bd){ bd=du; by=ys; } } if(bd<flat+1.3&&bd<=near+1e-6) P.Y[v]=lerp(P.Y[v],by,1-smooth(bd,flat,flat+1.3)); } }
+  sep();      /* and once more, for crossings those two rules brought back together */ }
 /* The places a city is known by, as models rather than icons: the main line railway with its tracks and a train on it,
    the central station (platforms under canopies, a hall with a clock tower, a footbridge), the coach station (a
    canopy over the bays, coaches waiting) and every airport (runways with their markings, taxiways, a terminal with
