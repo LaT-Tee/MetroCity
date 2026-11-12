@@ -611,15 +611,20 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
     F.B(8.6,0.0048,1.5,0,0.0024,tz-ts*1.05,0xb5b4ae);                                                               // apron
     F.B(6,0.11,0.55,0,0.055,tz+ts*0.2,0xa9c0d2); F.B(6.06,0.006,0.62,0,0.113,tz+ts*0.2,0xe9ecef); F.B(6,0.03,0.56,0,0.015,tz+ts*0.2,0xdfe3e7); for(let x=-2.8;x<=2.8;x+=0.4) F.B(0.02,0.11,0.56,x,0.055,tz+ts*0.2,0xd6dbe0);
     F.B(1.2,0.15,0.3,0,0.075,tz+ts*0.55,0xc6d3de); F.B(1.26,0.006,0.36,0,0.153,tz+ts*0.55,0xe9ecef); F.B(5.6,0.012,0.4,0,0.122,tz+ts*0.2,0xdfe4e8); F.B(4.6,0.01,0.26,0,0.133,tz+ts*0.2,0xeef1f3);
-    for(let x=-2.9;x<=2.9;x+=0.2) F.B(0.006,0.085,0.004,x,0.072,tz+ts*0.477,0x6f8496); { const DY=0.046, dz=tz+ts*0.6, RL=1.5, sl=Math.atan2(DY,RL), rl=Math.hypot(DY,RL), asph=0x4a4d53;
+    for(let x=-2.9;x<=2.9;x+=0.2) F.B(0.006,0.085,0.004,x,0.072,tz+ts*0.477,0x6f8496); { const DY=0.046, dz=tz+ts*0.84, RL=1.5, sl=Math.atan2(DY,RL), rl=Math.hypot(DY,RL), asph=0x4a4d53, CC=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0xe8c020,0x6c7076];
+      // a car: body, glazed cabin, roof, four wheels. along: lying along the front (x) or nose-in (z)
+      const car=(lx,y,lz,c,along)=>{ const q=(w,h,d,ox,oy,oz,cc)=>along?F.B(w,h,d,lx+ox,y+oy,lz+oz,cc):F.B(d,h,w,lx+oz,y+oy,lz+ox,cc); q(0.027,0.0048,0.0118,0,0.0042,0,c); q(0.015,0.0038,0.0106,-0.0015,0.0084,0,0x26303a); q(0.0135,0.0008,0.0098,-0.0015,0.0106,0,c); for(const ex of [-0.0085,0.0085]) for(const ez of [-0.0052,0.0052]) q(0.0048,0.0036,0.0018,ex,0.0018,ez,0x15171a); };
       F.B(5.9,0.006,0.2,0,DY-0.003,dz,0xb9b6ae); F.B(5.9,0.0006,0.17,0,DY+0.0004,dz,asph); for(const e of [-1,1]) F.B(5.9,0.008,0.004,0,DY+0.004,dz+e*0.1,0xd6d3cc); for(let x=-2.8;x<=2.8;x+=0.35) for(const e of [-1,1]) F.B(0.01,DY-0.006,0.01,x,(DY-0.006)/2,dz+e*0.085,0xa9a59c);      // the departures deck on its columns
       for(const e of [-1,1]){ F.R(rl,0.006,0.2,e*(2.95+RL/2),DY/2-0.003,dz,0xb9b6ae,new T.Matrix4().makeRotationZ(-e*sl)); F.R(rl,0.0006,0.17,e*(2.95+RL/2),DY/2+0.0006,dz,asph,new T.Matrix4().makeRotationZ(-e*sl)); for(const f of [0.3,0.6]) F.B(0.01,DY*f,0.16,e*(2.95+RL*(1-f)),DY*f/2-0.003,dz,0xa9a59c); }      // the ramps up to it
-      F.B(8.9,0.0012,0.2,0,0.0008,dz,asph); F.B(5.6,0.0004,0.05,0,0.0016,dz-ts*0.07,0xd9d6cf);                                               // arrivals at ground level beneath, with its kerb
-      for(let x=-2.6;x<=2.6;x+=0.65){ F.B(0.028,0.008,0.012,x,DY+0.0046,dz+ts*0.03,x>0?0xe8c020:0xf2f2f2); F.B(0.026,0.008,0.012,x+0.2,0.0056,dz-ts*0.03,0x2c4d7a); }      // cars setting down and picking up
+      // everything laid on the ground here has its own height, well clear of the ground and of each other, and none of it overlaps: nothing to flicker
+      F.B(8.9,0.004,0.2,0,0.002,dz,asph); F.B(5.6,0.006,0.03,0,0.003,dz-ts*0.115,0xd9d6cf);                                               // arrivals at ground level beneath, with its kerb
+      F.B(5.9,0.004,0.08,0,0.002,tz+ts*0.7,0xcfc8b8);                                                                                       // the pavement between the doors and the kerb
+      for(let x=-2.6;x<=2.6;x+=0.65){ car(x,DY+0.0007,dz+ts*0.03,CC[(Math.round(x*10)&7)%7],true); car(x+0.2,0.004,dz-ts*0.03,CC[(Math.round(x*7)&7)%7],true); }      // cars setting down and picking up
       F.B(5.9,0.003,0.26,0,0.118,dz,0xe9ecef); for(let x=-2.8;x<=2.8;x+=0.7) F.B(0.008,0.118-DY,0.008,x,DY+(0.118-DY)/2,dz+ts*0.11,0xa9b0b9);     // the canopy over the departures kerb
-      // the approach: from the gate to both ends of the front, round a car park
-      const gz=tz+ts*1.7, lz=tz+ts*1.18; F.B(0.2,0.0012,Math.abs(gz-lz)+0.2,0,0.0008,(gz+lz)/2,asph); F.B(8.9,0.0012,0.2,0,0.0008,lz,asph); for(const e of [-1,1]) F.B(0.2,0.0012,Math.abs(lz-dz),e*4.35,0.0008,(lz+dz)/2,asph);
-      for(const e of [-1,1]){ F.B(3.4,0.0012,0.3,e*2.1,0.0007,tz+ts*0.9,0x5a5d63); for(let x=0.5;x<=3.7;x+=0.05){ if(hashInt(Math.round(x*100)+(e>0?7:1))%3===0) continue; F.B(0.012,0.007,0.026,e*x,0.004,tz+ts*(0.9+(Math.round(x*20)%2?0.07:-0.07)),[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a][Math.round(x*20)%5]); } } }      /* mullions, a canopy over the set-down road */
+      // the approach: from the gate along the far side of the car parks to both ends of the front
+      const gz=tz+ts*1.7, lz=tz+ts*1.5; F.B(0.2,0.004,Math.abs(gz-lz)-0.1,0,0.002,(gz+lz)/2+ts*0.05,asph); F.B(8.9,0.004,0.2,0,0.002,lz,asph); for(const e of [-1,1]) F.B(0.2,0.004,Math.abs(lz-dz)-0.2,e*4.35,0.002,(lz+dz)/2,asph);
+      for(const e of [-1,1]){ F.B(3.5,0.003,0.34,e*2.15,0.0015,tz+ts*1.17,0x5a5d63); for(const rz of [1.07,1.27]) F.B(3.4,0.0034,0.003,e*2.15,0.0017,tz+ts*(rz+0.035*(rz<1.1?-1:1)),0xe6e6e6);
+        for(let k=0;k<64;k++){ const x=0.5+k*0.052; if(hashInt(k*31+(e>0?7:1))%3===0) continue; car(e*x,0.003,tz+ts*(k%2?1.11:1.23),CC[hashInt(k*17+3)%7],false); } } }
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.2,tz+ts*0.71)).multiply(new T.Matrix4().makeRotationY(ts>0?0:Math.PI)),w:1.1,h:0.075,text:nm(ap===G.fac.airport?{k:'airport'}:facName(ap)),c:'#1d3b8f'});
     for(const px of [-2.2,-0.75,0.75,2.2]){ F.B(0.12,0.05,0.75,px,0.04,tz-ts*0.45,0xc9d1d8); F.B(0.13,0.004,0.77,px,0.067,tz-ts*0.45,0xe9ecef);
       // a jet bridge off each pier, with its round head
@@ -783,7 +788,7 @@ function w3dRoadMesh(cx,cy,R){
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('normal',new T.Float32BufferAttribute(nor,3)); g.setAttribute('color',new T.Float32BufferAttribute(cl,3));
   const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true; if(!br.length) return [m];
   const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; return [bm,m]; }
-const w3dCarGeo=()=>w3dMerge([w3dBox(0.028,0.008,0.012,0,0.005,0,0xffffff),w3dBox(0.016,0.006,0.011,-0.002,0.011,0,0x2b3440)]);
+const w3dCarGeo=()=>w3dMerge([w3dBox(0.028,0.0052,0.012,0,0.0046,0,0xffffff),w3dBox(0.0155,0.004,0.0108,-0.0018,0.0092,0,0x26303a),w3dBox(0.014,0.0009,0.01,-0.0018,0.0116,0,0xffffff),w3dBox(0.0012,0.0016,0.0102,0.0138,0.0052,0,0xfff3c4),w3dBox(0.0012,0.0016,0.0102,-0.0138,0.0052,0,0xb3261e),...[-0.0088,0.0088].flatMap(x=>[-0.0054,0.0054].map(z=>w3dBox(0.005,0.0038,0.0018,x,0.0019,z,0x15171a)))]);
 // What stands in the parks, squares, playgrounds, pitches, car parks and churchyards near the viewer. Everything is
 // placed from the plot's own number, so a place looks the same every time it is passed.
 function w3dFeatures(cx,cy,R,addTree,spires){
