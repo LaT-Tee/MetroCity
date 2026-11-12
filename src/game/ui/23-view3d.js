@@ -589,7 +589,7 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
       for(const e of [-1,1]){ F.B(0.003,0.02,SR*2,e*SL/2,SR*SY-0.006,0,0x5f6b76); for(const z of [-SR*0.62,SR*0.62]) F.B(0.003,SR*SY*0.78,0.003,e*SL/2,SR*SY*0.39,z,0x5f6b76); } }       // footbridge and its stair towers
     const hz=sd*0.135; F.B(0.72,0.085,0.1,0,0.0425,hz,0xe6dfd2); F.B(0.74,0.004,0.108,0,0.087,hz,0x8c4a3a); F.B(0.2,0.11,0.11,0,0.055,hz,0xece5d8); F.B(0.21,0.004,0.118,0,0.112,hz,0x8c4a3a);
     for(let x=-0.31;x<=0.31;x+=0.062){ if(Math.abs(x)<0.11) continue; F.B(0.03,0.04,0.0008,x,0.05,hz+sd*0.0505,0x4a5866); F.B(0.03,0.022,0.0008,x,0.016,hz+sd*0.0505,0x4a5866); }
-    for(const x of [-0.06,0,0.06]) F.B(0.036,0.07,0.0008,x,0.045,hz+sd*0.0555,0x55697a); F.B(0.24,0.004,0.04,0,0.034,hz+sd*0.075,0xdad6cc); for(const x of [-0.11,0.11]) F.B(0.004,0.034,0.004,x,0.017,hz+sd*0.092,0xb9b3a6);
+    for(const x of [-0.06,0,0.06]) F.B(0.036,0.07,0.0008,x,0.045,hz+sd*0.0555,0x55697a);
     F.B(0.05,0.2,0.05,-0.3,0.1,hz,0xe6dfd2); F.B(0.058,0.006,0.058,-0.3,0.203,hz,0x8c4a3a); F.C(0.0001,0.03,0.05,-0.3,0.231,hz,0x5a6068,4,new T.Matrix4().makeRotationY(Math.PI/4)); F.C(0.016,0.016,0.002,-0.3,0.17,hz+sd*0.0262,0xf7f4ea,16,new T.Matrix4().makeRotationX(Math.PI/2));
     // a portico of columns under a stepped attic on the entrance front, wings with cornices, and a forecourt with a taxi rank
     for(const x of [-0.085,-0.051,-0.017,0.017,0.051,0.085]) F.C(0.0038,0.0044,0.062,x,0.031,hz+sd*0.066,0xf1ece0,10); F.B(0.2,0.008,0.022,0,0.066,hz+sd*0.064,0xe9e2d4); F.B(0.17,0.008,0.02,0,0.074,hz+sd*0.064,0xe9e2d4); F.B(0.11,0.007,0.018,0,0.0815,hz+sd*0.064,0xe9e2d4); F.B(0.21,0.003,0.03,0,0.0015,hz+sd*0.07,0xd9d3c6);
