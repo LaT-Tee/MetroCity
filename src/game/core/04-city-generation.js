@@ -139,6 +139,7 @@ function generate(seed){
   const distToRail=(x,y)=>{ let m=1e9; for(let k=0;k<rail.length;k+=3) m=Math.min(m,dist(x,y,rail[k][0],rail[k][1])); return m; };
 
   // --- airport
+  const wsd=(x,y)=>{ if(x<0||y<0||x>W-1||y>H-1) return -1; return Math.min((bilinear(h,x,y)-sea-0.004)/0.012,bilinear(rivSD,x,y)); };
   let ap=null, b=-1e9;
   for(let pass=0;pass<3&&!ap;pass++){
     const dmin=[55,40,26][pass], dmax=[140,170,220][pass], emax=[0.32,0.45,0.7][pass];
@@ -149,12 +150,13 @@ function generate(seed){
       for(let u=-9;u<=9&&ok;u+=1.5) for(let v=-4;v<=4&&ok;v+=2){ const px=x+Math.cos(a)*u-Math.sin(a)*v, py=y+Math.sin(a)*u+Math.cos(a)*v; if(!land(px,py)||e[ix(px,py)]>emax+0.08) ok=false; }
       if(!ok) continue;
       let md=1e9; centers.forEach(c=>md=Math.min(md,dist(x,y,c.x,c.y)));
-      const s=Math.min(md,40)-dm*0.15+R()*8; if(s>b){ b=s; ap={x,y,a}; }
+      const dr=airDry(x,y,a,wsd), s=Math.min(md,40)-dm*0.15+R()*8-((dr&1)&&(dr&6)?0:1e5); if(s>b){ b=s; ap={x,y,a,dr}; }
     }
   }
   if(!ap) ap={x:clamp(main.x+50,116,484),y:main.y,a:0};
-  ap.term={x:ap.x-Math.sin(ap.a)*5.5, y:ap.y+Math.cos(ap.a)*5.5};
-  if(!land(ap.term.x,ap.term.y)) ap.term={x:ap.x+Math.sin(ap.a)*5.5, y:ap.y-Math.cos(ap.a)*5.5};
+  { const dr=ap.dr==null?7:ap.dr; delete ap.dr;        // the terminal on the side whose ground is dry
+    ap.term={x:ap.x-Math.sin(ap.a)*5.5, y:ap.y+Math.cos(ap.a)*5.5};
+    if(!land(ap.term.x,ap.term.y)||(!(dr&2)&&(dr&4))) ap.term={x:ap.x+Math.sin(ap.a)*5.5, y:ap.y-Math.cos(ap.a)*5.5}; }
   const air=airMaskOf([ap]), gate=airGate(ap);
 
   // --- coach station

@@ -221,7 +221,7 @@ function* w3dGroundGen(){ w3dTerrain();
     (g,x0,y0,w,h,k)=>{ g.fillStyle='#f0f0f0'; g.fillRect(0,0,g.canvas.width,g.canvas.height); g.setTransform(k,0,0,k,-x0*k,-y0*k); g.fillStyle='#262626';
       for(let y=Math.max(B[1],Math.floor(y0));y<Math.min(B[3],y0+h+1);y++) for(let x=Math.max(B[0],Math.floor(x0));x<Math.min(B[2],x0+w+1);x++) if(G.water[y*W+x]) g.fillRect(x-0.5,y-0.5,1,1);
       g.strokeStyle='#262626'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18); g.stroke(r.p); } },
-    (tx,rt)=>w3dSee(new T.MeshStandardMaterial({map:tx,roughnessMap:rt,roughness:1,metalness:0.02,polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:4,...w3dCut()})),      /* the far ground is pushed back a little in depth, so the sharp ground near the viewer and everything lying on it wins without needing an offset of its own */m=>{ m.renderOrder=-5; out.push(m); });
+    (tx,rt)=>w3dSee(new T.MeshStandardMaterial({map:tx,roughnessMap:rt,roughness:1,metalness:0.02,polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:4,...w3dCutFar()})),      /* the far ground is pushed back a little in depth, so the sharp ground near the viewer and everything lying on it wins without needing an offset of its own */m=>{ m.renderOrder=-5; out.push(m); });
   // swap in the finished ground; the old one goes after the next frame, once the new one has been drawn
   return ()=>{ w3d.groundCanvas=c; out.forEach(m=>w3d.S.add(m)); w3dTrash(w3d.gnd); w3d.gnd=out; }; }
 // the world rectangle (x0,y0,w,h) as n×n ground tiles at ppc pixels a cell: each tile is painted, uploaded and placed on its own step
@@ -236,16 +236,27 @@ function w3dTerrain(){ const key=netVersion+'|'+(G.rn?Math.floor(G.rn.ea.length/
   for(const L of lines){ if(L.stops.length<2) continue; for(const p of lineLevels(L).pts) mark(p[0],p[1],1); }
   const d=distTransform(m), F=w3d.tF||(w3d.tF=new Float32Array(n)); for(let i=0;i<n;i++) F[i]=W3D_HS*Math.pow(smooth(G.e[i],0.3,0.88),1.25)*smooth(d[i],1.2,4.2); }
 function w3dHt(x,z){ return w3d.tF?bilinear(w3d.tF,x,z):0; }
+/* Water lies lower than the land. The ground falls away at the water's edge to a bed below the water surface (a bank
+   on a river, a shelving shore on the sea), and the water itself is a surface of its own a little below street level,
+   with moving ripples that catch the sky and the sun. Bridges and viaducts therefore really span something. */
+const W3D_WAT=-0.011, W3D_BED=-0.026;
+function w3dDip(x,z){ const d=waterSD(x,z); return d>=0.02?0:W3D_BED*smooth(-d,-0.02,0.15); }
 function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, an=w3d.R.capabilities.getMaxAnisotropy();
   for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const tx0=x0+w*i/n, ty0=y0+h*j/n, tw=w/n, th=h/n;
     const mk=(k,fn,srgb)=>{ const cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(tw*k)); cv.height=Math.max(1,Math.round(th*k)); const g=cv.getContext('2d'); g.imageSmoothingEnabled=true;
       fn(g,tx0,ty0,tw,th,cv.width/tw); const tx=new T.CanvasTexture(cv); tx.colorSpace=srgb?T.SRGBColorSpace:T.NoColorSpace; tx.anisotropy=an; w3d.R.initTexture(tx); return tx; };
     const tx=mk(ppc,paint,true), rt=paintRough?mk(ppc/2,paintRough,false):null;
-    let hilly=false; for(let b=ty0;b<=ty0+th&&!hilly;b+=1) for(let a=tx0;a<=tx0+tw;a+=1) if(w3dHt(a,b)>1e-4){ hilly=true; break; }
-    const sg=tw<20?2:1, geo=hilly?new T.PlaneGeometry(tw,th,Math.min(128,Math.ceil(tw*sg)),Math.min(128,Math.ceil(th*sg))):new T.PlaneGeometry(tw,th); if(hilly){ const pa=geo.attributes.position; for(let v=0;v<pa.count;v++){ const hv=w3dHt(tx0+tw/2+pa.getX(v),ty0+th/2-pa.getY(v)); if(hv>1e-4) pa.setZ(v,hv); } geo.computeVertexNormals(); }
+    const loc=tw<20; let hilly=false, wet=false; for(let b=ty0;b<=ty0+th&&!hilly;b+=1) for(let a=tx0;a<=tx0+tw;a+=1) if(w3dHt(a,b)>1e-4){ hilly=true; break; }
+    if(loc) for(let b=ty0;b<=ty0+th&&!wet;b+=0.5) for(let a=tx0;a<=tx0+tw;a+=0.5) if(waterSD(a,b)<0.3){ wet=true; break; }
+    const sg=wet?7:tw<20?2:1, shaped=hilly||wet, geo=shaped?new T.PlaneGeometry(tw,th,Math.min(128,Math.ceil(tw*sg)),Math.min(128,Math.ceil(th*sg))):new T.PlaneGeometry(tw,th);
+    if(shaped){ const pa=geo.attributes.position; for(let v=0;v<pa.count;v++){ const px=tx0+tw/2+pa.getX(v), pz=ty0+th/2-pa.getY(v), hv=w3dHt(px,pz); if(hv>1e-4) pa.setZ(v,hv); else if(wet){ const dv=w3dDip(px,pz); if(dv<0) pa.setZ(v,dv); } } geo.computeVertexNormals(); }
     const m=new T.Mesh(geo,mat(tx,rt)); m.rotation.x=-Math.PI/2; m.position.set(tx0+tw/2,y,ty0+th/2); m.receiveShadow=true; put(m); yield; } }
 // material settings for anything lying on the ground: it is left out where a cutting has been marked (see the mask in w3dBuild)
-function w3dCut(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:1,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
+// Stencil bit 1 marks the cuttings; bit 2 marks where the sharp near ground has been drawn, so the coarse far ground (which is flat, and would
+// otherwise lie over the river beds and shores the near ground models) is left out there.
+function w3dCut(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:1,stencilFuncMask:1,stencilWriteMask:0,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
+function w3dCutNear(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.NotEqualStencilFunc,stencilRef:3,stencilFuncMask:1,stencilWriteMask:2,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.ReplaceStencilOp}; }
+function w3dCutFar(){ const T=w3d.T; return {stencilWrite:true,stencilFunc:T.EqualStencilFunc,stencilRef:0,stencilFuncMask:3,stencilWriteMask:0,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.KeepStencilOp}; }
 function w3dSee(m){ return m; }
 /* Seeing the metro through the city, without making anything in the city transparent. The frame is drawn in layers:
    1. the whole scene as usual, every surface solid (the fast path);
@@ -335,7 +346,7 @@ function w3dBuild(){
   const piers=[], masts=[], wire=[], cuts=[], tubes=[]; w3d.trains=[];
   const o3=(pc,off)=>offsetPts(pc,off).map((q,i)=>[q[0],q[1],pc[i][2]]);
   for(const L of lines) if(L.stops.length>=2) w3dStopsOn(L);
-  w3dStationPlan(); for(const L of lines) if(L.stops.length>=2) w3dStopsOn(L);
+  w3dStationPlan(); for(const L of lines) if(L.stops.length>=2) w3dStopsOn(L); w3dLevelPlan();
   for(const L of lines){ if(L.stops.length<2) continue; const P=L._p3, len=P.cum[P.cum.length-1], lc=new T.Color(lineColor(L));
     const above=w3dSpans(P,y=>y>0.003), cutS=w3dSpans(P,y=>y<=0.006&&y>-0.05), below=w3dSpans(P,y=>y<-0.05), stCut=(under)=>P.sU.filter(u=>(w3dHAt(P,u)<0)===under).map(u=>[u-W3D_PLAT/2-0.03,u+W3D_PLAT/2+0.03]);
     for(const [a,b] of above){ const pc=w3dPart(P,a,b), deck=w3dAdd(new T.Mesh(w3dRibbon(pc,DECK,TRK,0.014),concrete)); deck.castShadow=true; deck.receiveShadow=true;
@@ -357,7 +368,7 @@ function w3dBuild(){
     for(const e of [-1,1]) parts.push(w3dBox(0.003,0.011,0.015,e*(CAR/2+0.0004),0.0148,0,0x1d2530),w3dBox(0.0031,0.0022,0.0152,e*(CAR/2+0.0004),0.0068,0,lcs));
     const tg=w3dMerge(parts), tmat=new T.MeshStandardMaterial({vertexColors:true,roughness:0.32,metalness:0.35}), g0=trainAt(L,0), tm=new T.InstancedMesh(tg,tmat,g0.n*W3D_CARS);
     tm.castShadow=true; tm.frustumCulled=false; tm.layers.enable(1); w3dAdd(tm); w3d.trains.push({L,m:tm,n:g0.n,geo:tg}); }
-  if(piers.length){ const pg=w3dMerge([{g:new T.CylinderGeometry(0.0075,0.009,TRK-0.014,10),m:new T.Matrix4().makeTranslation(0,(TRK-0.014)/2,0),c:dark?0x77767a:0xbdb9b1},w3dBox(0.014,0.006,DECK*1.8,0,TRK-0.017,0,dark?0x77767a:0xbdb9b1)]);
+  if(piers.length){ const pg=w3dMerge([{g:new T.CylinderGeometry(0.0075,0.009,TRK-0.014,10),m:new T.Matrix4().makeTranslation(0,(TRK-0.014)/2,0),c:dark?0x77767a:0xbdb9b1},{g:new T.CylinderGeometry(0.011,0.011,0.032,10),m:new T.Matrix4().makeTranslation(0,-0.0165,0),c:0xa9a59c},w3dBox(0.014,0.006,DECK*1.8,0,TRK-0.017,0,dark?0x77767a:0xbdb9b1)]);
     const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.9}),piers.length), M=new T.Matrix4(), Q=new T.Quaternion(), up=new T.Vector3(0,1,0), V=new T.Vector3(), Sc=new T.Vector3();
     piers.forEach((p,i)=>{ Q.setFromAxisAngle(up,-p[2]); M.compose(V.set(p[0],0,p[1]),Q,Sc.set(1,p[3],1)); pm.setMatrixAt(i,M); }); pm.castShadow=true; pm.receiveShadow=true; w3dAdd(pm); }
   if(masts.length){ const mg=w3dMerge([{g:new T.CylinderGeometry(0.0007,0.0008,0.05,6),m:new T.Matrix4().makeTranslation(0,TRK+0.025,0),c:0x9aa0a8},w3dBox(0.0008,0.0008,DECK*0.95,0,TRK+0.046,DECK*0.45,0x9aa0a8)]);
@@ -403,24 +414,26 @@ function w3dBuild(){
             for(let x=-Lp/2+0.07,q=0;x<Lp/2-0.05;x+=0.115,q++){ if(q%3===1) continue; Hx(0.04,0.016,0.0006,x,TRK+0.034,zw-sd*0.0016,POST[(q+st.id)%POST.length]); } }      // posters
           { const iv=offs.map(o=>[o-TUN_W,o+TUN_W]).sort((p,q)=>p[0]-q[0]); let zc=z0; const gaps=[]; for(const [a,b] of iv){ if(a>zc+0.001) gaps.push([zc,a]); zc=Math.max(zc,b); } if(zc<z1-0.001) gaps.push([zc,z1]);
             for(const ex of [-1,1]){ for(const [a,b] of gaps) Hx(0.002,0.052,b-a,ex*hl/2,TRK+0.024,(a+b)/2,0xbfbcb4); Hx(0.002,0.052-TUN_H,z1-z0,ex*hl/2,TRK+TUN_H-0.002+(0.052-TUN_H)/2,mid,0xbfbcb4); } }                         // end walls, open where the tunnels leave
-          let ez=mid+span/2+0.045, ex=0, found=false; for(const dz of [span/2+0.045,-(span/2+0.045),span/2+0.11,-(span/2+0.11)]){ for(const dx of [0,0.22,-0.22,0.4,-0.4]){ const wx=cx+hx*dx+nx*(mid+dz), wy=cy+hy*dx+ny*(mid+dz); if(!w3dOnRoad(wx,wy,0.035)&&!wetAt(wx,wy,0.05)){ ez=mid+dz; ex=dx; found=true; break; } } if(found) break; }
+          // the way up: on dry ground and off the roadway, or not at all
+          let bigSt=here.length>=2||(st.lv||0)>=2, ez=mid+span/2+0.045, ex=0, found=false; const freeOf=(dx,dz,r)=>{ const px=cx+hx*dx+nx*dz, py=cy+hy*dx+ny*dz; for(const q of spots){ if(!q.g) continue; const ex=px-q.x, ey=py-q.y; if(Math.abs(ex*q.hx+ey*q.hy)<q.len/2+r&&Math.abs(-ex*q.hy+ey*q.hx)<q.half+r) return false; } return true; }, dryBox=(dx,dz,hw,hd)=>{ for(const a of [-1,0,1]) for(const c of [-1,0,1]) if(waterSD(cx+hx*(dx+a*hw)+nx*(dz+c*hd),cy+hy*(dx+a*hw)+ny*(dz+c*hd))<0.05) return false; return true; };
+          for(const big of (bigSt?[true,false]:[false])){ for(const dz of [span/2+0.045,-(span/2+0.045),span/2+0.11,-(span/2+0.11),span/2+0.22,-(span/2+0.22)]){ for(const dx of [0,0.22,-0.22,0.4,-0.4]){ const z=mid+dz, so=dz>0?1:-1; if(!w3dOnRoad(cx+hx*dx+nx*z,cy+hy*dx+ny*z,0.035)&&(big?dryBox(dx,z+so*0.03,0.16,0.09)&&freeOf(dx,z+so*0.03,0.2):dryBox(dx,z,0.065,0.042)&&freeOf(dx,z,0.11))){ ez=z; ex=dx; found=true; break; } } if(found) break; } if(found){ bigSt=big; break; } }
           { const sx=cx+nx*mid, sy=cy+ny*mid, ci=clamp(Math.round(sy),0,H-1)*W+clamp(Math.round(sx),0,W-1); let hub=null, bd=1e9;
             for(const q of (w3d.hubs||[])){ const d=dist(q.x,q.y,sx,sy); if((q.air?(G.air&&G.air[ci]&&d<16):d<q.r)&&d<bd){ bd=d; hub=q; } }
             if(hub){ if(bd>0.3){ const ang=Math.atan2(hub.y-sy,hub.x-sx), Cm=new T.Matrix4().makeTranslation((sx+hub.x)/2,0,(sy+hub.y)/2).multiply(new T.Matrix4().makeRotationY(-ang)), yf=g[0].y+0.0065, cb=(list,w,h,d,y,z,c)=>{ const q=w3dBox(w,h,d,0,y,z,c); q.m=Cm.clone().multiply(q.m); list.push(q); };
                 cb(hall,bd,0.002,0.034,yf,0,0xd8d5ce); cb(hall,bd,0.0006,0.004,yf+0.0014,0,lc); for(const sd of [-1,1]) cb(hallX,bd,0.03,0.002,yf+0.015,sd*0.018,0xcbc8c0); cb(hallX,bd,0.002,0.038,yf+0.031,0,0xd6d3cc); }
               plats.push({x:sx,y:sy,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; } }
-          const so=ez>=mid?1:-1, bigSt=here.length>=2||(st.lv||0)>=2;
+          if(!found){ plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; } const so=ez>=mid?1:-1;
           if(bigSt){ // a busy station gets a station building over its entrance: shops at street level, floors above, its name across the front
             const zc=ez+so*0.03, hb=0.07+0.012*Math.min(3,here.length); S(0.3,0.003,0.17,ex,0.0015,zc,0xc9c7c1); S(0.26,0.022,0.11,ex,0.014,zc,0xe9e5de); S(0.262,0.011,0.112,ex,0.0125,zc,0x55697a); S(0.26,hb-0.025,0.11,ex,0.025+(hb-0.025)/2,zc,0xd9dde2);
             for(let y=0.036;y<hb-0.006;y+=0.013) S(0.262,0.006,0.112,ex,y,zc,0x4a6072); S(0.27,0.003,0.12,ex,hb+0.0015,zc,0xbfc4ca); S(0.06,0.012,0.04,ex-0.07,hb+0.009,zc,0xb7bcc2); S(0.1,0.003,0.03,ex,0.0245,zc+so*0.07,cano);
             signs.push({m:Gm.clone().multiply(new T.Matrix4().makeTranslation(ex,0.031,zc+so*0.0565)).multiply(new T.Matrix4().makeRotationY(so>0?0:Math.PI)),w:0.2,h:0.014,text:nm(st.name),c:lc});
-            spots.push({x:cx+hx*ex+nx*zc,y:cy+hy*ex+ny*zc,hx,hy,len:0.32,half:0.09,h:hb+0.02}); }
+            spots.push({x:cx+hx*ex+nx*zc,y:cy+hy*ex+ny*zc,hx,hy,len:0.32,half:0.09,h:hb+0.02,g:1}); }
           else { S(0.12,0.0025,0.075,ex,0.00125,ez,0xc9c7c1); S(0.07,0.02,0.035,ex,0.01,ez,glass); S(0.082,0.003,0.045,ex,0.0215,ez,cano); S(0.082,0.004,0.0015,ex,0.0185,ez+0.022,lc); S(0.012,0.012,0.012,ex+0.06,0.03,ez,lc); S(0.0018,0.026,0.0018,ex+0.06,0.013,ez,col);
-            spots.push({x:cx+hx*ex+nx*ez,y:cy+hy*ex+ny*ez,hx,hy,len:0.2,half:0.05,h:0.03}); } plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; }
+            spots.push({x:cx+hx*ex+nx*ez,y:cy+hy*ex+ny*ez,hx,hy,len:0.2,half:0.05,h:0.03,g:1}); } plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; }
         B(Lp*0.82,0.0022,span+0.006,0,TRK+0.0405,mid,cano);                                    // canopy
         // the concourse hangs under the deck, clear of whatever street runs below; stairs come down on the side that is not roadway
         { const cw=Math.min(span*0.8,0.11); signs.push({m:Gm.clone().multiply(new T.Matrix4().makeTranslation(0,TRK-0.029+dy,mid+cw/2+0.0016)),w:0.17,h:0.012,text:nm(st.name),c:lc}); B(0.34,0.03,cw,0,TRK-0.029,mid,wall); B(0.3,0.016,cw+0.002,0,TRK-0.03,mid,glass); B(0.34,0.002,cw+0.004,0,TRK-0.0455,mid,0xb9b6ae);
-          const sideOk=sd=>!w3dOnRoad(cx+nx*(mid+sd*(cw/2+0.03)),cy+ny*(mid+sd*(cw/2+0.03)),0.02), sds=[1,-1].filter(sideOk), use=sds.length?sds:[1];
+          const dryS=sd=>[-0.17,-0.12,0.12,0.17].every(e=>waterSD(cx+hx*e+nx*(mid+sd*(cw/2+0.012)),cy+hy*e+ny*(mid+sd*(cw/2+0.012)))>0.03), sideOk=sd=>dryS(sd)&&!w3dOnRoad(cx+nx*(mid+sd*(cw/2+0.03)),cy+ny*(mid+sd*(cw/2+0.03)),0.02), sds=[1,-1].filter(sideOk), use=sds.length?sds:[1,-1].filter(dryS).slice(0,1);
           for(const sd of use) for(const ex of [-0.12,0.12]){ const z=mid+sd*(cw/2+0.012); B(0.05,0.003,0.014,ex,0.0225,z,0xc9c6bf); B(0.05,0.003,0.014,ex+Math.sign(ex)*0.045,0.0075,z,0xc9c6bf); B(0.0025,TRK-0.045,0.0025,ex-Math.sign(ex)*0.02,(TRK-0.045)/2,z,col); B(0.06,0.0012,0.016,ex,TRK-0.047,z,lc); } }
         spots.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp+0.1,half:span/2+0.05,h:g[0].y+0.055}); plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); }
       // an interchange where lines meet at an angle: one concourse building joining their platforms
@@ -486,6 +499,34 @@ function w3dStationPlan(){ const gap=DECK*2+0.012;
           if(du<1.9){ const w=1-smooth(du,0.75,1.9), q=P.pts[v], t=(q[0]-cx)*ax[0]+(q[1]-cy)*ax[1]; P.pts[v]=[q[0]+(cx+ax[0]*t+n[0]*want-q[0])*w,q[1]+(cy+ax[1]*t+n[1]*want-q[1])*w]; }
           if(dY) P.Y[v]+=dY*(1-smooth(du,1.0,3.6)); } }); }); }
   for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; for(let i=1;i<P.pts.length;i++) P.cum[i]=P.cum[i-1]+dist(P.pts[i-1][0],P.pts[i-1][1],P.pts[i][0],P.pts[i][1]); } }
+/* No line passes through another, and none runs at the level of the water.
+   Where the paths of two lines cross at the same height (other than two tracks of one corridor weaving), one of them
+   is taken a level up over the other, or underground a level deeper, easing back to its own height either side: a
+   flyover, or a deeper tunnel. The line moved is the one whose own stations are further from the crossing, and the
+   change of height is over before it reaches them, so no platform is tilted or split by it.
+   Where a line would meet a river or the shore at about street level (on its ramp, in a cutting), it is lifted onto
+   a bridge or pushed down into a tunnel there. */
+function w3dCrossings(){ const Ls=lines.filter(L=>L.stops.length>=2&&L._p3), grid=new Map(), out=[];
+  Ls.forEach((L,li)=>{ const p=L._p3.pts; for(let i=1;i<p.length;i++){ const k=Math.floor((p[i][0]+p[i-1][0])/2)*4099+Math.floor((p[i][1]+p[i-1][1])/2); let c=grid.get(k); if(!c) grid.set(k,c=[]); c.push(li,i); } });
+  Ls.forEach((L,li)=>{ const P=L._p3, p=P.pts; for(let i=1;i<p.length;i++){ const ax=p[i-1][0], ay=p[i-1][1], bx=p[i][0], by=p[i][1], gx=Math.floor((ax+bx)/2), gy=Math.floor((ay+by)/2), rx=bx-ax, ry=by-ay, la=Math.hypot(rx,ry); if(la<1e-6) continue;
+      for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){ const c=grid.get((gx+ox)*4099+gy+oy); if(!c) continue; for(let q=0;q<c.length;q+=2){ const lj=c[q]; if(lj<=li) continue; const Q=Ls[lj]._p3, j=c[q+1], cx=Q.pts[j-1][0], cy=Q.pts[j-1][1], sx=Q.pts[j][0]-cx, sy=Q.pts[j][1]-cy, lb=Math.hypot(sx,sy), den=rx*sy-ry*sx; if(lb<1e-6||Math.abs(den)<1e-9) continue;
+          const t=((cx-ax)*sy-(cy-ay)*sx)/den, u=((cx-ax)*ry-(cy-ay)*rx)/den; if(t<0||t>=1||u<0||u>=1) continue;
+          const ua=lerp(P.cum[i-1],P.cum[i],t), ub=lerp(Q.cum[j-1],Q.cum[j],u); out.push({A:P,B:Q,ua,ub,x:ax+rx*t,y:ay+ry*t,par:Math.abs(rx*sx+ry*sy)/(la*lb)}); } } } });
+  return out; }
+function w3dBump(P,u,dY,flat,ease){ for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-u); if(du<ease) P.Y[v]+=dY*(1-smooth(du,flat,ease)); } }
+function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[])) m=Math.min(m,Math.abs(s-u)); return m; };
+  for(let pass=0;pass<5;pass++){ let n=0;
+    for(const c of w3dCrossings()){ if(c.par>0.94) continue; const ya=w3dHAt(c.A,c.ua), yb=w3dHAt(c.B,c.ub), gapY=Math.abs(ya-yb); if(gapY>=0.058) continue;
+      const ra=room(c.A,c.ua), rb=room(c.B,c.ub), mvA=ra>rb, P=mvA?c.A:c.B, u=mvA?c.ua:c.ub, r=Math.max(ra,rb), yM=mvA?ya:yb, yO=mvA?yb:ya, ease=clamp(r-W3D_PLAT/2-0.05,0.6,3.6); if(r<W3D_PLAT/2+0.25) continue; n++;
+      // up over it if both are in the air and the other is not higher already; otherwise down under it
+      const up=yO>0.003&&yM>0.003, dY=up?(yO+0.072)-yM:(yO-0.068)-yM; w3dBump(P,u,dY,Math.min(0.5,ease*0.3),ease); }
+    if(!n) break; }
+  // nothing at water level
+  for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; const n=P.pts.length, wet=P.pts.map(q=>waterSD(q[0],q[1])<0.12); let a=-1;
+    for(let v=0;v<=n;v++){ const bad=v<n&&wet[v]&&P.Y[v]>-0.062&&P.Y[v]<0.034; if(bad&&a<0) a=v; if(!bad&&a>=0){ const b=v-1; let ym=0; for(let k=a;k<=b;k++) ym+=P.Y[k]; ym/=(b-a+1);
+        // over it or under it, whichever the line is nearer to; the points either side ease to that height, but never back into the band
+        const down=ym<-0.01, T=down?-0.066:0.038, u=(P.cum[a]+P.cum[b])/2, hw=(P.cum[b]-P.cum[a])/2+0.2;
+        for(let k=0;k<n;k++){ const du=Math.abs(P.cum[k]-u); if(du>=hw+1.6||((k<a||k>b)&&wet[k])) continue; const ny=lerp(P.Y[k],T,1-smooth(du,hw,hw+1.6)); P.Y[k]=down?Math.min(P.Y[k],ny):Math.max(P.Y[k],ny); } a=-1; } } } }
 /* The places a city is known by, as models rather than icons: the main line railway with its tracks and a train on it,
    the central station (platforms under canopies, a hall with a clock tower, a footbridge), the coach station (a
    canopy over the bays, coaches waiting) and every airport (runways with their markings, taxiways, a terminal with
@@ -504,8 +545,12 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
     const im=new T.InstancedMesh(w3dMerge(cp),new T.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.35}),8); im.castShadow=true; im.frustumCulled=false; w3dAdd(im); w3d.railT={m:im,n:8,cl:CL+0.006}; } else { w3d.railP=null; w3d.railT=null; }
   // --- central station
   w3d.hubs=[];      /* where a metro station under one of these buildings comes up: inside the building, by a passage (see the stations) */
-  for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ let bi=0, bd=1e9; G.rail.forEach((p,i)=>{ const d=dist(p[0],p[1],st.x,st.y); if(d<bd){ bd=d; bi=i; } }); const p0=G.rail[Math.max(0,bi-2)], p1=G.rail[Math.min(G.rail.length-1,bi+2)], a=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]), c=G.rail[bi], F=frame(c[0],c[1],a), PL=1.5;
-    let sd=1; { const nx=-Math.sin(a), ny=Math.cos(a); if(w3dOnRoad(c[0]+nx*0.16,c[1]+ny*0.16,0.03)&&!w3dOnRoad(c[0]-nx*0.16,c[1]-ny*0.16,0.03)) sd=-1; }
+  for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ let bi=0, bd=1e9; G.rail.forEach((p,i)=>{ const d=dist(p[0],p[1],st.x,st.y); if(d<bd){ bd=d; bi=i; } }); const PL=1.5, angAt=i=>{ const p0=G.rail[Math.max(0,i-2)], p1=G.rail[Math.min(G.rail.length-1,i+2)]; return Math.atan2(p1[1]-p0[1],p1[0]-p0[0]); };
+    // the station stands where its platforms and its hall are on dry land (a little along the line if need be), the hall on the side away from the roadway
+    const dryAt=(i,sd)=>{ const c=G.rail[i], a=angAt(i), ca=Math.cos(a), sa=Math.sin(a); for(let lx=-PL/2;lx<=PL/2+1e-6;lx+=0.25) for(const lz of [-0.075,0.075,sd*0.14,sd*0.21]) if(waterSD(c[0]+ca*lx-sa*lz,c[1]+sa*lx+ca*lz)<0.04) return false; return true; };
+    let sd=1; { const a=angAt(bi), c=G.rail[bi], nx=-Math.sin(a), ny=Math.cos(a); if(w3dOnRoad(c[0]+nx*0.16,c[1]+ny*0.16,0.03)&&!w3dOnRoad(c[0]-nx*0.16,c[1]-ny*0.16,0.03)) sd=-1; }
+    { let got=false; for(let k=0;k<=16&&!got;k++) for(const i of (k?[bi+k,bi-k]:[bi])){ if(i<2||i>G.rail.length-3) continue; for(const s2 of [sd,-sd]) if(dryAt(i,s2)){ bi=i; sd=s2; got=true; break; } if(got) break; } }
+    const a=angAt(bi), c=G.rail[bi], F=frame(c[0],c[1],a);
     for(const z of [-0.053,0.053]){ F.B(PL,0.008,0.03,0,0.004,z,0xbdbab3); F.B(PL,0.0005,0.003,0,0.0083,z-Math.sign(z)*0.0125,0xf2c200); F.B(PL*0.9,0.0025,0.036,0,0.047,z,0xe9e9e4); for(let x=-PL*0.42;x<=PL*0.42;x+=0.14) F.B(0.0025,0.039,0.0025,x,0.0275,z+Math.sign(z)*0.008,0xcfd4da); for(const x of [-0.4,0,0.4]){ F.B(0.05,0.006,0.001,x,0.036,z,0x1f3f8f); F.B(0.02,0.003,0.005,x+0.12,0.0095,z,0x6d7480); } }
     F.B(0.03,0.004,0.16,0.35,0.058,0,0xcfd2d6); F.B(0.03,0.012,0.002,0.35,0.064,-0.079,0x9aa7b3); F.B(0.03,0.012,0.002,0.35,0.064,0.079,0x9aa7b3); for(const z of [-0.075,0.075]) F.B(0.03,0.058,0.012,0.35,0.029,z,0xcfd2d6);       // footbridge and its stair towers
     const hz=sd*0.135; F.B(0.72,0.085,0.1,0,0.0425,hz,0xe6dfd2); F.B(0.74,0.004,0.108,0,0.087,hz,0x8c4a3a); F.B(0.2,0.11,0.11,0,0.055,hz,0xece5d8); F.B(0.21,0.004,0.118,0,0.112,hz,0x8c4a3a);
@@ -513,15 +558,20 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
     for(const x of [-0.06,0,0.06]) F.B(0.036,0.07,0.0008,x,0.045,hz+sd*0.0555,0x55697a); F.B(0.24,0.004,0.04,0,0.034,hz+sd*0.075,0xdad6cc); for(const x of [-0.11,0.11]) F.B(0.004,0.034,0.004,x,0.017,hz+sd*0.092,0xb9b3a6);
     F.B(0.05,0.2,0.05,-0.3,0.1,hz,0xe6dfd2); F.B(0.058,0.006,0.058,-0.3,0.203,hz,0x8c4a3a); F.C(0.0001,0.03,0.05,-0.3,0.231,hz,0x5a6068,4,new T.Matrix4().makeRotationY(Math.PI/4)); F.C(0.016,0.016,0.002,-0.3,0.17,hz+sd*0.0262,0xf7f4ea,16,new T.Matrix4().makeRotationX(Math.PI/2));
     F.B(0.8,0.0012,0.1,0,0.0006,hz+sd*0.11,0xcfc8b8); for(const x of [-0.3,-0.1,0.1,0.3]){ F.B(0.0016,0.03,0.0016,x,0.015,hz+sd*0.13,0x5a6068); F.B(0.006,0.002,0.003,x,0.0305,hz+sd*0.13,0xf2efe2); }
-    const nx=-Math.sin(a), ny=Math.cos(a); spots.push({x:c[0]+nx*sd*0.07,y:c[1]+ny*sd*0.07,hx:Math.cos(a),hy:Math.sin(a),len:PL+0.1,half:0.25,h:0.24}); w3d.hubs.push({x:c[0]+nx*sd*0.135,y:c[1]+ny*sd*0.135,r:1.7});
+    const nx=-Math.sin(a), ny=Math.cos(a); spots.push({x:c[0]+nx*sd*0.07,y:c[1]+ny*sd*0.07,hx:Math.cos(a),hy:Math.sin(a),len:PL+0.1,half:0.25,h:0.24,g:1,lm:1}); w3d.hubs.push({x:c[0]+nx*sd*0.135,y:c[1]+ny*sd*0.135,r:1.7});
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.098,hz+sd*0.0562)).multiply(new T.Matrix4().makeRotationY(sd>0?0:Math.PI)),w:0.19,h:0.014,text:nm(st===G.fac.station?{k:'rail'}:facName(st)),c:'#3c4252'}); }
   // --- coach station
-  for(const co of [G.fac.coach,...(G.fac2||[]).filter(f=>f.t==='coach')]){ const h=G.rn?rnNearEdge(G.rn,co.x,co.y,2.5):null; let a=0, x=co.x, z=co.y; if(h){ const e=h.e, R=G.rn; a=Math.atan2(R.y[R.eb[e]]-R.y[R.ea[e]],R.x[R.eb[e]]-R.x[R.ea[e]]); const nx=-Math.sin(a), ny=Math.cos(a), s2=((co.x-h.px)*nx+(co.y-h.py)*ny)>=0?1:-1, off=ROAD_W[R.ec[e]]/2+0.19; x=h.px+nx*s2*off; z=h.py+ny*s2*off; }
+  for(const co of [G.fac.coach,...(G.fac2||[]).filter(f=>f.t==='coach')]){ const h=G.rn?rnNearEdge(G.rn,co.x,co.y,2.5):null; let a=0, x=co.x, z=co.y; const dryC=(x,z,a)=>{ const ca=Math.cos(a), sa=Math.sin(a); for(const lx of [-0.3,0,0.3]) for(const lz of [-0.19,0,0.19]) if(waterSD(x+ca*lx-sa*lz,z+sa*lx+ca*lz)<0.04) return false; return true; };
+    if(h){ const e=h.e, R=G.rn; a=Math.atan2(R.y[R.eb[e]]-R.y[R.ea[e]],R.x[R.eb[e]]-R.x[R.ea[e]]); const nx=-Math.sin(a), ny=Math.cos(a), s0=((co.x-h.px)*nx+(co.y-h.py)*ny)>=0?1:-1, off=ROAD_W[R.ec[e]]/2+0.19;
+      // beside its street, on whichever side (and how far along) the whole yard is on dry land
+      let got=false; for(const t of [0,0.4,-0.4,0.8,-0.8,1.3,-1.3]){ for(const s2 of [s0,-s0]){ const px=h.px+Math.cos(a)*t+nx*s2*off, pz=h.py+Math.sin(a)*t+ny*s2*off; if(dryC(px,pz,a)&&(t===0||!w3dOnRoad(px,pz,0.2))){ x=px; z=pz; got=true; break; } } if(got) break; }
+      if(!got){ x=h.px+nx*s0*off; z=h.py+ny*s0*off; } }
+    if(!dryC(x,z,a)){ const d=dryNear(x,z,0.45,8); if(d){ x=d[0]; z=d[1]; } }
     const F=frame(x,z,a); F.B(0.56,0.0014,0.34,0,0.0007,0,0x5a5d63); F.B(0.36,0.05,0.07,0,0.025,-0.13,0xe4e0d6); F.B(0.37,0.004,0.078,0,0.052,-0.13,0x2f6fae); for(let k=-3;k<=3;k++) F.B(0.036,0.026,0.0008,k*0.048,0.022,-0.0945,0x55697a);
     F.B(0.46,0.004,0.11,0,0.04,-0.02,0xeeeeea); for(const cxx of [-0.21,-0.07,0.07,0.21]) for(const cz of [-0.07,0.03]) F.B(0.004,0.04,0.004,cxx,0.02,cz,0xa9b0b9);
     const BC=[0xd9534f,0x2f6fae,0xf2f2f2,0x4f9e62,0xe0a030]; for(let k=0;k<5;k++){ const bx=-0.2+k*0.1; F.B(0.024,0.022,0.075,bx,0.014,0.0,BC[k]); F.B(0.0245,0.008,0.07,bx,0.018,0.0,0x2b3440); F.B(0.002,0.0002,0.09,bx+0.05,0.0016,0.0,0xe6e6e6); }
     for(let k=0;k<3;k++){ F.B(0.075,0.022,0.024,-0.15+k*0.15,0.014,0.12,BC[(k+2)%5]); F.B(0.07,0.008,0.0245,-0.15+k*0.15,0.018,0.12,0x2b3440); }
-    spots.push({x,y:z,hx:Math.cos(a),hy:Math.sin(a),len:0.62,half:0.2,h:0.07}); w3d.hubs.push({x:x-Math.sin(a)*-0.13,y:z+Math.cos(a)*-0.13,r:1.3});
+    spots.push({x,y:z,hx:Math.cos(a),hy:Math.sin(a),len:0.62,half:0.2,h:0.07,g:1,lm:1}); w3d.hubs.push({x:x-Math.sin(a)*-0.13,y:z+Math.cos(a)*-0.13,r:1.3});
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.06,-0.094)).multiply(new T.Matrix4().makeRotationY(Math.PI)),w:0.2,h:0.012,text:nm(co===G.fac.coach?{k:'coach'}:facName(co)),c:'#0f7a5c'}); }
   // --- airports
   for(const ap of [G.fac.airport,...(G.fac2||[]).filter(f=>f.t==='air')]){ if(!ap||ap.x==null) continue; w3d.hubs.push({x:ap.term.x,y:ap.term.y,r:0,air:ap}); const a=ap.a, F=frame(ap.x,ap.y,a), ca=Math.cos(a), sa=Math.sin(a), tz=(ap.term.x-ap.x)*-sa+(ap.term.y-ap.y)*ca, ts=tz>=0?1:-1, RW=0x3a3d43, wl=0xf0f0f0;
@@ -635,7 +685,7 @@ function* w3dLocalGen(cx,cy,grp,far){
   { const fp=w3dFeatures(cx,cy,28,(x,y,sc,h)=>{ if(!near.has(Math.floor(x*8)*100000+Math.floor(y*8))) trees.push([x,y,sc,h]); },spires); for(const m of fp) add(m); } yield;
   // nothing grows in the roadway, through a building or on the railway
   { const keepT=[], hq=(x,z)=>{ const i=Math.floor((x-hg.x0)*hg.res), j=Math.floor((z-hg.y0)*hg.res); return i<0||j<0||i>=hg.n||j>=hg.n?0:hg.a[j*hg.n+i]; }, rl=G.rail; let c=0;
-    for(const t of trees){ if(++c%2500===0) yield; if(hq(t[0],t[1])>0||hq(t[0]+0.03,t[1])>0||hq(t[0],t[1]+0.03)>0||w3dOnRoad(t[0],t[1],0.012)) continue; let bad=false; for(let i=0;i<rl.length;i+=2) if(Math.abs(rl[i][0]-t[0])<0.9&&Math.abs(rl[i][1]-t[1])<0.9&&dist(rl[i][0],rl[i][1],t[0],t[1])<0.16){ bad=true; break; } if(!bad) keepT.push(t); }
+    for(const t of trees){ if(++c%2500===0) yield; if(hq(t[0],t[1])>0||hq(t[0]+0.03,t[1])>0||hq(t[0],t[1]+0.03)>0||w3dOnRoad(t[0],t[1],0.012)||waterSD(t[0],t[1])<0.09) continue; let bad=false; for(let i=0;i<rl.length;i+=2) if(Math.abs(rl[i][0]-t[0])<0.9&&Math.abs(rl[i][1]-t[1])<0.9&&dist(rl[i][0],rl[i][1],t[0],t[1])<0.16){ bad=true; break; } if(!bad) keepT.push(t); }
     trees.length=0; for(const t of keepT) trees.push(t); }
   if(trees.length){ const greens=dark?[0x2e4a2c,0x34522f,0x2a4230]:[0x5f8f45,0x6e9a4c,0x4f7f3f,0x7aa356,0x587f3a], V=new T.Vector3(), Q=new T.Quaternion(), Sc=new T.Vector3(), up=new T.Vector3(0,1,0);
     // three kinds of tree: a broad crown in two masses, a conifer in two tiers, a tall narrow one; the number a tree carries picks its kind and its green
@@ -787,14 +837,38 @@ function* w3dLocalGround(cx,cy,add){
       g.drawImage(gc,(tx0-(B[0]-0.5))*GK,(ty0-(B[1]-0.5))*GK,tw*GK,th*GK,0,0,cv.width,cv.height);
       g.globalAlpha=0.07; g.globalCompositeOperation='overlay'; g.fillStyle=g.createPattern(w3d.noise,'repeat'); g.fillRect(0,0,cv.width,cv.height); g.globalAlpha=1; g.globalCompositeOperation='source-over';
       g.setTransform(k,0,0,k,-tx0*k,-ty0*k); g.lineCap='butt'; w3dFields(g,tx0,ty0,tx0+tw,ty0+th,true); g.lineCap='round'; g.lineJoin='round';
-      g.strokeStyle=dark?'#3a3a30':'#b9ad8c'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18)+0.03; g.stroke(r.p); } g.strokeStyle=wc; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18); g.stroke(r.p); }
+      g.strokeStyle=dark?'#3a3a30':'#b9ad8c'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18)+0.07; g.stroke(r.p); } g.strokeStyle=dark?'#17304a':'#356d94'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w-0.09,0.12); g.stroke(r.p); }
       // footpaths wandering through the parks
       g.strokeStyle=dark?'#4d4a40':'#d8cfb6'; g.lineWidth=0.018; g.beginPath();
       for(let y=Math.floor(ty0);y<ty0+th+1;y++) for(let x=Math.floor(tx0);x<tx0+tw+1;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]||G.pk[i]<0.27) continue; const h=hashInt(i*17+3);
         g.moveTo(x-0.5,y-0.5+((h&255)/255)); g.bezierCurveTo(x-0.1,y-0.3,x+0.1,y+0.3,x+0.5,y-0.5+(((h>>8)&255)/255)); } g.stroke();
       if(P2.rail){ g.strokeStyle=dark?'#4a443e':'#9a8f84'; g.lineWidth=0.09; g.stroke(P2.rail); g.strokeStyle=dark?'#2a2a2a':'#4a4440'; g.lineWidth=0.006; for(const o of [-0.012,0.012]){ g.save(); g.translate(0,o); g.stroke(P2.rail); g.restore(); } }
       w3dStreets(g,w3dEdgesIn(tx0,ty0,tx0+tw,ty0+th,E),wd,[[0.034,pave],[0.006,dark?'#3a3c42':'#777a80'],[0,asph],[-0.0035,k=>k===4?'#e8c547':'rgba(255,255,255,.85)',k=>k===4?[]:[0.025,0.03],2]]); },
-    null,tx=>w3dSee(new T.MeshStandardMaterial({map:tx,roughness:0.95,...w3dCut()})),m=>{ m.renderOrder=-4; add(m); }); }
+    null,tx=>w3dSee(new T.MeshStandardMaterial({map:tx,roughness:0.95,...w3dCutNear()})),m=>{ m.renderOrder=-6; add(m); });
+  // the water surface, wherever there is water within this piece of ground
+  { const pos=[], uv=[], idx=[], X0=Math.floor(x0), Y0=Math.floor(y0), nx=Math.ceil(sw)+1, ny=Math.ceil(sh)+1, id=new Int32Array((nx+1)*(ny+1)).fill(-1), wt=new Uint8Array((nx+1)*(ny+1));
+    for(let j=0;j<=ny;j++) for(let i=0;i<=nx;i++) wt[j*(nx+1)+i]=waterSD(X0+i,Y0+j)<0.75?1:0;
+    const vert=(i,j)=>{ const k=j*(nx+1)+i; if(id[k]<0){ id[k]=pos.length/3; pos.push(clamp(X0+i,x0,x0+sw),W3D_WAT,clamp(Y0+j,y0,y0+sh)); uv.push((X0+i)*5.5,(Y0+j)*5.5); } return id[k]; };
+    for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ if(!(wt[j*(nx+1)+i]||wt[j*(nx+1)+i+1]||wt[(j+1)*(nx+1)+i]||wt[(j+1)*(nx+1)+i+1])) continue; const a=vert(i,j), b=vert(i+1,j), c=vert(i+1,j+1), d=vert(i,j+1); idx.push(a,d,c,a,c,b); }
+    if(idx.length){ const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('uv',new T.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
+      const m=new T.Mesh(g,w3dWaterMat()); m.renderOrder=-5.5; m.receiveShadow=true; add(m); } } }
+/* The water: one material for sea, lakes and rivers. Two layers of ripples (the same normal map at two scales, drifting
+   across each other) break up the reflection of the sky, the sun glints on them, and the water is clearer and greener
+   seen from above, more of a mirror towards the horizon. */
+function w3dWaterMat(){ if(w3d.watM) return w3d.watM; const T=w3d.T, N=128, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), im=g.createImageData(N,N), hf=new Float32Array(N*N);
+  // a tiling height field of a few wave trains, turned into a normal map
+  const WV=[[3,1,0.5,0.0],[-2,3,0.35,1.3],[5,-2,0.22,2.1],[1,6,0.16,0.7],[-7,-3,0.1,3.9],[8,5,0.07,5.2]];
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ let v=0; for(const [kx,ky,am,ph] of WV) v+=am*Math.sin((kx*x+ky*y)/N*6.2832+ph); hf[y*N+x]=v; }
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const dx=hf[y*N+(x+1)%N]-hf[y*N+(x+N-1)%N], dy=hf[((y+1)%N)*N+x]-hf[((y+N-1)%N)*N+x], l=Math.hypot(dx*6,dy*6,1), o=(y*N+x)*4; im.data[o]=128-dx*6/l*127; im.data[o+1]=128-dy*6/l*127; im.data[o+2]=1/l*255; im.data[o+3]=255; }
+  g.putImageData(im,0,0); const nt=new T.CanvasTexture(c); nt.wrapS=nt.wrapT=T.RepeatWrapping; nt.colorSpace=T.NoColorSpace; nt.anisotropy=4;
+  const m=new T.MeshStandardMaterial({color:0x2f6f96,roughness:0.16,metalness:0.0,normalMap:nt,normalScale:new T.Vector2(0.55,0.55),transparent:true,opacity:0.82,envMapIntensity:1.5,depthWrite:false}); m.userData.keep=true; m.userData.uT={value:0};
+  m.onBeforeCompile=sh=>{ sh.uniforms.uT=m.userData.uT;
+    sh.fragmentShader='uniform float uT;\n'+sh.fragmentShader.replace('#include <normal_fragment_maps>',`
+      { vec2 wu=vNormalMapUv; vec3 n1=texture2D(normalMap,wu+vec2(uT*0.021,uT*0.013)).xyz*2.0-1.0, n2=texture2D(normalMap,wu*2.7+vec2(-uT*0.034,uT*0.027)).xyz*2.0-1.0, n3=texture2D(normalMap,wu*0.23+vec2(uT*0.004,-uT*0.003)).xyz*2.0-1.0;
+        vec3 mapN=normalize(vec3((n1.xy+n2.xy*0.6+n3.xy*0.45)*normalScale,2.2)); normal=normalize(tbn*mapN); }`)
+      .replace('#include <opaque_fragment>',`{ float fr=pow(1.0-clamp(dot(normalize(vViewPosition),normal),0.0,1.0),3.0); outgoingLight=mix(outgoingLight,outgoingLight*1.12+vec3(0.05,0.07,0.08),fr); diffuseColor.a=mix(diffuseColor.a,0.97,fr); }
+      #include <opaque_fragment>`); };
+  return w3d.watM=m; }
 // a point a given fraction along a line's 3D path (with its bundle offset)
 function w3dOn(L,f,dir){ const P=L._p3; if(!P||P.pts.length<2){ const g=trainAt(L,0); return {x:g.x,y:g.y,hx:1,hy:0}; } const len=P.cum[P.cum.length-1], u=clamp(f,0,1)*len, i=Math.max(1,trainSeg(P.cum,u)), q=(u-P.cum[i-1])/((P.cum[i]-P.cum[i-1])||1), a=P.pts[i-1], b=P.pts[i];
   const hx=(b[0]-a[0])*(dir||1), hy=(b[1]-a[1])*(dir||1), hl=Math.hypot(hx,hy)||1; return {x:lerp(a[0],b[0],q),y:lerp(a[1],b[1],q),hx:hx/hl,hy:hy/hl}; }
@@ -824,7 +898,7 @@ function w3dFrame(dt){
   if(w3d.reveal){ const r=w3d.reveal; for(let k=0;k<2&&r.kids.length;k++) r.kids.shift().visible=true; if(!r.kids.length){ r.drop(r.old); w3d.reveal=null; } }
   if(w3d.gj&&!w3d.lj&&w3dRun(w3d.gj,4)) w3d.gj=null;
   for(const tr of (w3d.trains||[])){ if(!tr.L._p3) continue; for(let k=0;k<tr.n;k++){ const p=w3dTrainPos(tr,k); w3dSetCars(tr.m,k*W3D_CARS,tr.L,p.u,p.dir); } tr.m.instanceMatrix.needsUpdate=true; }
-  if(w3d.look){ const q=w3d.look; w3d.vp=[q.x,q.z]; w3dLocal(q.x,q.z); w3d.cam3.position.set(q.x+Math.cos(q.az)*q.d,q.h,q.z+Math.sin(q.az)*q.d); w3d.cam3.lookAt(q.x,q.ty||0.03,q.z); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; }
+  if(w3d.look){ const q=w3d.look; w3d.vp=[q.x,q.z]; w3dLocal(q.x,q.z); w3d.cam3.position.set(q.x+Math.cos(q.az)*q.d,q.h,q.z+Math.sin(q.az)*q.d); w3d.cam3.lookAt(q.x,q.ty||0.03,q.z); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; } if(w3d.watM) w3d.watM.userData.uT.value=performance.now()/1000%4000;
     w3d.sun.target.position.set(q.x,0,q.z); w3d.sun.position.set(q.x-8,14,q.z+10); R.shadowMap.needsUpdate=true; R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }      /* a fixed look at a place (debugging) */
   if(!st){ R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }
   const P3=st.L&&st.L._p3, ru=P3?w3dRideU(st):null; let x, z, u3, hx=st.hx, hz=st.hy, sg=1;
@@ -874,7 +948,7 @@ function w3dFrame(dt){
   // Depth is measured most finely near the camera's near plane. At the window seat things pass within a few metres, so it must be close;
   // from the air nothing is nearer than a few tens of metres, and pushing it out is what stops distant surfaces that lie close together from flickering.
   { const nr=seat?0.004:0.02; if(w3d.cam3.near!==nr){ w3d.cam3.near=nr; w3d.cam3.updateProjectionMatrix(); } }
-  w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt); if(!seat&&w3d.cc&&w3d.cc.roll) w3d.cam3.rotateZ(-w3d.cc.roll); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; }
+  w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt); if(!seat&&w3d.cc&&w3d.cc.roll) w3d.cam3.rotateZ(-w3d.cc.roll); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; } if(w3d.watM) w3d.watM.userData.uT.value=performance.now()/1000%4000;
   // how strongly the underground shows through (see w3dRender): on while the watched train is below ground and seen from outside, fading in and out
   { w3d.seeOn=!seat&&!!P3&&(yT<0?true:yT>0.03?false:!!w3d.seeOn); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1); w3d.seeAt=P3?[x,yT,z,u3,sg,P3,len3]:null; }
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling

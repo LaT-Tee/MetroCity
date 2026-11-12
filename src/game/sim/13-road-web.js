@@ -13,6 +13,7 @@ function rnCells(R,e,fn){ const a=R.ea[e], b=R.eb[e], x0=Math.floor(Math.min(R.x
 function rnLv(c){ return c>=4?3:c>=3?2:1; }
 function rnAddEdge(R,a,b,c){
   if(a===b) return -1;
+  if(G.air&&(G.air[clamp(Math.round((R.y[a]+R.y[b])/2),0,H-1)*W+clamp(Math.round((R.x[a]+R.x[b])/2),0,W-1)]&1)) return -1;      // no street on an airfield, whoever asks for one
   for(const e of R.adj[a]) if(R.ea[e]===b||R.eb[e]===b){ if(R.ec[e]<c){ R.ec[e]=c; R.ver++; } return e; }
   const e=R.ea.length; R.ea.push(a); R.eb.push(b); R.ec.push(c); R.ef.push(0); R.et.push(months); R.adj[a].push(e); R.adj[b].push(e);
   rnCells(R,e,k=>rnPut(R.eg,k,e)); markRoad([[R.x[a],R.y[a]],[R.x[b],R.y[b]]],rnLv(c)); R.ver++; return e;

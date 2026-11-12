@@ -17,9 +17,9 @@ function siteAirport(){
   for(let tr=0;tr<1800;tr++){ const x=B[0]+16+R()*(B[2]-B[0]-32), y=B[1]+16+R()*(B[3]-B[1]-32), i=Math.round(y)*W+Math.round(x); if(G.water[i]||G.e[i]>0.35) continue;
     if(dist(x,y,M.x,M.y)<60||dist(x,y,G.fac.airport.x,G.fac.airport.y)<75||(G.fac2||[]).some(f=>f.t==='air'&&dist(f.x,f.y,x,y)<75)||G.centers.some(c=>c.name.k==='core'&&dist(c.x,c.y,x,y)<35)) continue;
     const a=R()*Math.PI; let ok=true; for(let u=-9;u<=9&&ok;u+=1.5) for(let v=-4;v<=4&&ok;v+=2){ const px=x+Math.cos(a)*u-Math.sin(a)*v, py=y+Math.sin(a)*u+Math.cos(a)*v, j=Math.round(py)*W+Math.round(px); if(!inB(px,py,2)||G.water[j]||G.e[j]>0.45) ok=false; }
-    if(!ok) continue; const sc=-popAround(x,y,8)/1e4+R()*2; if(sc>bs){ bs=sc; best={x,y,a}; } }
+    if(!ok) continue; const dr=airDry(x,y,a,waterSD), sc=-popAround(x,y,8)/1e4+R()*2-((dr&1)&&(dr&6)?0:1e5); if(sc>bs){ bs=sc; best={x,y,a,dr}; } }
   if(!best) return null; const p=nearestPlace(best.x,best.y);
-  let term={x:best.x-Math.sin(best.a)*5.5,y:best.y+Math.cos(best.a)*5.5}; if(G.water[Math.round(term.y)*W+Math.round(term.x)]) term={x:best.x+Math.sin(best.a)*5.5,y:best.y-Math.cos(best.a)*5.5};
+  let term={x:best.x-Math.sin(best.a)*5.5,y:best.y+Math.cos(best.a)*5.5}; if(G.water[Math.round(term.y)*W+Math.round(term.x)]||(!(best.dr&2)&&(best.dr&4))) term={x:best.x+Math.sin(best.a)*5.5,y:best.y-Math.cos(best.a)*5.5};
   return {t:'air',x:best.x,y:best.y,a:best.a,term,s:p.name.s};
 }
 // an airfield takes its land: nobody lives on it and nothing is built there, however the city grows afterwards

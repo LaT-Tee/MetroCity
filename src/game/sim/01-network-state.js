@@ -105,14 +105,20 @@ function nameStation(x,y){
   }
   return {s:hashInt(stations.length*104729+7),k:'street'};
 }
-function newStation(x,y){ const s={id:nextSid++,x:Math.round(x*100)/100,y:Math.round(y*100)/100}; s.name=nameStation(x,y); stations.push(s); return s; }
+// A station stands on dry land: one asked for at the water's edge is put a little inland.
+const ST_DRY=0.3;
+function newStation(x,y){ { const d=dryNear(x,y,ST_DRY,6); if(d){ x=d[0]; y=d[1]; } } const s={id:nextSid++,x:Math.round(x*100)/100,y:Math.round(y*100)/100}; s.name=nameStation(x,y); stations.push(s); return s; }
 function activeLineCount(){ return lines.filter(l=>l.stops.length>=2).length; }
 function newLine(){
   const num=nextLineNum++; const usedC=new Set(lines.map(l=>l.ci)); let ci=(num-1)%LINE_COLORS.length;
   if(usedC.has(ci)){ for(let k=0;k<LINE_COLORS.length;k++){ if(!usedC.has(k)){ ci=k; break; } } }
   const L={id:'L'+num+'_'+Math.floor(Math.random()*1e6).toString(36),num,ci,stops:[],paths:[],loop:false}; lines.push(L); lines.sort((a,b)=>a.num-b.num); return L;
 }
+// stations from an older save (or left at the water's edge by a change of the map) are moved ashore, their lines with them
+function dryStations(){ if(!G||!G.h) return 0; let n=0; for(const st of stations){ if(waterSD(st.x,st.y)>=ST_DRY-0.05) continue; const d=dryNear(st.x,st.y,ST_DRY,8); if(!d) continue; const ox=st.x, oy=st.y; st.x=Math.round(d[0]*100)/100; st.y=Math.round(d[1]*100)/100; n++;
+    for(const L of lines){ if(!L.paths||!L.stops.includes(st.id)) continue; for(const p of L.paths){ for(const e of [p[0],p[p.length-1]]) if(e&&Math.abs(e[0]-ox)<0.02&&Math.abs(e[1]-oy)<0.02){ e[0]=st.x; e[1]=st.y; } } } } return n; }
 function cleanup(){
+  dryStations();
   lines=lines.filter(L=>L.stops.length>=2||L.id===activeLineId);
   lines.forEach(L=>{ if(L.loop&&L.stops.length<3){ L.loop=false; } ensurePaths(L); });
   const used=new Set(); lines.forEach(L=>L.stops.forEach(id=>used.add(id)));

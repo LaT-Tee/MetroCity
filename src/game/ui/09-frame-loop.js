@@ -33,7 +33,7 @@ function doGrowth(sync){
       yearReview(); },
     ()=>{ const now=performance.now();
       if(months%12===0) bldBump();
-      if(months%12===0&&sim){ const fs=checkFacilities(cityLevel(sim.riders)); if(fs.length){ buildPaths(); const f=fs[0], pt=facPoint(f); toast(t('facNew',{f:nm(facName(f))})); SFX.level(); floats.push({x:pt.x,y:pt.y,txt:nm(facName(f)),t0:now,big:true}); burst(60,vw/2,140,1.6); persistSoon(); } } },
+      if(months%12===0&&sim){ const fs=checkFacilities(cityLevel(sim.riders)); if(fs.length){ bldBump(); buildPaths(); const f=fs[0], pt=facPoint(f); toast(t('facNew',{f:nm(facName(f))})); SFX.level(); floats.push({x:pt.x,y:pt.y,txt:nm(facName(f)),t0:now,big:true}); burst(60,vw/2,140,1.6); persistSoon(); } } },
     ()=>{ const now=performance.now(); const pe=projectsTick(); if(pe.length){ let nr=false; pe.forEach(o=>{ if(o.type==='start') nr=true; }); if(nr) buildPaths();
         pe.forEach((o,i)=>floats.push({x:o.p.x,y:o.p.y,txt:nm(projName(o.p)),t0:now+i*300,big:true}));
         const o=pe[pe.length-1]; toast(t(o.type==='start'?'projStart':'projDone',{p:nm(projName(o.p))})); if(o.type==='done'){ SFX.level(); burst(40,vw/2,140,1.2); } else SFX.up(); persistSoon(); } },
