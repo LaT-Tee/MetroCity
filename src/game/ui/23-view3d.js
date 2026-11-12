@@ -568,7 +568,7 @@ function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[]))
    the central station (platforms under canopies, a hall with a clock tower, a footbridge), the coach station (a
    canopy over the bays, coaches waiting) and every airport (runways with their markings, taxiways, a terminal with
    piers, a control tower, aircraft at the stands, hangars). All of it goes into the same mesh as the metro stations. */
-function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
+function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBoxes();
   const frame=(x,z,a)=>{ const Fm=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-a)); return {Fm,B:(w,h,d,lx,y,lz,c)=>{ const q=w3dBox(w,h,d,lx,y,lz,c); q.m=Fm.clone().multiply(q.m); parts.push(q); },
     R:(w,h,d,lx,y,lz,c,rot)=>{ parts.push({g:new T.BoxGeometry(w,h,d),m:Fm.clone().multiply(new T.Matrix4().makeTranslation(lx,y,lz)).multiply(rot),c}); },
     C:(r0,r1,h,lx,y,lz,c,seg,rot)=>{ let m=Fm.clone().multiply(new T.Matrix4().makeTranslation(lx,y,lz)); if(rot) m=m.multiply(rot); parts.push({g:new T.CylinderGeometry(r0,r1,h,seg||14),m,c}); }}; };
@@ -599,10 +599,12 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
       arch(SL,SR,0,0xa9c3d3); for(let x=-SL/2;x<=SL/2+1e-6;x+=SL/8) arch(0.008,SR+0.0012,x,0x5f6b76); arch(SL*0.9,0.02,0,0xe4edf2,SR*SY-0.012);
       for(const z of [-SR,SR]){ F.B(SL,0.004,0.006,0,0.002,z,0x6d7780); for(let x=-SL/2;x<=SL/2+1e-6;x+=SL/8) F.B(0.004,0.012,0.004,x,0.006,z,0x5f6b76); }
       for(const e of [-1,1]){ F.B(0.003,0.02,SR*2,e*SL/2,SR*SY-0.006,0,0x5f6b76); for(const z of [-SR*0.62,SR*0.62]) F.B(0.003,SR*SY*0.78,0.003,e*SL/2,SR*SY*0.39,z,0x5f6b76); } }       // footbridge and its stair towers
-    const hz=sd*0.135; F.B(0.72,0.085,0.1,0,0.0425,hz,0xe6dfd2); F.B(0.74,0.004,0.108,0,0.087,hz,0x8c4a3a); F.B(0.2,0.11,0.11,0,0.055,hz,0xece5d8); F.B(0.21,0.004,0.118,0,0.112,hz,0x8c4a3a);
-    for(let x=-0.31;x<=0.31;x+=0.062){ if(Math.abs(x)<0.11) continue; F.B(0.03,0.04,0.0008,x,0.05,hz+sd*0.0505,0x4a5866); F.B(0.03,0.022,0.0008,x,0.016,hz+sd*0.0505,0x4a5866); }
+    const hz=sd*0.135, ca_=Math.cos(a), sa_=Math.sin(a), hs_=hashInt(Math.round(c[0]*31+c[1]*17)), wall=(lx,lz,w,d,h,kind)=>{ const wx=c[0]+ca_*lx-sa_*lz, wz=c[1]+sa_*lx+ca_*lz; texB.building({x:wx-w/2,y:wz-d/2,w,d,h:h/BZ3,a},0,hs_,false,kind); };
+    // the hall in real masonry: brick wings with rows of windows either side of a rendered centre block, under tiled roofs
+    wall(-0.23,hz,0.26,0.1,0.085,'brick'); wall(0.23,hz,0.26,0.1,0.085,'brick'); wall(0,hz,0.2,0.11,0.11,'plaster'); wall(-0.3,hz,0.05,0.05,0.2,'plaster');
+    F.B(0.74,0.004,0.108,0,0.087,hz,0x8c4a3a); F.B(0.21,0.004,0.118,0,0.112,hz,0x8c4a3a);
     for(const x of [-0.06,0,0.06]) F.B(0.036,0.07,0.0008,x,0.045,hz+sd*0.0555,0x55697a);
-    F.B(0.05,0.2,0.05,-0.3,0.1,hz,0xe6dfd2); F.B(0.058,0.006,0.058,-0.3,0.203,hz,0x8c4a3a); F.C(0.0001,0.03,0.05,-0.3,0.231,hz,0x5a6068,4,new T.Matrix4().makeRotationY(Math.PI/4)); F.C(0.016,0.016,0.002,-0.3,0.17,hz+sd*0.0262,0xf7f4ea,16,new T.Matrix4().makeRotationX(Math.PI/2));
+    F.B(0.058,0.006,0.058,-0.3,0.203,hz,0x8c4a3a); F.C(0.0001,0.03,0.05,-0.3,0.231,hz,0x5a6068,4,new T.Matrix4().makeRotationY(Math.PI/4)); F.C(0.016,0.016,0.002,-0.3,0.17,hz+sd*0.0262,0xf7f4ea,16,new T.Matrix4().makeRotationX(Math.PI/2));
     // a portico of columns under a stepped attic on the entrance front, wings with cornices, and a forecourt with a taxi rank
     for(const x of [-0.085,-0.051,-0.017,0.017,0.051,0.085]) F.C(0.0038,0.0044,0.062,x,0.031,hz+sd*0.066,0xf1ece0,10); F.B(0.2,0.008,0.022,0,0.066,hz+sd*0.064,0xe9e2d4); F.B(0.17,0.008,0.02,0,0.074,hz+sd*0.064,0xe9e2d4); F.B(0.11,0.007,0.018,0,0.0815,hz+sd*0.064,0xe9e2d4); F.B(0.21,0.003,0.03,0,0.0015,hz+sd*0.07,0xd9d3c6);
     for(const e of [-1,1]){ F.B(0.27,0.006,0.106,e*0.235,0.08,hz,0xd8d0c0); F.B(0.012,0.085,0.104,e*0.366,0.0425,hz,0xdcd4c4); }
@@ -686,6 +688,7 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
       B(0.3,0.002,0.19,0,0.0052,0,0x5b9846); B(0.26,0.0022,0.002,0,0.0054,0,0xffffff); for(const [x,z] of [[-0.3,-0.26],[0.3,-0.26],[0.3,0.26],[-0.3,0.26]]){ B(0.006,0.16,0.006,x,0.08,z,0xb9bec4); B(0.04,0.012,0.02,x,0.164,z,0xf7f4ea); } }
     spots.push({x:px,y:pz,hx:Math.cos(a),hy:Math.sin(a),len:0.8,half:0.4,h:top,g:1,lm:1});
     if(p.done) signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.03,0.372)),w:0.26,h:0.016,text:nm(projName(p)),c:'#7a4a9a'}); }
+  for(const m of texB.meshes(true)) w3dAdd(m);
 }
 // the intercity train runs up and down the main line
 function w3dRailTick(dt){ const P=w3d.railP, Tn=w3d.railT; if(!P||!Tn) return; const T=w3d.T, L=Math.max(1,P.len-Tn.n*Tn.cl-0.4), per=2*L+24; w3d.railU=((w3d.railU||0)+dt*0.9)%per; let u=w3d.railU, dir=1; if(u>L+12){ u=Math.max(0,per-u-12); dir=-1; } else u=Math.min(u,L);
@@ -1064,17 +1067,17 @@ function w3dFrame(dt){
     const needAt=sv=>{ let nd=base, w0=null;
       for(const d of [-0.12,0,0.15,0.32,0.5,0.75,1.0,1.3,1.6]){ const q=slot(sv,d); if(d===0) w0=q; for(const e of [-0.06,0,0.06]){ const g=top(q[0]-q[3]*e,q[1]+q[2]*e); if(g>0&&g+0.035>nd) nd=g+0.035; } }
       // a mountain is seen coming from further off than a building: it starts to climb (or picks a way round) in good time
-      for(const d of [2.2,3,4,5.2]){ const q=slot(sv,d), g=w3dHt(q[0],q[1])+0.06-(d-1.6)*0.22; if(g>nd) nd=g; }
+      for(const d of [2.2,3,4,5.2]){ const q=slot(sv,d), gh=w3dHt(q[0],q[1]); if(gh<0.4) continue; const g=gh+0.06-(d-1.6)*0.22; if(g>nd) nd=g; }
       if(C.ug<0.5||inHill) for(let q=4;q<=9;q++){ const f=q/10, g=top(x+(w0[0]-x)*f,z+(w0[1]-z)*f); if(g>0){ const yn=ty+(g+0.02-ty)/f; if(yn>nd) nd=yn; } }
       return Math.min(nd,2.2); };
-    let bestS=C.s, bestC=1e9, bestN=base; const lanes=[-0.46,-0.32,-0.2,-0.1,0,0.1,0.2,0.32,0.46]; if(w3dHt(x+hx*1.5,z+hz*1.5)>0.15||w3dHt(x,z)>0.15) lanes.push(-1.6,-1.1,-0.75,0.75,1.1,1.6);      /* in the hills it may swing much wider, round a shoulder of the mountain */
-    for(const sv of lanes){ const nd=needAt(sv), cost=(nd-base)*4+Math.abs(sv-sPref)*0.5+Math.abs(sv-(C.sT==null?C.s:C.sT))*0.5; if(cost<bestC){ bestC=cost; bestS=sv; bestN=nd; } }
+    let bestS=C.s, bestC=1e9, bestN=base; const lanes=[-0.46,-0.32,-0.2,-0.1,0,0.1,0.2,0.32,0.46]; if(w3dHt(x+hx*2,z+hz*2)>0.5||w3dHt(x+hx*4,z+hz*4)>0.5||w3dHt(x,z)>0.5) lanes.push(-1.6,-1.1,-0.75,0.75,1.1,1.6);      /* in the hills it may swing much wider, round a shoulder of the mountain */
+    for(const sv of lanes){ const nd=needAt(sv), cost=(nd-base)*4+Math.abs(sv-sPref)*0.5+Math.abs(sv-(C.sT==null?C.s:C.sT))*1.1;      /* it changes its place across the line only for a clear gain */ if(cost<bestC){ bestC=cost; bestS=sv; bestN=nd; } }
     C.sT=bestS; const sl=slot(C.s,0), wx=sl[0], wz=sl[1], need=Math.max(bestN,needAt(C.s));      /* on the way across to the chosen place it clears what is under it now */
     if(!C.p||dist(C.p[0],C.p[2],wx,wz)>2){ C.s=bestS; C.sv=0; const q=slot(bestS,0); C.p=[q[0],need,q[1]]; C.v=[0,0,0]; C.hd=Math.atan2(q[3],q[2]); C.roll=0; }
     // soft springs all round: it drifts across the line, trails the train with a little give, rises a touch quicker than it sinks; a firm push only if it actually touches something
-    { const ks=0.8, as=ks*(C.sT-C.s)-2*Math.sqrt(ks)*(C.sv||0); C.sv=(C.sv||0)+as*dt; C.s+=C.sv*dt;
-      const sp=(i,tg,k)=>{ const a=k*(tg-C.p[i])-2*Math.sqrt(k)*C.v[i]; C.v[i]+=a*dt; C.p[i]+=C.v[i]*dt; }; sp(0,wx,5); sp(2,wz,5);
-      const hit=top(C.p[0],C.p[2])+0.012; sp(1,need,C.p[1]<hit?24:need>C.p[1]?2.2:1.0); if(C.p[1]<hit-0.02) C.p[1]=hit-0.02;
+    { const ks=0.45, as=ks*(C.sT-C.s)-2*Math.sqrt(ks)*(C.sv||0); C.sv=(C.sv||0)+as*dt; C.s+=C.sv*dt;
+      const sp=(i,tg,k)=>{ const a=k*(tg-C.p[i])-2*Math.sqrt(k)*C.v[i]; C.v[i]+=a*dt; C.p[i]+=C.v[i]*dt; }; sp(0,wx,3.6); sp(2,wz,3.6);
+      const hit=top(C.p[0],C.p[2])+0.012; sp(1,need,C.p[1]<hit?24:need>C.p[1]?1.5:0.8); if(C.p[1]<hit-0.02) C.p[1]=hit-0.02;
       // and never, whatever else, inside the ground: the camera is always a clear margin above the hillside under it
       { const gr=w3dHt(C.p[0],C.p[2])+0.04; if(C.p[1]<gr){ C.p[1]=gr; if(C.v[1]<0) C.v[1]=0; } } }
     cp=C.p.slice(); ct=[x+hx*0.16,ty,z+hz*0.16]; kp=60; kt=3.2;
