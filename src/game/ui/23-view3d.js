@@ -1025,21 +1025,27 @@ function w3dFrame(dt){
     // how high a place s to the side of the line would have to be flown, now and for the next block and a half
     const needAt=sv=>{ let nd=base, w0=null;
       for(const d of [-0.12,0,0.15,0.32,0.5,0.75,1.0,1.3,1.6]){ const q=slot(sv,d); if(d===0) w0=q; for(const e of [-0.06,0,0.06]){ const g=top(q[0]-q[3]*e,q[1]+q[2]*e); if(g>0&&g+0.035>nd) nd=g+0.035; } }
-      if(C.ug<0.5) for(let q=4;q<=9;q++){ const f=q/10, g=top(x+(w0[0]-x)*f,z+(w0[1]-z)*f); if(g>0){ const yn=ty+(g+0.02-ty)/f; if(yn>nd) nd=yn; } }
-      return Math.min(nd,1.2); };
-    let bestS=C.s, bestC=1e9, bestN=base; for(const sv of [-0.46,-0.32,-0.2,-0.1,0,0.1,0.2,0.32,0.46]){ const nd=needAt(sv), cost=(nd-base)*4+Math.abs(sv-sPref)*0.5+Math.abs(sv-(C.sT==null?C.s:C.sT))*0.5; if(cost<bestC){ bestC=cost; bestS=sv; bestN=nd; } }
+      // a mountain is seen coming from further off than a building: it starts to climb (or picks a way round) in good time
+      for(const d of [2.2,3,4,5.2]){ const q=slot(sv,d), g=w3dHt(q[0],q[1])+0.06-(d-1.6)*0.22; if(g>nd) nd=g; }
+      if(C.ug<0.5||inHill) for(let q=4;q<=9;q++){ const f=q/10, g=top(x+(w0[0]-x)*f,z+(w0[1]-z)*f); if(g>0){ const yn=ty+(g+0.02-ty)/f; if(yn>nd) nd=yn; } }
+      return Math.min(nd,2.2); };
+    let bestS=C.s, bestC=1e9, bestN=base; const lanes=[-0.46,-0.32,-0.2,-0.1,0,0.1,0.2,0.32,0.46]; if(w3dHt(x+hx*1.5,z+hz*1.5)>0.15||w3dHt(x,z)>0.15) lanes.push(-1.6,-1.1,-0.75,0.75,1.1,1.6);      /* in the hills it may swing much wider, round a shoulder of the mountain */
+    for(const sv of lanes){ const nd=needAt(sv), cost=(nd-base)*4+Math.abs(sv-sPref)*0.5+Math.abs(sv-(C.sT==null?C.s:C.sT))*0.5; if(cost<bestC){ bestC=cost; bestS=sv; bestN=nd; } }
     C.sT=bestS; const sl=slot(C.s,0), wx=sl[0], wz=sl[1], need=Math.max(bestN,needAt(C.s));      /* on the way across to the chosen place it clears what is under it now */
     if(!C.p||dist(C.p[0],C.p[2],wx,wz)>2){ C.s=bestS; C.sv=0; const q=slot(bestS,0); C.p=[q[0],need,q[1]]; C.v=[0,0,0]; C.hd=Math.atan2(q[3],q[2]); C.roll=0; }
     // soft springs all round: it drifts across the line, trails the train with a little give, rises a touch quicker than it sinks; a firm push only if it actually touches something
     { const ks=0.8, as=ks*(C.sT-C.s)-2*Math.sqrt(ks)*(C.sv||0); C.sv=(C.sv||0)+as*dt; C.s+=C.sv*dt;
       const sp=(i,tg,k)=>{ const a=k*(tg-C.p[i])-2*Math.sqrt(k)*C.v[i]; C.v[i]+=a*dt; C.p[i]+=C.v[i]*dt; }; sp(0,wx,5); sp(2,wz,5);
-      const hit=top(C.p[0],C.p[2])+0.012; sp(1,need,C.p[1]<hit?24:need>C.p[1]?2.2:1.0); if(C.p[1]<hit-0.02) C.p[1]=hit-0.02; }
+      const hit=top(C.p[0],C.p[2])+0.012; sp(1,need,C.p[1]<hit?24:need>C.p[1]?2.2:1.0); if(C.p[1]<hit-0.02) C.p[1]=hit-0.02;
+      // and never, whatever else, inside the ground: the camera is always a clear margin above the hillside under it
+      { const gr=w3dHt(C.p[0],C.p[2])+0.04; if(C.p[1]<gr){ C.p[1]=gr; if(C.v[1]<0) C.v[1]=0; } } }
     cp=C.p.slice(); ct=[x+hx*0.16,ty,z+hz*0.16]; kp=60; kt=3.2;
     // banking: it leans into a turn as far as the turn is tight and its speed is high, and into each move across the line
     { const hd=Math.atan2(sl[3],sl[2]); let dh=hd-(C.hd==null?hd:C.hd); dh=Math.atan2(Math.sin(dh),Math.cos(dh)); C.hd=hd; const rate=dt>0?dh/dt:0; C.yr=(C.yr||0)+(clamp(rate,-1.5,1.5)-(C.yr||0))*Math.min(1,dt*2.5);
       C.roll=(C.roll||0)+(clamp(C.yr*0.55+(C.sv||0)*1.6,-0.32,0.32)-(C.roll||0))*Math.min(1,dt*2.2); } }
   const snap=!w3d.camPos||dist(w3d.camPos[0],w3d.camPos[2],cp[0],cp[2])>1.8, a1=snap?1:1-Math.exp(-dt*kp), a2=snap?1:1-Math.exp(-dt*kt);
   w3d.camPos=w3d.camPos&&!snap?w3d.camPos.map((v,i)=>v+(cp[i]-v)*a1):cp; w3d.camTgt=w3d.camTgt&&!snap?w3d.camTgt.map((v,i)=>v+(ct[i]-v)*a2):ct;
+  if(!seat){ const gr=w3dHt(w3d.camPos[0],w3d.camPos[2])+0.03; if(w3d.camPos[1]<gr) w3d.camPos[1]=gr; }
   // Depth is measured most finely near the camera's near plane. At the window seat things pass within a few metres, so it must be close;
   // from the air nothing is nearer than a few tens of metres, and pushing it out is what stops distant surfaces that lie close together from flickering.
   { const nr=seat?0.004:0.02; if(w3d.cam3.near!==nr){ w3d.cam3.near=nr; w3d.cam3.updateProjectionMatrix(); } }
