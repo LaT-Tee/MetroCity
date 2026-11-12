@@ -51,7 +51,10 @@ function bldOnRoadR(bins,cx,cy,hw,hd,ca,sa){ const rx=Math.abs(hw*ca)+Math.abs(h
 const BLD_OC=24, BLD_M=1;
 function bldTile(tx,ty){
   if(G.rn&&(G.rn.ver!==bldRoadVer||G.rn!==bldRoadOf)) bldRoadSync();
-  const key=tx*1000+ty; let t=bldCache.get(key); if(t&&(t.ver===bldVer||bldFreeze)) return t; const stale=t;
+  const key=tx*1000+ty; let t=bldCache.get(key);
+  // while the city is held still for a ride, a street that has been laid since still wins: a building it runs through gives way (the rest stay as they were)
+  if(t&&bldFreeze&&t.ver===-1){ const bins=bldSegs(tx*BLD_T,ty*BLD_T); t.list=t.list.filter(b=>b.a?!bldOnRoadR(bins,b.x+b.w/2,b.y+b.d/2,b.w/2,b.d/2,Math.cos(b.a),Math.sin(b.a)):!bldOnRoad(bins,b.x,b.y,b.w,b.d)); t.ver=-2; }
+  if(t&&(t.ver===bldVer||bldFreeze)) return t; const stale=t;
   const out=[], x0=tx*BLD_T, y0=ty*BLD_T, pk=G.pk, D=G.D, water=G.water, B=G.bounds, rm=bldSegs(x0,y0), R=G.rn;
   const ox=x0-0.5-BLD_M, oy=y0-0.5-BLD_M, ON=(BLD_T+2*BLD_M)*BLD_OC, occ=new Uint8Array(ON*ON);
   // claim a turned footprint on the occupancy grid (with a small gap to the neighbours); false if something is there

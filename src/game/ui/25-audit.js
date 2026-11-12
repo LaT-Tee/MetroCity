@@ -2,14 +2,15 @@
    water, on an airport or in a roadway that has no business there, platforms or lines passing through each other.
    Each rule is enforced where the thing is made; this is the proof, run on several cities before a change goes out.
    __mc.dbg.audit() in the console; every count should be 0. (The 3D counts need the 3D view to have been opened.) */
-function auditWorld(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,stAirfield:0}, ex={};
+function auditWorld(fresh){ const fz=bldFreeze; if(fresh){ bldFreeze=false; bldBump(); } try{ return auditWorld_(); } finally { bldFreeze=fz; } }
+function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,stAirfield:0}, ex={};
   const bad=(k,o)=>{ r[k]++; const e=ex[k]||(ex[k]=[]); if(e.length<4) e.push(o.map(v=>typeof v==='number'?+v.toFixed(2):v)); };
   for(const st of stations) if(waterSD(st.x,st.y)<0.2) bad('stWet',[st.x,st.y]);
   for(const f of [G.fac.station,G.fac.coach,...(G.fac2||[]).filter(f=>f.t!=='air')]) if(waterSD(f.x,f.y)<0) bad('facWet',[f.t||'main',f.x,f.y]);
   for(const ap of [G.fac.airport,...(G.fac2||[]).filter(f=>f.t==='air')]){ if(!ap||ap.x==null) continue; const f=airFrame(ap), dr=airDry(ap.x,ap.y,ap.a,waterSD); if(!(dr&1)||!(dr&(f.ts>0?2:4))) bad('airWet',[ap.x,ap.y,dr]); }
   const R=G.rn, onRoad=(x,y)=>{ if(!R) return false; const h=rnNearEdge(R,x,y,0.16); return !!h&&h.d<ROAD_W[R.ec[h.e]]/2-0.012; };
-  bldInRect(B[0],B[1],B[2],B[3],b=>{ const q=bldCorners(b), cx=(q[0]+q[4])/2, cy=(q[1]+q[5])/2; let w=waterSD(cx,cy)<0, a=false, rd=onRoad(cx,cy); for(let k=0;k<8;k+=2){ if(waterSD(q[k],q[k+1])<0) w=true; if(G.air&&G.air[clamp(Math.round(q[k+1]),0,H-1)*W+clamp(Math.round(q[k]),0,W-1)]) a=true; }
-    if(w) bad('bldWet',[cx,cy]); if(a) bad('bldAir',[cx,cy]); if(rd) bad('bldRoad',[cx,cy]); });
+  bldInRect(B[0],B[1],B[2],B[3],b=>{ const q=bldCorners(b), cx=(q[0]+q[4])/2, cy=(q[1]+q[5])/2; let w=waterSD(cx,cy)<0, a=false, rd=onRoad(cx,cy); for(let k=0;k<8&&!rd;k+=2){ const k2=(k+2)%8; for(const f of [0,0.25,0.5,0.75]) if(onRoad(lerp(q[k],q[k2],f),lerp(q[k+1],q[k2+1],f))){ rd=true; break; } } if(!rd) for(const [u,v] of [[0.25,0.25],[0.75,0.25],[0.25,0.75],[0.75,0.75]]) if(onRoad(lerp(lerp(q[0],q[2],u),lerp(q[6],q[4],u),v),lerp(lerp(q[1],q[3],u),lerp(q[7],q[5],u),v))){ rd=true; break; } for(let k=0;k<8;k+=2){ if(waterSD(q[k],q[k+1])<0) w=true; if(G.air&&G.air[clamp(Math.round(q[k+1]),0,H-1)*W+clamp(Math.round(q[k]),0,W-1)]) a=true; }
+    if(w) bad('bldWet',[cx,cy]); if(a) bad('bldAir',[cx,cy]); if(rd) bad('bldRoad',[cx,cy,b.w,b.d,b.sp||b.k||'',b.a||0]); });
   bldFeatInRect(B[0],B[1],B[2],B[3],f=>{ const q=bldCorners(f); for(let k=0;k<8;k+=2) if(waterSD(q[k],q[k+1])<0){ bad('featWet',[f.k,f.x,f.y]); break; } });
   // no street on an airfield
   if(R) for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e]; if(a==null||a<0||R.ec[e]==null||R.ec[e]<0) continue; if(R.x[a]<B[0]||R.x[a]>B[2]||R.y[a]<B[1]||R.y[a]>B[3]) continue; if(G.air&&(G.air[Math.round((R.y[a]+R.y[b])/2)*W+Math.round((R.x[a]+R.x[b])/2)]&1)) bad('roadAir',[R.x[a],R.y[a]]); }
