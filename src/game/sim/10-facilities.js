@@ -24,6 +24,25 @@ function siteAirport(){
 }
 // an airfield takes its land: nobody lives on it and nothing is built there, however the city grows afterwards
 function airportClear(f){ if(!growth||!growth.S) return; G.air=airMaskOf([G.fac.airport,...(G.fac2||[]).filter(o=>o.t==='air')]); const R=14; for(let y=Math.max(0,Math.floor(f.y-R));y<=Math.min(H-1,Math.ceil(f.y+R));y++) for(let x=Math.max(0,Math.floor(f.x-R));x<=Math.min(W-1,Math.ceil(f.x+R));x++){ const ad=dist(x,y,f.x,f.y); if(ad>=R) continue; const i=y*W+x; growth.S[i]*=smooth(ad,10,14); G.D[i]*=smooth(ad,9,14); if(G.air[i]){ G.D[i]=0; growth.S[i]=0; } if(growth.D0) growth.D0[i]=Math.min(growth.D0[i],G.D[i]); } }
+/* Ground that is kept. A railway station (platforms, hall and forecourt) and each development's plot belong to them
+   alone: no street is laid across one (a street already there is taken up), nothing else is built on it. The same
+   site is used by everything that draws or tests the place, so they always agree. */
+function railSite(st){ const C=G._sites||(G._sites=new Map()), key=st.x+','+st.y; if(C.has(key)) return C.get(key); const rl=G.rail, M=G.centers[0], PL=1.5;
+  let bi=0, bd=1e9; rl.forEach((p,i)=>{ const d=dist(p[0],p[1],st.x,st.y); if(d<bd){ bd=d; bi=i; } });
+  const angAt=i=>{ const p0=rl[Math.max(0,i-2)], p1=rl[Math.min(rl.length-1,i+2)]; return Math.atan2(p1[1]-p0[1],p1[0]-p0[0]); };
+  const dryAt=(i,sd)=>{ const c=rl[i], a=angAt(i), ca=Math.cos(a), sa=Math.sin(a); for(let lx=-PL/2;lx<=PL/2+1e-6;lx+=0.25) for(const lz of [-0.075,0.075,sd*0.14,sd*0.21]) if(waterSD(c[0]+ca*lx-sa*lz,c[1]+sa*lx+ca*lz)<0.04) return false; return true; };
+  let sd=1; { const a=angAt(bi), c=rl[bi]; if((M.x-c[0])*-Math.sin(a)+(M.y-c[1])*Math.cos(a)<0) sd=-1; }       // the hall faces the city centre
+  { let got=false; for(let k=0;k<=16&&!got;k++) for(const i of (k?[bi+k,bi-k]:[bi])){ if(i<2||i>rl.length-3) continue; for(const s2 of [sd,-sd]) if(dryAt(i,s2)){ bi=i; sd=s2; got=true; break; } if(got) break; } }
+  const o={i:bi,x:rl[bi][0],y:rl[bi][1],a:angAt(bi),sd}; C.set(key,o); return o; }
+function projSite(p){ if(p.px!=null) return p; let px=p.x, pz=p.y; const okAt=(x,z)=>{ for(const [ox,oz] of [[0,0],[0.3,0.3],[-0.3,0.3],[0.3,-0.3],[-0.3,-0.3]]){ if(waterSD(x+ox,z+oz)<0.08) return false; if(G.rn){ const h=rnNearEdge(G.rn,x+ox,z+oz,0.2); if(h&&h.d<ROAD_W[G.rn.ec[h.e]]/2+0.02) return false; } } for(let i=0;i<G.rail.length;i+=2) if(dist(G.rail[i][0],G.rail[i][1],x,z)<0.6) return false; return !(G.air&&G.air[clamp(Math.round(z),0,H-1)*W+clamp(Math.round(x),0,W-1)]); };
+  let got=okAt(px,pz); for(let r=0.2;r<=1.6&&!got;r+=0.2) for(let k=0;k<10;k++){ const an=k*0.6283+r, x=p.x+Math.cos(an)*r, z=p.y+Math.sin(an)*r; if(okAt(x,z)){ px=x; pz=z; got=true; break; } } if(!got){ const d=dryNear(px,pz,0.5,6); if(d){ px=d[0]; pz=d[1]; } }
+  p.px=Math.round(px*100)/100; p.pz=Math.round(pz*100)/100; return p; }
+function keepRects(){ const key=(G.fac2||[]).length+'|'+(G.projects||[]).length+'|'+G.rail.length; if(G._keepK===key) return G._keep; const out=[];
+  for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ const q=railSite(st), ca=Math.cos(q.a), sa=Math.sin(q.a); out.push({x:q.x-sa*q.sd*0.07,y:q.y+ca*q.sd*0.07,hx:ca,hy:sa,hl:0.86,hw:0.27}); }
+  for(const p of (G.projects||[])){ projSite(p); out.push({x:p.px,y:p.pz,hx:1,hy:0,hl:0.4,hw:0.4}); }
+  G._keepK=key; return G._keep=out; }
+function keepAt(x,y,m){ for(const q of keepRects()){ const dx=x-q.x, dy=y-q.y; if(Math.abs(dx*q.hx+dy*q.hy)<q.hl+(m||0)&&Math.abs(-dx*q.hy+dy*q.hx)<q.hw+(m||0)) return true; } return false; }
+function keepHitSeg(ax,ay,bx,by){ const K=keepRects(); if(!K.length) return false; const l=Math.hypot(bx-ax,by-ay), n=Math.max(1,Math.ceil(l/0.06)); for(const q of K){ if(Math.min(ax,bx)>q.x+1.2||Math.max(ax,bx)<q.x-1.2||Math.min(ay,by)>q.y+1.2||Math.max(ay,by)<q.y-1.2) continue; for(let k=0;k<=n;k++){ const x=ax+(bx-ax)*k/n, y=ay+(by-ay)*k/n, dx=x-q.x, dy=y-q.y; if(Math.abs(dx*q.hx+dy*q.hy)<q.hl&&Math.abs(-dx*q.hy+dy*q.hx)<q.hw) return true; } } return false; }
 function facName(f){ return {k:f.t==='rail'?(f.v?'rail2b':'rail2'):f.t==='coach'?'coach2':'air2',s:f.s,d:f.d}; }
 function facPoint(f){ return f.t==='air'?f.term:f; }
 function checkFacilities(lv){
@@ -31,7 +50,7 @@ function checkFacilities(lv){
   const want=[['rail',lv>=3&&has('rail')<1||lv>=5&&has('rail')<2],['coach',lv>=3&&has('coach')<1||lv>=5&&has('coach')<2],['air',(has('air')<1&&(lv>=5||G.popTotal>=growth.pop0*1.5))||(has('air')<2&&(lv>=6||G.popTotal>=growth.pop0*2.2))]];
   for(const [t,ok] of want){ if(!ok||made.length) continue; const f=t==='rail'?siteRail():t==='coach'?siteCoach():siteAirport(); if(!f) continue;
     if(t==='rail'&&G.fac2.some(o=>o.t==='rail'&&o.d===f.d)) f.v=1;
-    G.fac2.push(f); if(t==='air'){ airportClear(f); rnPruneAir(); } const pt=facPoint(f); boostJobs(pt.x,pt.y,t==='air'?0.7:t==='rail'?0.35:0.2);
+    G.fac2.push(f); if(t==='air'){ airportClear(f); rnPruneAir(); } else if(t==='rail') rnPruneAir(); const pt=facPoint(f); boostJobs(pt.x,pt.y,t==='air'?0.7:t==='rail'?0.35:0.2);
     if(t==='air') routeRoad(airGate(f),G.centers[0],'hwy'); else { const p=nearestPlace(pt.x,pt.y); if(p&&dist(p.x,p.y,pt.x,pt.y)>6) routeRoad(pt,p,'art'); }
     made.push(f); }
   return made;

@@ -131,8 +131,9 @@ function bldTile(tx,ty){
       out.push({x:bx,y:by,w,d:dd,h:hm/150,c:(h>>>20)&3,a:0}); } }
   // the last word, whatever the rules above let through: nothing stands in the water, on an airport, or (a building) in a roadway
   { const wetQ=q=>{ for(let k=0;k<8;k+=2) if(waterSD(q[k],q[k+1])<0.03) return true; return waterSD((q[0]+q[4])/2,(q[1]+q[5])/2)<0.03; }, airQ=q=>{ if(!G.air) return false; for(let k=0;k<8;k+=2) if(G.air[clamp(Math.round(q[k+1]),0,H-1)*W+clamp(Math.round(q[k]),0,W-1)]) return true; return false; };
-    for(let i=out.length-1;i>=0;i--){ const q=bldCorners(out[i]); if(wetQ(q)||airQ(q)) out.splice(i,1); }
-    for(let i=feats.length-1;i>=0;i--){ const f=feats[i], q=bldCorners(f); if(wetQ(q)||airQ(q)){ feats.splice(i,1); for(let j=out.length-1;j>=0;j--){ const b=out[j]; if(b.sp&&dist(b.x+b.w/2,b.y+b.d/2,f.x+f.w/2,f.y+f.d/2)<Math.hypot(f.w,f.d)/2) out.splice(j,1); } } } }
+    const keepQ=q=>{ for(let k=0;k<8;k+=2) if(keepAt(q[k],q[k+1],0.03)) return true; return keepAt((q[0]+q[4])/2,(q[1]+q[5])/2,0.03); };
+    for(let i=out.length-1;i>=0;i--){ const q=bldCorners(out[i]); if(wetQ(q)||airQ(q)||keepQ(q)) out.splice(i,1); }
+    for(let i=feats.length-1;i>=0;i--){ const f=feats[i], q=bldCorners(f); if(wetQ(q)||airQ(q)||keepQ(q)){ feats.splice(i,1); for(let j=out.length-1;j>=0;j--){ const b=out[j]; if(b.sp&&dist(b.x+b.w/2,b.y+b.d/2,f.x+f.w/2,f.y+f.d/2)<Math.hypot(f.w,f.d)/2) out.splice(j,1); } } } }
   t={list:out,feat:feats,ver:bldVer,rs:null,rsOld:stale?(stale.rs&&stale.rs.some(Boolean)?stale.rs:stale.rsOld):null}; bldCache.delete(key); bldCache.set(key,t); if(bldCache.size>900) bldCache.delete(bldCache.keys().next().value); return t;
 }
 function bldInRect(x0,y0,x1,y1,cb){

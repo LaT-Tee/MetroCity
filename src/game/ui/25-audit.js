@@ -3,7 +3,7 @@
    Each rule is enforced where the thing is made; this is the proof, run on several cities before a change goes out.
    __mc.dbg.audit() in the console; every count should be 0. (The 3D counts need the 3D view to have been opened.) */
 function auditWorld(fresh){ const fz=bldFreeze; if(fresh){ bldFreeze=false; bldBump(); } try{ return auditWorld_(); } finally { bldFreeze=fz; } }
-function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,stAirfield:0}, ex={};
+function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,roadKeep:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,stAirfield:0}, ex={};
   const bad=(k,o)=>{ r[k]++; const e=ex[k]||(ex[k]=[]); if(e.length<4) e.push(o.map(v=>typeof v==='number'?+v.toFixed(2):v)); };
   for(const st of stations) if(waterSD(st.x,st.y)<0.2) bad('stWet',[st.x,st.y]);
   for(const f of [G.fac.station,G.fac.coach,...(G.fac2||[]).filter(f=>f.t!=='air')]) if(waterSD(f.x,f.y)<0) bad('facWet',[f.t||'main',f.x,f.y]);
@@ -13,7 +13,7 @@ function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,
     if(w) bad('bldWet',[cx,cy]); if(a) bad('bldAir',[cx,cy]); if(rd) bad('bldRoad',[cx,cy,b.w,b.d,b.sp||b.k||'',b.a||0]); });
   bldFeatInRect(B[0],B[1],B[2],B[3],f=>{ const q=bldCorners(f); for(let k=0;k<8;k+=2) if(waterSD(q[k],q[k+1])<0){ bad('featWet',[f.k,f.x,f.y]); break; } });
   // no street on an airfield
-  if(R) for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e]; if(a==null||a<0||R.ec[e]==null||R.ec[e]<0) continue; if(R.x[a]<B[0]||R.x[a]>B[2]||R.y[a]<B[1]||R.y[a]>B[3]) continue; if(G.air&&(G.air[Math.round((R.y[a]+R.y[b])/2)*W+Math.round((R.x[a]+R.x[b])/2)]&1)) bad('roadAir',[R.x[a],R.y[a]]); }
+  if(R) for(let e=0;e<R.ea.length;e++){ const a=R.ea[e], b=R.eb[e]; if(a==null||a<0||R.ec[e]==null||R.ec[e]<0) continue; if(R.x[a]<B[0]||R.x[a]>B[2]||R.y[a]<B[1]||R.y[a]>B[3]) continue; if(G.air&&(G.air[Math.round((R.y[a]+R.y[b])/2)*W+Math.round((R.x[a]+R.x[b])/2)]&1)) bad('roadAir',[R.x[a],R.y[a]]); else if(keepHitSeg(R.x[a],R.y[a],R.x[b],R.y[b])) bad('roadKeep',[R.x[a],R.y[a]]); }
   // --- the 3D models
   const S=typeof w3d!=='undefined'&&w3d.stSpots; if(S){ const pts=(q,m)=>{ const o=[], nx=-q.hy, ny=q.hx; for(const a of [-1,-0.5,0,0.5,1]) for(const c of [-1,0,1]) o.push([q.x+q.hx*a*(q.len/2-m)+nx*c*(q.half-m),q.y+q.hy*a*(q.len/2-m)+ny*c*(q.half-m)]); return o; }, inside=(q,p)=>{ const dx=p[0]-q.x, dy=p[1]-q.y; return Math.abs(dx*q.hx+dy*q.hy)<q.len/2&&Math.abs(-dx*q.hy+dy*q.hx)<q.half; };
     const gs=S.filter(q=>q.g);

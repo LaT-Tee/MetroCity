@@ -50,7 +50,7 @@ function projectsTick(){
     const tries=ok.map(t=>[t,R()+(recent.includes(t)?-1.5:0)+(recent[recent.length-1]===t?-5:0)+(PROJ[t].late?0.35:0)]).sort((a,b)=>b[1]-a[1]).map(o=>o[0]);
     for(const t of tries){ const site=siteProject(t,R); if(!site) continue;
       const p={t,x:Math.round(site.x*10)/10,y:Math.round(site.y*10)/10,s:freshSeed(site.x,site.y),m0:months,done:false};
-      G.projects.push(p); const np=nearestPlace(p.x,p.y); if(np&&dist(np.x,np.y,p.x,p.y)>5) routeRoad(p,np,'art'); ev.push({type:'start',p}); break; }
+      G.projects.push(p); const np=nearestPlace(p.x,p.y); if(np&&dist(np.x,np.y,p.x,p.y)>5) routeRoad(p,np,'art'); if(G.rn) rnPruneAir(); ev.push({type:'start',p}); break; }
   }
   return ev;
 }
