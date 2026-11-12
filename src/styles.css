@@ -383,3 +383,12 @@ body.watching .panel, body.watching .ach-pop, body.watching .sign, body.watching
 .cv3d.seat .lbl{z-index:2}
 
 #musicBtn.off{opacity:.45}
+
+/* petitions */
+.pet{margin:0 10px 10px;padding:9px 10px 8px;border-radius:10px;background:color-mix(in srgb,#e0457b 9%,transparent);border:1px solid color-mix(in srgb,#e0457b 35%,transparent);font-size:12px;line-height:1.45;color:var(--ink-2)}
+.pet-h{font-size:11px;font-weight:700;letter-spacing:.04em;color:#c92f66;margin-bottom:2px}
+.pet-b b{color:var(--ink);font-weight:700}
+.pet-bar{height:5px;background:var(--rule);border-radius:3px;margin:7px 0 6px;overflow:hidden}
+.pet-bar i{display:block;height:100%;width:0;background:#e0457b;border-radius:3px;transition:width .6s}
+.pet-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--ink-3)}
+.pet-btn{padding:3px 9px;font-size:11px;flex:none}

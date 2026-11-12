@@ -30,6 +30,7 @@ $('#helpGo').addEventListener('click',()=>{ hideHelp(); setTool('build'); });
 $('#reportBtn').addEventListener('click',openReport);
 $('#achBtn').addEventListener('click',openAch);
 $('#expandBtn').addEventListener('click',doExpand);
+$('#petCard').querySelector('.pet-btn').addEventListener('click',()=>petShow());
 $('#achClose').addEventListener('click',()=>$('#achModal').hidden=true);
 $('#achModal').addEventListener('click',e=>{ if(e.target.id==='achModal') $('#achModal').hidden=true; });
 $('#exportBtn').addEventListener('click',exportMap);

@@ -3,6 +3,7 @@ function setLang(l){
   LANG=T[l]?l:'zh'; document.documentElement.lang=LANG==='zh'?'zh-CN':LANG;
   try{ localStorage.setItem('mc-lang',LANG); }catch(e){}
   document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
+  if(typeof petCard==='function'&&G) petCard();
   document.querySelectorAll('[data-i18n-html]').forEach(el=>el.innerHTML=t(el.dataset.i18nHtml));
   document.querySelectorAll('#langs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.lang===LANG));
   const tips={pan:'browse',build:'build',erase:'erase'}; document.querySelectorAll('.tool[data-tool]').forEach(b=>b.title=t(tips[b.dataset.tool])+' ('+({pan:1,build:2,erase:3})[b.dataset.tool]+')');

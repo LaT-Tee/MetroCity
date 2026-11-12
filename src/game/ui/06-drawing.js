@@ -115,6 +115,7 @@ function draw(){
     if(hover&&hover.id===s.id){ ctx.beginPath(); ctx.arc(s.x,s.y,rr+3*px,0,Math.PI*2); ctx.strokeStyle=C.accent; ctx.lineWidth=2*px; ctx.stroke(); }
   }
   if(heatMode==='demand') drawFlows();
+  drawPetition();
   const SL=lineById(activeLineId);
   if(SL&&SL.xs&&SL.svc&&SL.xs.length){ for(const id of SL.stops){ const k=svcOf(SL,id); if(!k) continue; const st=stById(id), d=lw*0.42, y0=st.y+lw*1.35;
       for(let q=0;q<k;q++){ const x=st.x+(q-(k-1)/2)*d*2.1; ctx.beginPath(); ctx.arc(x,y0,d,0,Math.PI*2); ctx.fillStyle=SVC_COL[q+1]; ctx.fill(); ctx.strokeStyle=C.halo; ctx.lineWidth=lw*0.12; ctx.stroke(); } } }
