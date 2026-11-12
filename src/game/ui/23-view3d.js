@@ -533,6 +533,7 @@ function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[]))
    piers, a control tower, aircraft at the stands, hangars). All of it goes into the same mesh as the metro stations. */
 function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
   const frame=(x,z,a)=>{ const Fm=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-a)); return {Fm,B:(w,h,d,lx,y,lz,c)=>{ const q=w3dBox(w,h,d,lx,y,lz,c); q.m=Fm.clone().multiply(q.m); parts.push(q); },
+    R:(w,h,d,lx,y,lz,c,rot)=>{ parts.push({g:new T.BoxGeometry(w,h,d),m:Fm.clone().multiply(new T.Matrix4().makeTranslation(lx,y,lz)).multiply(rot),c}); },
     C:(r0,r1,h,lx,y,lz,c,seg,rot)=>{ let m=Fm.clone().multiply(new T.Matrix4().makeTranslation(lx,y,lz)); if(rot) m=m.multiply(rot); parts.push({g:new T.CylinderGeometry(r0,r1,h,seg||14),m,c}); }}; };
   // --- main line: ballast, two tracks, masts
   const rl=G.rail.filter(p=>p[0]>B0[0]-3&&p[0]<B0[2]+3&&p[1]>B0[1]-3&&p[1]<B0[3]+3);
@@ -552,12 +553,22 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
     { let got=false; for(let k=0;k<=16&&!got;k++) for(const i of (k?[bi+k,bi-k]:[bi])){ if(i<2||i>G.rail.length-3) continue; for(const s2 of [sd,-sd]) if(dryAt(i,s2)){ bi=i; sd=s2; got=true; break; } if(got) break; } }
     const a=angAt(bi), c=G.rail[bi], F=frame(c[0],c[1],a);
     for(const z of [-0.053,0.053]){ F.B(PL,0.008,0.03,0,0.004,z,0xbdbab3); F.B(PL,0.0005,0.003,0,0.0083,z-Math.sign(z)*0.0125,0xf2c200); F.B(PL*0.9,0.0025,0.036,0,0.047,z,0xe9e9e4); for(let x=-PL*0.42;x<=PL*0.42;x+=0.14) F.B(0.0025,0.039,0.0025,x,0.0275,z+Math.sign(z)*0.008,0xcfd4da); for(const x of [-0.4,0,0.4]){ F.B(0.05,0.006,0.001,x,0.036,z,0x1f3f8f); F.B(0.02,0.003,0.005,x+0.12,0.0095,z,0x6d7480); } }
-    F.B(0.03,0.004,0.16,0.35,0.058,0,0xcfd2d6); F.B(0.03,0.012,0.002,0.35,0.064,-0.079,0x9aa7b3); F.B(0.03,0.012,0.002,0.35,0.064,0.079,0x9aa7b3); for(const z of [-0.075,0.075]) F.B(0.03,0.058,0.012,0.35,0.029,z,0xcfd2d6);       // footbridge and its stair towers
+    F.B(0.03,0.004,0.16,0.64,0.058,0,0xcfd2d6); F.B(0.03,0.012,0.002,0.64,0.064,-0.079,0x9aa7b3); F.B(0.03,0.012,0.002,0.64,0.064,0.079,0x9aa7b3); for(const z of [-0.075,0.075]) F.B(0.03,0.058,0.012,0.64,0.029,z,0xcfd2d6);
+    // the train shed: a glazed barrel vault on iron ribs over the tracks and platforms, open at both ends, a lantern along its ridge
+    { const SL=1.04, SR=0.088, SY=0.82, arch=(len,r,x,c,y0)=>parts.push({g:new T.CylinderGeometry(r,r,len,20,1,true,0,Math.PI),m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(x,y0||0,0)).multiply(new T.Matrix4().makeScale(1,SY,1)).multiply(new T.Matrix4().makeRotationZ(Math.PI/2)),c});
+      arch(SL,SR,0,0xa9c3d3); for(let x=-SL/2;x<=SL/2+1e-6;x+=SL/8) arch(0.008,SR+0.0012,x,0x5f6b76); arch(SL*0.9,0.02,0,0xe4edf2,SR*SY-0.012);
+      for(const z of [-SR,SR]){ F.B(SL,0.004,0.006,0,0.002,z,0x6d7780); for(let x=-SL/2;x<=SL/2+1e-6;x+=SL/8) F.B(0.004,0.012,0.004,x,0.006,z,0x5f6b76); }
+      for(const e of [-1,1]){ F.B(0.003,0.02,SR*2,e*SL/2,SR*SY-0.006,0,0x5f6b76); for(const z of [-SR*0.62,SR*0.62]) F.B(0.003,SR*SY*0.78,0.003,e*SL/2,SR*SY*0.39,z,0x5f6b76); } }       // footbridge and its stair towers
     const hz=sd*0.135; F.B(0.72,0.085,0.1,0,0.0425,hz,0xe6dfd2); F.B(0.74,0.004,0.108,0,0.087,hz,0x8c4a3a); F.B(0.2,0.11,0.11,0,0.055,hz,0xece5d8); F.B(0.21,0.004,0.118,0,0.112,hz,0x8c4a3a);
     for(let x=-0.31;x<=0.31;x+=0.062){ if(Math.abs(x)<0.11) continue; F.B(0.03,0.04,0.0008,x,0.05,hz+sd*0.0505,0x4a5866); F.B(0.03,0.022,0.0008,x,0.016,hz+sd*0.0505,0x4a5866); }
     for(const x of [-0.06,0,0.06]) F.B(0.036,0.07,0.0008,x,0.045,hz+sd*0.0555,0x55697a); F.B(0.24,0.004,0.04,0,0.034,hz+sd*0.075,0xdad6cc); for(const x of [-0.11,0.11]) F.B(0.004,0.034,0.004,x,0.017,hz+sd*0.092,0xb9b3a6);
     F.B(0.05,0.2,0.05,-0.3,0.1,hz,0xe6dfd2); F.B(0.058,0.006,0.058,-0.3,0.203,hz,0x8c4a3a); F.C(0.0001,0.03,0.05,-0.3,0.231,hz,0x5a6068,4,new T.Matrix4().makeRotationY(Math.PI/4)); F.C(0.016,0.016,0.002,-0.3,0.17,hz+sd*0.0262,0xf7f4ea,16,new T.Matrix4().makeRotationX(Math.PI/2));
-    F.B(0.8,0.0012,0.1,0,0.0006,hz+sd*0.11,0xcfc8b8); for(const x of [-0.3,-0.1,0.1,0.3]){ F.B(0.0016,0.03,0.0016,x,0.015,hz+sd*0.13,0x5a6068); F.B(0.006,0.002,0.003,x,0.0305,hz+sd*0.13,0xf2efe2); }
+    // a portico of columns under a stepped attic on the entrance front, wings with cornices, and a forecourt with a taxi rank
+    for(const x of [-0.085,-0.051,-0.017,0.017,0.051,0.085]) F.C(0.0038,0.0044,0.062,x,0.031,hz+sd*0.066,0xf1ece0,10); F.B(0.2,0.008,0.022,0,0.066,hz+sd*0.064,0xe9e2d4); F.B(0.17,0.008,0.02,0,0.074,hz+sd*0.064,0xe9e2d4); F.B(0.11,0.007,0.018,0,0.0815,hz+sd*0.064,0xe9e2d4); F.B(0.21,0.003,0.03,0,0.0015,hz+sd*0.07,0xd9d3c6);
+    for(const e of [-1,1]){ F.B(0.27,0.006,0.106,e*0.235,0.08,hz,0xd8d0c0); F.B(0.012,0.085,0.104,e*0.366,0.0425,hz,0xdcd4c4); }
+    for(let k=0;k<5;k++){ F.B(0.026,0.007,0.012,-0.26+k*0.04,0.0045,hz+sd*0.15,k%2?0xe8c020:0xf2f2f2); F.B(0.014,0.005,0.011,-0.262+k*0.04,0.0095,hz+sd*0.15,0x2b3440); }
+    F.B(0.16,0.003,0.028,0.22,0.03,hz+sd*0.15,0xe9ecef); for(const x of [0.15,0.29]) F.B(0.003,0.03,0.003,x,0.015,hz+sd*0.15,0x8a9099); F.B(0.07,0.02,0.022,0.22,0.011,hz+sd*0.15,0x2f8f6a); F.B(0.066,0.007,0.0225,0.22,0.015,hz+sd*0.15,0x2b3440);
+    F.B(0.9,0.0012,0.14,0,0.0006,hz+sd*0.12,0xcfc8b8); for(const x of [-0.3,-0.1,0.1,0.3]){ F.B(0.0016,0.03,0.0016,x,0.015,hz+sd*0.13,0x5a6068); F.B(0.006,0.002,0.003,x,0.0305,hz+sd*0.13,0xf2efe2); }
     const nx=-Math.sin(a), ny=Math.cos(a); spots.push({x:c[0]+nx*sd*0.07,y:c[1]+ny*sd*0.07,hx:Math.cos(a),hy:Math.sin(a),len:PL+0.1,half:0.25,h:0.24,g:1,lm:1}); w3d.hubs.push({x:c[0]+nx*sd*0.135,y:c[1]+ny*sd*0.135,r:1.7});
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.098,hz+sd*0.0562)).multiply(new T.Matrix4().makeRotationY(sd>0?0:Math.PI)),w:0.19,h:0.014,text:nm(st===G.fac.station?{k:'rail'}:facName(st)),c:'#3c4252'}); }
   // --- coach station
@@ -567,10 +578,17 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
       let got=false; for(const t of [0,0.4,-0.4,0.8,-0.8,1.3,-1.3]){ for(const s2 of [s0,-s0]){ const px=h.px+Math.cos(a)*t+nx*s2*off, pz=h.py+Math.sin(a)*t+ny*s2*off; if(dryC(px,pz,a)&&(t===0||!w3dOnRoad(px,pz,0.2))){ x=px; z=pz; got=true; break; } } if(got) break; }
       if(!got){ x=h.px+nx*s0*off; z=h.py+ny*s0*off; } }
     if(!dryC(x,z,a)){ const d=dryNear(x,z,0.45,8); if(d){ x=d[0]; z=d[1]; } }
-    const F=frame(x,z,a); F.B(0.56,0.0014,0.34,0,0.0007,0,0x5a5d63); F.B(0.36,0.05,0.07,0,0.025,-0.13,0xe4e0d6); F.B(0.37,0.004,0.078,0,0.052,-0.13,0x2f6fae); for(let k=-3;k<=3;k++) F.B(0.036,0.026,0.0008,k*0.048,0.022,-0.0945,0x55697a);
-    F.B(0.46,0.004,0.11,0,0.04,-0.02,0xeeeeea); for(const cxx of [-0.21,-0.07,0.07,0.21]) for(const cz of [-0.07,0.03]) F.B(0.004,0.04,0.004,cxx,0.02,cz,0xa9b0b9);
-    const BC=[0xd9534f,0x2f6fae,0xf2f2f2,0x4f9e62,0xe0a030]; for(let k=0;k<5;k++){ const bx=-0.2+k*0.1; F.B(0.024,0.022,0.075,bx,0.014,0.0,BC[k]); F.B(0.0245,0.008,0.07,bx,0.018,0.0,0x2b3440); F.B(0.002,0.0002,0.09,bx+0.05,0.0016,0.0,0xe6e6e6); }
-    for(let k=0;k<3;k++){ F.B(0.075,0.022,0.024,-0.15+k*0.15,0.014,0.12,BC[(k+2)%5]); F.B(0.07,0.008,0.0245,-0.15+k*0.15,0.018,0.12,0x2b3440); }
+    const F=frame(x,z,a), RY=t=>new T.Matrix4().makeRotationY(t), RX=t=>new T.Matrix4().makeRotationX(t); F.B(0.6,0.0014,0.36,0,0.0007,0,0x55585e); F.B(0.6,0.003,0.006,0,0.0015,0.178,0xb9b6ae); for(const e of [-1,1]) F.B(0.006,0.003,0.36,e*0.298,0.0015,0,0xb9b6ae);
+    // the hall: glass front to the street under a floating roof, a clock and a sign pylon
+    F.B(0.4,0.05,0.075,0,0.025,-0.135,0xe7e3da); F.B(0.36,0.034,0.0008,0,0.022,-0.1732,0x4f6678); for(let k=-4;k<=4;k++) F.B(0.0025,0.036,0.0012,k*0.04,0.022,-0.1736,0xdfe3e7); F.B(0.44,0.005,0.1,0,0.0535,-0.14,0x2f6fae); F.B(0.45,0.0015,0.11,0,0.0568,-0.14,0xe9ecef);
+    F.B(0.012,0.11,0.012,-0.25,0.055,-0.14,0xdfe3e7); F.B(0.05,0.03,0.014,-0.25,0.1,-0.14,0x0f7a5c);
+    // seven bays set at an angle under a saw-tooth canopy, a coach in most of them
+    const BC=[0xd9534f,0x2f6fae,0xf2f2f2,0x4f9e62,0xe0a030,0x7a5aa6,0xf2f2f2];
+    for(let k=0;k<7;k++){ const bx=-0.24+k*0.08; F.R(0.07,0.004,0.11,bx,0.043,-0.03,k%2?0xe9ecef:0xdde3e8,RX(0.0).multiply(new T.Matrix4().makeRotationZ(0.16))); F.B(0.003,0.04,0.003,bx-0.03,0.02,-0.075,0xa9b0b9); F.B(0.003,0.044,0.003,bx+0.03,0.022,0.015,0xa9b0b9); F.R(0.002,0.0003,0.11,bx+0.04,0.0016,0.0,0xe6e6e6,RY(0.42));
+      if(k%4!==3){ F.R(0.024,0.022,0.078,bx,0.0135,0.005,BC[k],RY(0.42)); F.R(0.0245,0.008,0.07,bx,0.018,0.005,0x2b3440,RY(0.42)); F.R(0.02,0.002,0.06,bx,0.0255,0.005,0xe6e9ec,RY(0.42)); } }
+    F.B(0.5,0.006,0.012,0,0.0035,-0.09,0xc9c6bf);      // the passenger kerb along the bays
+    // coaches waiting on the far side, the way in and out marked on the yard
+    for(let k=0;k<3;k++){ F.B(0.078,0.022,0.024,-0.17+k*0.13,0.0135,0.135,BC[(k+2)%7]); F.B(0.072,0.008,0.0245,-0.17+k*0.13,0.018,0.135,0x2b3440); } for(const e of [-1,1]){ F.B(0.05,0.0003,0.004,e*0.24,0.0016,0.09,0xf2c200); F.B(0.012,0.0003,0.016,e*0.24+e*0.02,0.0016,0.09,0xf2c200); }
     spots.push({x,y:z,hx:Math.cos(a),hy:Math.sin(a),len:0.62,half:0.2,h:0.07,g:1,lm:1}); w3d.hubs.push({x:x-Math.sin(a)*-0.13,y:z+Math.cos(a)*-0.13,r:1.3});
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.06,-0.094)).multiply(new T.Matrix4().makeRotationY(Math.PI)),w:0.2,h:0.012,text:nm(co===G.fac.coach?{k:'coach'}:facName(co)),c:'#0f7a5c'}); }
   // --- airports
@@ -580,7 +598,15 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds;
     F.B(8.6,0.0048,1.5,0,0.0024,tz-ts*1.05,0xb5b4ae);                                                               // apron
     F.B(6,0.11,0.55,0,0.055,tz+ts*0.2,0xa9c0d2); F.B(6.06,0.006,0.62,0,0.113,tz+ts*0.2,0xe9ecef); F.B(6,0.03,0.56,0,0.015,tz+ts*0.2,0xdfe3e7); for(let x=-2.8;x<=2.8;x+=0.4) F.B(0.02,0.11,0.56,x,0.055,tz+ts*0.2,0xd6dbe0);
     F.B(1.2,0.15,0.3,0,0.075,tz+ts*0.55,0xc6d3de); F.B(1.26,0.006,0.36,0,0.153,tz+ts*0.55,0xe9ecef); F.B(5.6,0.012,0.4,0,0.122,tz+ts*0.2,0xdfe4e8); F.B(4.6,0.01,0.26,0,0.133,tz+ts*0.2,0xeef1f3);
-    for(let x=-2.9;x<=2.9;x+=0.2) F.B(0.006,0.085,0.004,x,0.072,tz+ts*0.477,0x6f8496); F.B(5.9,0.004,0.16,0,0.05,tz+ts*0.56,0xe9ecef); for(let x=-2.8;x<=2.8;x+=0.7) F.B(0.008,0.05,0.008,x,0.025,tz+ts*0.63,0xa9b0b9);      /* mullions, a canopy over the set-down road */
+    for(let x=-2.9;x<=2.9;x+=0.2) F.B(0.006,0.085,0.004,x,0.072,tz+ts*0.477,0x6f8496); { const DY=0.046, dz=tz+ts*0.6, RL=1.5, sl=Math.atan2(DY,RL), rl=Math.hypot(DY,RL), asph=0x4a4d53;
+      F.B(5.9,0.006,0.2,0,DY-0.003,dz,0xb9b6ae); F.B(5.9,0.0006,0.17,0,DY+0.0004,dz,asph); for(const e of [-1,1]) F.B(5.9,0.008,0.004,0,DY+0.004,dz+e*0.1,0xd6d3cc); for(let x=-2.8;x<=2.8;x+=0.35) for(const e of [-1,1]) F.B(0.01,DY-0.006,0.01,x,(DY-0.006)/2,dz+e*0.085,0xa9a59c);      // the departures deck on its columns
+      for(const e of [-1,1]){ F.R(rl,0.006,0.2,e*(2.95+RL/2),DY/2-0.003,dz,0xb9b6ae,new T.Matrix4().makeRotationZ(-e*sl)); F.R(rl,0.0006,0.17,e*(2.95+RL/2),DY/2+0.0006,dz,asph,new T.Matrix4().makeRotationZ(-e*sl)); for(const f of [0.3,0.6]) F.B(0.01,DY*f,0.16,e*(2.95+RL*(1-f)),DY*f/2-0.003,dz,0xa9a59c); }      // the ramps up to it
+      F.B(8.9,0.0012,0.2,0,0.0008,dz,asph); F.B(5.6,0.0004,0.05,0,0.0016,dz-ts*0.07,0xd9d6cf);                                               // arrivals at ground level beneath, with its kerb
+      for(let x=-2.6;x<=2.6;x+=0.65){ F.B(0.028,0.008,0.012,x,DY+0.0046,dz+ts*0.03,x>0?0xe8c020:0xf2f2f2); F.B(0.026,0.008,0.012,x+0.2,0.0056,dz-ts*0.03,0x2c4d7a); }      // cars setting down and picking up
+      F.B(5.9,0.003,0.26,0,0.118,dz,0xe9ecef); for(let x=-2.8;x<=2.8;x+=0.7) F.B(0.008,0.118-DY,0.008,x,DY+(0.118-DY)/2,dz+ts*0.11,0xa9b0b9);     // the canopy over the departures kerb
+      // the approach: from the gate to both ends of the front, round a car park
+      const gz=tz+ts*1.7, lz=tz+ts*1.18; F.B(0.2,0.0012,Math.abs(gz-lz)+0.2,0,0.0008,(gz+lz)/2,asph); F.B(8.9,0.0012,0.2,0,0.0008,lz,asph); for(const e of [-1,1]) F.B(0.2,0.0012,Math.abs(lz-dz),e*4.35,0.0008,(lz+dz)/2,asph);
+      for(const e of [-1,1]){ F.B(3.4,0.0012,0.3,e*2.1,0.0007,tz+ts*0.9,0x5a5d63); for(let x=0.5;x<=3.7;x+=0.05){ if(hashInt(Math.round(x*100)+(e>0?7:1))%3===0) continue; F.B(0.012,0.007,0.026,e*x,0.004,tz+ts*(0.9+(Math.round(x*20)%2?0.07:-0.07)),[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a][Math.round(x*20)%5]); } } }      /* mullions, a canopy over the set-down road */
     signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.2,tz+ts*0.71)).multiply(new T.Matrix4().makeRotationY(ts>0?0:Math.PI)),w:1.1,h:0.075,text:nm(ap===G.fac.airport?{k:'airport'}:facName(ap)),c:'#1d3b8f'});
     for(const px of [-2.2,-0.75,0.75,2.2]){ F.B(0.12,0.05,0.75,px,0.04,tz-ts*0.45,0xc9d1d8); F.B(0.13,0.004,0.77,px,0.067,tz-ts*0.45,0xe9ecef);
       // a jet bridge off each pier, with its round head
@@ -683,6 +709,7 @@ function* w3dLocalGen(cx,cy,grp,far){
   // streets as real surfaces near the viewer, the grounds and furniture of parks, squares and the rest, parked cars
   { const rm=w3dRoadMesh(cx,cy,27); if(rm) for(const q of rm) add(q); } yield;
   { const fp=w3dFeatures(cx,cy,28,(x,y,sc,h)=>{ if(!near.has(Math.floor(x*8)*100000+Math.floor(y*8))) trees.push([x,y,sc,h]); },spires); for(const m of fp) add(m); } yield;
+  w3dBoats(cx,cy,add); yield;
   // nothing grows in the roadway, through a building or on the railway
   { const keepT=[], hq=(x,z)=>{ const i=Math.floor((x-hg.x0)*hg.res), j=Math.floor((z-hg.y0)*hg.res); return i<0||j<0||i>=hg.n||j>=hg.n?0:hg.a[j*hg.n+i]; }, rl=G.rail; let c=0;
     for(const t of trees){ if(++c%2500===0) yield; if(hq(t[0],t[1])>0||hq(t[0]+0.03,t[1])>0||hq(t[0],t[1]+0.03)>0||w3dOnRoad(t[0],t[1],0.012)||waterSD(t[0],t[1])<0.09) continue; let bad=false; for(let i=0;i<rl.length;i+=2) if(Math.abs(rl[i][0]-t[0])<0.9&&Math.abs(rl[i][1]-t[1])<0.9&&dist(rl[i][0],rl[i][1],t[0],t[1])<0.16){ bad=true; break; } if(!bad) keepT.push(t); }
@@ -809,6 +836,28 @@ function w3dFeatures(cx,cy,R,addTree,spires){
   if(cars.length){ const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(w3dCarGeo(),new T.MeshStandardMaterial({vertexColors:true,roughness:0.35,metalness:0.4}),cars.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1), col=new T.Color();
     cars.forEach((c,i)=>{ Q.setFromAxisAngle(up,-c[2]); M.compose(V.set(c[0],0.0012,c[1]),Q,one); m.setMatrixAt(i,M); col.set(cols[c[3]]); m.setColorAt(i,col); }); m.castShadow=true; m.receiveShadow=true; out.push(m); }
   return out; }
+/* Boats: sailing boats and ferries on the open water, barges and launches on the rivers. Where a boat is depends only
+   on its place and the time of day, so they are the same boats, in the same places, however the viewer got there. */
+function w3dBoats(cx,cy,add){ const T=w3d.T, R=18, K=[[],[],[]];
+  for(let y=Math.floor(cy-R);y<=cy+R;y++) for(let x=Math.floor(cx-R);x<=cx+R;x++){ if(x<2||y<2||x>=W-2||y>=H-2) continue; const wv=G.water[y*W+x]; if(!wv) continue; const riv=wv===2, h=hashInt(x*7349+y*9151+G.seed*31); if((h&255)>(riv?56:26)) continue;
+    const px=x+((h>>8)&255)/255-0.5, py=y+((h>>16)&255)/255-0.5, side=riv?0.14:0.6; if(waterSD(px,py)>-0.1) continue; let dx, dy;
+    if(riv){ const gx=bilinear(G.rivSD,px+0.25,py)-bilinear(G.rivSD,px-0.25,py), gy=bilinear(G.rivSD,px,py+0.25)-bilinear(G.rivSD,px,py-0.25), l=Math.hypot(gx,gy); if(l<1e-4) continue; dx=-gy/l; dy=gx/l; } else { const an=((h>>20)&255)/255*6.283; dx=Math.cos(an); dy=Math.sin(an); }
+    // how far it can go each way and stay in deep water
+    const open=t=>{ const qx=px+dx*t, qy=py+dy*t; return waterSD(qx,qy)<-0.1&&waterSD(qx-dy*side,qy+dx*side)<-0.02&&waterSD(qx+dy*side,qy-dx*side)<-0.02; }; if(!open(0)) continue;
+    let t0=0, t1=0; while(t1<3&&open(t1+0.25)) t1+=0.25; while(t0>-3&&open(t0-0.25)) t0-=0.25; t1-=0.2; t0+=0.2; if(t1-t0<0.5) continue;
+    const kind=riv?((h>>28)&1?2:1):((h>>28)&3)===0?1:0; K[kind].push({x:px+dx*(t0+t1)/2,y:py+dy*(t0+t1)/2,dx,dy,amp:(t1-t0)/2,ph:(h>>4)&1023,w:(kind===0?0.05:kind===1?0.09:0.045)/((t1-t0)/2)}); }
+  const mats=new T.MeshStandardMaterial({vertexColors:true,roughness:0.55,metalness:0.05}), cone=(r,h2,sx,sz,x,y,z,c)=>({g:new T.ConeGeometry(r,h2,4),m:new T.Matrix4().makeTranslation(x,y,z).multiply(new T.Matrix4().makeScale(sx,1,sz)),c});
+  const geos=[ // a sailing boat; a ferry; a barge
+    ()=>w3dMerge([w3dBox(0.034,0.004,0.011,0,0.002,0,0xf4f4f0),w3dBox(0.012,0.003,0.008,-0.004,0.0055,0,0xd9d4c8),w3dBox(0.0008,0.04,0.0008,0.003,0.024,0,0x8a8a86),cone(0.014,0.036,1,0.05,-0.0045,0.026,0,0xffffff),cone(0.008,0.026,1,0.05,0.0095,0.02,0,0xf0ede4)]),
+    ()=>w3dMerge([w3dBox(0.1,0.008,0.026,0,0.004,0,0xf2f3f5),w3dBox(0.1,0.002,0.0265,0,0.0035,0,0x2f5fb5),w3dBox(0.07,0.009,0.021,-0.004,0.0125,0,0xe6e9ec),w3dBox(0.071,0.004,0.0212,-0.004,0.013,0,0x2b3a4a),w3dBox(0.03,0.006,0.016,0.006,0.02,0,0xf2f3f5),w3dBox(0.006,0.01,0.006,-0.02,0.022,0,0xc8423a)]),
+    ()=>w3dMerge([w3dBox(0.12,0.006,0.022,0,0.003,0,0x3b4048),w3dBox(0.12,0.0015,0.0225,0,0.0052,0,0x8c3a2e),w3dBox(0.026,0.008,0.016,-0.03,0.01,0,0xb5562f),w3dBox(0.026,0.008,0.016,0.0,0.01,0,0x2f6f8f),w3dBox(0.026,0.008,0.016,0.03,0.01,0,0x9a9d68),w3dBox(0.014,0.012,0.016,-0.05,0.012,0,0xe9e6dc)])];
+  const out=[]; K.forEach((L,k)=>{ if(!L.length) return; const m=new T.InstancedMesh(geos[k](),mats,L.length); m.frustumCulled=false; m.receiveShadow=true; add(m); out.push({m,L}); });
+  if(out.length){ (w3d.boats||(w3d.boats=[])).push(...out); w3dBoatsTick(); } }
+function w3dBoatsTick(){ const B=w3d.boats; if(!B||!B.length) return; const T=w3d.T, t=performance.now()/1000, M=new T.Matrix4(), Q=new T.Quaternion(), Q2=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), fw=new T.Vector3(1,0,0), one=new T.Vector3(2,2,2);
+  for(let i=B.length-1;i>=0;i--){ const b=B[i]; if(!b.m.parent){ B.splice(i,1); continue; } if(!b.m.parent.parent&&b.done) continue; b.done=true;
+    b.L.forEach((o,j)=>{ const ang=t*o.w+o.ph, sn=Math.sin(ang), cs=Math.cos(ang), s=cs>=0?1:-1, x=o.x+o.dx*o.amp*sn, y=o.y+o.dy*o.amp*sn;
+      Q.setFromAxisAngle(up,-Math.atan2(o.dy*s,o.dx*s)); Q2.setFromAxisAngle(fw,Math.sin(t*1.3+o.ph)*0.035); Q.multiply(Q2); M.compose(V.set(x,W3D_WAT-0.0012+Math.sin(t*1.7+o.ph)*0.0005,y),Q,one); b.m.setMatrixAt(j,M); });
+    b.m.instanceMatrix.needsUpdate=true; } }
 function w3dCars(cx,cy,add){
   const T=w3d.T, Rn=G.rn; if(!Rn) return null; const E=[];
   for(let gy=Math.floor((cy-7)/RN_G);gy<=Math.floor((cy+7)/RN_G);gy++) for(let gx=Math.floor((cx-7)/RN_G);gx<=Math.floor((cx+7)/RN_G);gx++){ const a=Rn.eg.get(rnKey(gx,gy)); if(a) for(const e of a) if(!E.includes(e)) E.push(e); }
@@ -857,15 +906,16 @@ function* w3dLocalGround(cx,cy,add){
    seen from above, more of a mirror towards the horizon. */
 function w3dWaterMat(){ if(w3d.watM) return w3d.watM; const T=w3d.T, N=128, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), im=g.createImageData(N,N), hf=new Float32Array(N*N);
   // a tiling height field of a few wave trains, turned into a normal map
-  const WV=[[3,1,0.5,0.0],[-2,3,0.35,1.3],[5,-2,0.22,2.1],[1,6,0.16,0.7],[-7,-3,0.1,3.9],[8,5,0.07,5.2]];
-  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ let v=0; for(const [kx,ky,am,ph] of WV) v+=am*Math.sin((kx*x+ky*y)/N*6.2832+ph); hf[y*N+x]=v; }
+  // a tiling height field: a few octaves of smooth noise (no regular wave trains, which show as a lattice from far off)
+  for(const [P,am] of [[6,0.5],[11,0.3],[19,0.2],[37,0.12]]){ const lat=new Float32Array(P*P); for(let i=0;i<P*P;i++) lat[i]=(hashInt(i*7919+P*104729)&65535)/65535;
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const fx=x/N*P, fy=y/N*P, ix=Math.floor(fx), iy=Math.floor(fy); let tx=fx-ix, ty=fy-iy; tx=tx*tx*(3-2*tx); ty=ty*ty*(3-2*ty); const a0=lat[iy*P+ix], a1=lat[iy*P+(ix+1)%P], b0=lat[((iy+1)%P)*P+ix], b1=lat[((iy+1)%P)*P+(ix+1)%P]; hf[y*N+x]+=am*(lerp(lerp(a0,a1,tx),lerp(b0,b1,tx),ty)*2-1)*2.2; } }
   for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const dx=hf[y*N+(x+1)%N]-hf[y*N+(x+N-1)%N], dy=hf[((y+1)%N)*N+x]-hf[((y+N-1)%N)*N+x], l=Math.hypot(dx*6,dy*6,1), o=(y*N+x)*4; im.data[o]=128-dx*6/l*127; im.data[o+1]=128-dy*6/l*127; im.data[o+2]=1/l*255; im.data[o+3]=255; }
   g.putImageData(im,0,0); const nt=new T.CanvasTexture(c); nt.wrapS=nt.wrapT=T.RepeatWrapping; nt.colorSpace=T.NoColorSpace; nt.anisotropy=4;
   const m=new T.MeshStandardMaterial({color:0x2f6f96,roughness:0.16,metalness:0.0,normalMap:nt,normalScale:new T.Vector2(0.55,0.55),transparent:true,opacity:0.82,envMapIntensity:1.5,depthWrite:false}); m.userData.keep=true; m.userData.uT={value:0};
   m.onBeforeCompile=sh=>{ sh.uniforms.uT=m.userData.uT;
     sh.fragmentShader='uniform float uT;\n'+sh.fragmentShader.replace('#include <normal_fragment_maps>',`
-      { vec2 wu=vNormalMapUv; vec3 n1=texture2D(normalMap,wu+vec2(uT*0.021,uT*0.013)).xyz*2.0-1.0, n2=texture2D(normalMap,wu*2.7+vec2(-uT*0.034,uT*0.027)).xyz*2.0-1.0, n3=texture2D(normalMap,wu*0.23+vec2(uT*0.004,-uT*0.003)).xyz*2.0-1.0;
-        vec3 mapN=normalize(vec3((n1.xy+n2.xy*0.6+n3.xy*0.45)*normalScale,2.2)); normal=normalize(tbn*mapN); }`)
+      { vec2 wu=vNormalMapUv; vec3 n1=texture2D(normalMap,wu+vec2(uT*0.021,uT*0.013)).xyz*2.0-1.0, n2=texture2D(normalMap,mat2(0.76,0.65,-0.65,0.76)*wu*2.3+vec2(-uT*0.034,uT*0.027)).xyz*2.0-1.0, n3=texture2D(normalMap,mat2(0.91,-0.41,0.41,0.91)*wu*0.19+vec2(uT*0.004,-uT*0.003)).xyz*2.0-1.0; n2.xy=mat2(0.76,-0.65,0.65,0.76)*n2.xy; n3.xy=mat2(0.91,0.41,-0.41,0.91)*n3.xy; float wf=1.0/(1.0+length(vViewPosition)*0.22);
+        vec3 mapN=normalize(vec3((n1.xy*wf+n2.xy*0.6*wf+n3.xy*0.6)*normalScale,2.2)); normal=normalize(tbn*mapN); }`)
       .replace('#include <opaque_fragment>',`{ float fr=pow(1.0-clamp(dot(normalize(vViewPosition),normal),0.0,1.0),3.0); outgoingLight=mix(outgoingLight,outgoingLight*1.12+vec3(0.05,0.07,0.08),fr); diffuseColor.a=mix(diffuseColor.a,0.97,fr); }
       #include <opaque_fragment>`); };
   return w3d.watM=m; }
@@ -891,7 +941,7 @@ function w3dFrame(dt){
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
   const st=watch.st, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
   // the other trains glide along at the same calm pace as yours
-  w3d.tt=(w3d.tt||0)+dt; w3dCarsTick(dt); w3dRailTick(dt);
+  w3d.tt=(w3d.tt||0)+dt; w3dCarsTick(dt); w3dRailTick(dt); w3dBoatsTick();
   if(w3d.grow){ const g=w3d.grow; g.t+=dt; const f=smooth(g.t,0,15); g.bx.growTo(f); g.hgrow.forEach(fn=>fn(f)); if(f>=1) w3d.grow=null; }
   // streets added since the land was drawn: redraw it in the background now and then, never while the surroundings are being built
   const now=performance.now(); if(w3d.cut){ w3d.cut=false; if(!w3d.gj&&G.rn&&G.rn.ver!==w3d.gRn){ w3d.gRn=G.rn.ver; w3d.gAt=now; w3d.gj={it:w3dGroundGen()}; } }      /* new streets reach the land only at a cut */
