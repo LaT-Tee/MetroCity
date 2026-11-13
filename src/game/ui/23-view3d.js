@@ -90,6 +90,13 @@ function w3dNormalOf(tx,k){ const T=w3d.T, c=tx.image, w=c.width, h=c.height, sr
   for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const dx=(L(x+1,y)-L(x-1,y))*k, dy=(L(x,y+1)-L(x,y-1))*k, l=Math.hypot(dx,dy,1), i=(y*w+x)*4; id.data[i]=(-dx/l*0.5+0.5)*255; id.data[i+1]=(dy/l*0.5+0.5)*255; id.data[i+2]=(1/l*0.5+0.5)*255; id.data[i+3]=255; }
   g.putImageData(id,0,0); const n=new T.CanvasTexture(o); n.wrapS=n.wrapT=T.RepeatWrapping; n.anisotropy=8; return n; }
 const W3D_NIGHT={value:0};
+// trains, coaches and cars at night: their windows (dark blue-grey in the model) glow with the light inside, head lamps (pale yellow) shine
+function w3dVehMat(opt){ const T=w3d.T, m=new T.MeshStandardMaterial({vertexColors:true,...opt}); m.userData.keep=true;
+  m.onBeforeCompile=sh=>{ sh.uniforms.uNight=W3D_NIGHT; sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uNight;').replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+    #ifdef USE_COLOR
+    { vec3 c=vColor.rgb; float win=step(c.r+0.012,c.b)*step(dot(c,vec3(0.33)),0.09), lamp=step(0.85,c.r)*step(0.8,c.g)*step(c.b,0.75); totalEmissiveRadiance+=(vec3(1.0,0.86,0.6)*win*2.6+vec3(1.0,0.95,0.8)*lamp*4.0)*smoothstep(0.35,0.9,uNight); }
+    #endif`); };
+  m.customProgramCacheKey=()=>'veh1'; return m; }
 function w3dFacadeMat(map,opt){ const T=w3d.T, m=new T.MeshStandardMaterial({map,normalMap:w3dNormalOf(map,2.2),normalScale:new T.Vector2(0.7,0.7),...opt});
   m.onBeforeCompile=sh=>{ sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 aRep;\nvarying float vFootY;').replace('#include <begin_vertex>','#include <begin_vertex>\n\t#ifdef USE_INSTANCING\n\tvFootY=(instanceMatrix*vec4(position,1.0)).y;\n\t#else\n\tvFootY=1.0;\n\t#endif').replace('#include <uv_vertex>',`#include <uv_vertex>
     vec2 rep = abs(normal.x)>0.5 ? aRep.zy : (abs(normal.y)>0.5 ? vec2(0.0) : aRep.xy);
@@ -109,7 +116,10 @@ function w3dFacadeMat(map,opt){ const T=w3d.T, m=new T.MeshStandardMaterial({map
       #else
       vec2 bay=vec2(0.0);
       #endif
-      float rr=fract(sin(dot(bay,vec2(12.9898,78.233)))*43758.5453), on=step(0.58,rr)*(0.55+0.45*fract(rr*7.31)); totalEmissiveRadiance+=vec3(1.0,0.72,0.4)*glass*on*smoothstep(0.55,1.0,uNight)*1.5; }`).replace('#include <common>','#include <common>\nuniform float uNight;'); sh.uniforms.uNight=W3D_NIGHT; }; }
+      // lit by home, not by window: a run of three or four neighbouring windows on one floor together, most of the building dark.
+      // Far off there are no separate points of light at all (a field of dots is hard to look at), only a faint warm glow on the glass.
+      vec2 home=vec2(floor((bay.x+floor(bay.y*1.7))/3.0),bay.y); float rr=fract(sin(dot(home,vec2(12.9898,78.233)))*43758.5453), on=step(0.8,rr)*(0.6+0.4*fract(rr*7.31));
+      float far=smoothstep(1.2,4.5,length(vViewPosition)); on=mix(on,0.12,far); totalEmissiveRadiance+=vec3(1.0,0.74,0.45)*glass*on*smoothstep(0.55,1.0,uNight)*1.1; }`).replace('#include <common>','#include <common>\nuniform float uNight;'); sh.uniforms.uNight=W3D_NIGHT; }; }
   m.customProgramCacheKey=()=>'facade4'; return m; }
 // ---- buildings: a handful of facade kinds, each one material shared by every building of that kind
 const W3D_HOUSE=[0xf3eee4,0xeae3d6,0xdcd6cc,0xefe4cf,0xe1e5e8,0xd9cdbd,0xc9d2d6,0xf0e2d8];
@@ -417,8 +427,8 @@ function w3dBuild(){
     const lcs=lineColor(L), parts=[], CAR=W3D_CAR;
     parts.push(w3dBox(CAR,0.024,0.019,0,0.012,0,0xe7eaee),w3dBox(CAR*0.98,0.0032,0.0195,0,0.0075,0,lcs),w3dBox(CAR*0.9,0.0075,0.0196,0,0.0155,0,0x3a4856),w3dBox(CAR*0.9,0.0012,0.01965,0,0.0186,0,0x6f8394),w3dBox(CAR*0.96,0.002,0.016,0,0.0248,0,0xb9bec5),w3dBox(CAR*0.5,0.003,0.008,0,0.0262,0,0x9aa0a8));
     for(const dx of [-0.39,-0.13,0.13,0.39]){ parts.push(w3dBox(0.0095,0.0165,0.0197,dx*CAR,0.0118,0,0xcfd4da),w3dBox(0.0035,0.0065,0.01975,dx*CAR-0.0024,0.0158,0,0x3a4856),w3dBox(0.0035,0.0065,0.01975,dx*CAR+0.0024,0.0158,0,0x3a4856)); }   /* four doors a side, each with two windows */
-    for(const e of [-1,1]) parts.push(w3dBox(0.003,0.011,0.015,e*(CAR/2+0.0004),0.0148,0,0x1d2530),w3dBox(0.0031,0.0022,0.0152,e*(CAR/2+0.0004),0.0068,0,lcs));
-    const tg=w3dMerge(parts), tmat=new T.MeshStandardMaterial({vertexColors:true,roughness:0.32,metalness:0.35}), g0=trainAt(L,0), tm=new T.InstancedMesh(tg,tmat,g0.n*W3D_CARS);
+    for(const e of [-1,1]) parts.push(w3dBox(0.003,0.011,0.015,e*(CAR/2+0.0004),0.0148,0,0x1d2530),w3dBox(0.0031,0.0022,0.0152,e*(CAR/2+0.0004),0.0068,0,lcs),w3dBox(0.0012,0.0018,0.003,e*(CAR/2+0.002),0.0052,0.0055,0xfff3c4),w3dBox(0.0012,0.0018,0.003,e*(CAR/2+0.002),0.0052,-0.0055,0xfff3c4));
+    const tg=w3dMerge(parts), tmat=w3dVehMat({roughness:0.32,metalness:0.35}), g0=trainAt(L,0), tm=new T.InstancedMesh(tg,tmat,g0.n*W3D_CARS);
     tm.castShadow=true; tm.frustumCulled=false; tm.layers.enable(1); w3dAdd(tm); w3d.trains.push({L,m:tm,n:g0.n,geo:tg}); }
   if(piers.length){ const pg=w3dMerge([{g:new T.CylinderGeometry(0.0075,0.009,TRK-0.014,10),m:new T.Matrix4().makeTranslation(0,(TRK-0.014)/2,0),c:dark?0x77767a:0xbdb9b1},{g:new T.CylinderGeometry(0.011,0.011,0.066,10),m:new T.Matrix4().makeTranslation(0,-0.0335,0),c:0xa9a59c},w3dBox(0.014,0.006,DECK*1.8,0,TRK-0.017,0,dark?0x77767a:0xbdb9b1)]);
     const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.9}),piers.length), M=new T.Matrix4(), Q=new T.Quaternion(), up=new T.Vector3(0,1,0), V=new T.Vector3(), Sc=new T.Vector3();
@@ -644,7 +654,8 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
     let acc=0; for(let i=1;i<rl.length;i++){ acc+=cum[i]-cum[i-1]; if(acc<0.4||w3dHt(rl[i][0],rl[i][1])>0.02) continue; acc=0; const a=Math.atan2(rl[i][1]-rl[i-1][1],rl[i][0]-rl[i-1][0]), F=frame(rl[i][0],rl[i][1],a), ly=lift[i]; F.B(0.0016,0.05,0.0016,0,0.025+ly,0.034,0x8a9099); F.B(0.0012,0.0012,0.068,0,0.049+ly,0,0x8a9099); }
     // an intercity train: eight long cars, white with a blue band
     const cp=[], CL=0.165; cp.push(w3dBox(CL,0.026,0.02,0,0.016,0,0xf2f3f5),w3dBox(CL*0.99,0.0045,0.0204,0,0.0105,0,0x2f5fb5),w3dBox(CL*0.92,0.007,0.0206,0,0.02,0,0x2a3644),w3dBox(CL*0.96,0.002,0.016,0,0.03,0,0xc4c9cf)); for(const e of [-1,1]) cp.push(w3dBox(0.003,0.014,0.016,e*(CL/2+0.0004),0.018,0,0x1d2530));
-    const im=new T.InstancedMesh(w3dMerge(cp),new T.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.35}),8); im.castShadow=true; im.frustumCulled=false; w3dAdd(im); w3d.railT={m:im,n:8,cl:CL+0.006}; } else { w3d.railP=null; w3d.railT=null; }
+    for(const e of [-1,1]) cp.push(w3dBox(0.0012,0.002,0.004,e*(CL/2+0.002),0.008,0.006,0xfff3c4),w3dBox(0.0012,0.002,0.004,e*(CL/2+0.002),0.008,-0.006,0xfff3c4));
+    const im=new T.InstancedMesh(w3dMerge(cp),w3dVehMat({roughness:0.3,metalness:0.35}),8); im.castShadow=true; im.frustumCulled=false; w3dAdd(im); w3d.railT={m:im,n:8,cl:CL+0.006}; } else { w3d.railP=null; w3d.railT=null; }
   // --- central station
   w3d.hubs=[];      /* where a metro station under one of these buildings comes up: inside the building, by a passage (see the stations) */
   for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ const site=railSite(st), PL=1.5, sd=site.sd, a=site.a, c=[site.x,site.y], F=frame(c[0],c[1],a);
@@ -993,7 +1004,7 @@ function w3dFeatures(cx,cy,R,addTree,spires){
     parts.push({g:new T.ConeGeometry(tw*0.78,hN*0.9,4),m:Fm.clone().multiply(new T.Matrix4().makeTranslation(0,hN*1.7+hN*0.45,b.d/2-tw/2)).multiply(new T.Matrix4().makeRotationY(Math.PI/4)),c:0x5a6068}); }
   if(flat.length){ const m=new T.Mesh(w3dMerge(flat),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3,...w3dCut()}))); m.receiveShadow=true; m.renderOrder=-2; out.push(m); }
   if(parts.length){ const m=new T.Mesh(w3dMerge(parts),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.7,metalness:0.05}))); m.castShadow=true; m.receiveShadow=true; out.push(m); }
-  if(cars.length){ const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(w3dCarGeo(),new T.MeshStandardMaterial({vertexColors:true,roughness:0.35,metalness:0.4}),cars.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1), col=new T.Color();
+  if(cars.length){ const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(w3dCarGeo(),w3dVehMat({roughness:0.35,metalness:0.4}),cars.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1), col=new T.Color();
     cars.forEach((c,i)=>{ Q.setFromAxisAngle(up,-c[2]); M.compose(V.set(c[0],0.0012+w3dHt(c[0],c[1]),c[1]),Q,one); m.setMatrixAt(i,M); col.set(cols[c[3]]); m.setColorAt(i,col); }); m.castShadow=true; m.receiveShadow=true; out.push(m); }
   return out; }
 /* Boats: sailing boats and ferries on the open water, barges and launches on the rivers. Where a boat is depends only
@@ -1040,7 +1051,7 @@ function w3dCars(cx,cy,add){
   if(!E.length) return null; const n=Math.min(260,E.length*3), cars=[];
   for(let i=0;i<n;i++){ const e=E[Math.floor(Math.random()*E.length)]; cars.push({e,t:Math.random(),fwd:Math.random()<0.5,v:0.18+Math.random()*0.12}); }
   const g=w3dCarGeo();
-  const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(g,new T.MeshStandardMaterial({vertexColors:true,roughness:0.35,metalness:0.4}),n), col=new T.Color();
+  const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(g,w3dVehMat({roughness:0.35,metalness:0.4}),n), col=new T.Color();
   for(let i=0;i<n;i++){ col.set(cols[i%cols.length]); m.setColorAt(i,col); } m.castShadow=true; add(m); return {m,cars,E}; }
 function w3dCarsTick(dt){
   const c=w3d.cars; if(!c) return; const T=w3d.T, Rn=G.rn, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
