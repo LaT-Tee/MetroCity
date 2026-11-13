@@ -147,6 +147,21 @@ function rnTidy(R){
       if(tot<minL&&chain.length&&deg(u)>=2){ for(const f of chain) if(R.ec[f]===lv){ R.ec[f]=lv-1; ch++; } } } }
   if(ch) R.ver++; return ch;
 }
+/* Dead ends are joined up. A street that stops short of the next one runs on to it: to a junction a short way ahead, or
+   into the side of the nearest street ahead, whichever is nearer and keeps closest to its direction; never across water,
+   an airfield, kept ground (a station, a development) or another street. What is left after that is a cul-de-sac. */
+function rnJoinEnds(R){ const B=G.bounds; let n=0; const N=R.x.length;
+  for(let i=0;i<N;i++){ if(R.adj[i].length!==1) continue; const x=R.x[i], y=R.y[i]; if(x<B[0]+2||x>B[2]-2||y<B[1]+2||y>B[3]-2) continue;
+    const e=R.adj[i][0], o=R.ea[e]===i?R.eb[e]:R.ea[e], l=Math.hypot(x-R.x[o],y-R.y[o])||1, dx=(x-R.x[o])/l, dy=(y-R.y[o])/l, c=Math.min(2,Math.max(1,R.ec[e]));
+    const ok=(tx,ty)=>{ const L=Math.hypot(tx-x,ty-y), m=Math.max(2,Math.ceil(L/0.2)); for(let k=1;k<m;k++){ const px=lerp(x,tx,k/m), py=lerp(y,ty,k/m); if(!rnLandOk(px,py)||keepAt(px,py,0.02)) return false; } const hit=rnCross(R,x,y,tx,ty,i); return !hit||hit.t>0.97; };
+    let best=null, bs=1e9;
+    // a junction ahead
+    for(let gy=Math.floor((y-2)/RN_G);gy<=Math.floor((y+2)/RN_G);gy++) for(let gx=Math.floor((x-2)/RN_G);gx<=Math.floor((x+2)/RN_G);gx++){ const a=R.ng.get(rnKey(gx,gy)); if(!a) continue;
+      for(const j of a){ if(j===i||j===o||!R.adj[j].length) continue; const vx=R.x[j]-x, vy=R.y[j]-y, d=Math.hypot(vx,vy); if(d<0.25||d>1.9) continue; const cs=(vx*dx+vy*dy)/d; if(cs<0.55) continue; const sc=d*(1.6-cs); if(sc<bs&&ok(R.x[j],R.y[j])){ bs=sc; best={j}; } } }
+    // or the side of a street ahead
+    for(let t=0.3;t<=1.9;t+=0.2){ const h=rnCross(R,x,y,x+dx*t,y+dy*t,i); if(h){ const d=Math.hypot(h.x-x,h.y-y); if(d>0.2&&d*0.6<bs&&ok(h.x,h.y)){ bs=d*0.6; best={e:h.e,x:h.x,y:h.y}; } break; } }
+    if(!best) continue; let j=best.j; if(j==null) j=rnSplit(R,best.e,best.x,best.y); if(j===i||rnAddEdge(R,i,j,c)<0) continue; n++; }
+  if(n) R.ver++; return n; }
 /* Stubs. A street that leaves a junction and stops after a few dozen metres, going nowhere, is not a street anyone
    would have built. Once it has had two years to grow into something and has not, it is taken up. (A proper cul-de-sac
    of a block's length or more stays, and gets a turning head; so does a road that leaves the map.) */
@@ -176,7 +191,7 @@ function rnBuild(){
   const R=rnNew(); G.rn=R; const rand=mulberry32(G.seed*53+7);
   for(const p of G.highways) rnPolyline(R,p,4); for(const p of G.arterials) rnPolyline(R,p,3); for(const p of (G.locals||[])) rnPolyline(R,p,1);
   for(const r of G.extraRoads) rnPolyline(R,r.p,r.c==='hwy'?4:r.c==='art'?3:1); G.extraRoads=[];
-  rnBridges(R,rand); rnFill(R,rand); R.et.fill(-99); R.ver++; rnTrim(R); return G.rn;
+  rnBridges(R,rand); rnFill(R,rand); rnJoinEnds(R); R.et.fill(-99); R.ver++; rnTrim(R); return G.rn;
 }
 function rnFill(R,rand){ for(let round=0;round<16;round++){ updateRoadAccess(); const a=rnGrow(R,5000,rand); if(a<40) break; } rnTraffic(R,700,rand); rnWiden(R); rnTidy(R); }
 // compact save: node coords ×10 and edge endpoints as 16-bit, classes as bytes
@@ -200,7 +215,7 @@ function rnDecode(o){
 function rnPruneAir(){ if(!G.rn||!G.air) return; for(let i=0;i<W*H;i++) if(G.air[i]&1) G.roadUse[i]=0; for(const q of keepRects()) for(let y=Math.floor(q.y-1.2);y<=q.y+1.2;y++) for(let x=Math.floor(q.x-1.2);x<=q.x+1.2;x++) if(x>=0&&y>=0&&x<W&&y<H&&keepAt(x,y)) G.roadUse[y*W+x]=0; const o=rnEncode(G.rn); G.rn.enc=null; G.rn=rnDecode(o); G.rn.ver=(G.rn.ver||0)+1+Math.floor(Math.random()*1e6); }
 function rnAccKey(){ return G.rn?Math.floor(G.rn.ea.length/150):'-'+G.extraRoads.length; }
 // monthly: streets creep outward, traffic is counted, once a year busy streets widen
-function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0){ rnWiden(R); rnTidy(R); if(rnTrim(R)) return true; } if(months%12===6) rnBridges(R); return R.ver!==v; }
+function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0){ rnWiden(R); rnTidy(R); rnJoinEnds(R); if(rnTrim(R)) return true; } if(months%12===6) rnBridges(R); return R.ver!==v; }
 
 // population grid save: sqrt-scaled bytes with zero runs, ~100–200 KB
 function encodeD(){
