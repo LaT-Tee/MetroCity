@@ -264,8 +264,14 @@ function w3dRock(g,x0,y0,w,h,fine){ w3dTerrain(); const F=w3d.tF; if(!F) return;
 /* Water lies lower than the land. The ground falls away at the water's edge to a bed below the water surface (a bank
    on a river, a shelving shore on the sea), and the water itself is a surface of its own a little below street level,
    with moving ripples that catch the sky and the sun. Bridges and viaducts therefore really span something. */
+/* The river's edge, exactly. The map keeps the distance to the nearest river on its grid of cells, which is too coarse for a
+   bank seen from close by: it comes out lumpy. For the ground near the viewer the distance is worked out from the river's
+   own centre line and width, so the bank is a smooth line, and the texture painted on it is drawn from the same figures. */
+function w3dRivIx(){ if(G._rivIx) return G._rivIx; const ix=new Map(), segs=[]; for(const r of (G.rivers||[])){ const w0=r.w0||1.1, w1=r.w1||2.9, n=r.length; for(let k=1;k<n;k++){ const a=r[k-1], b=r[k], sg=[a[0],a[1],b[0],b[1],(w0+(w1-w0)*(k-1)/n)/2,(w0+(w1-w0)*k/n)/2]; segs.push(sg);
+      for(let gy=Math.floor(Math.min(a[1],b[1])/3);gy<=Math.floor(Math.max(a[1],b[1])/3);gy++) for(let gx=Math.floor(Math.min(a[0],b[0])/3);gx<=Math.floor(Math.max(a[0],b[0])/3);gx++){ const key=gy*1000+gx; let l=ix.get(key); if(!l) ix.set(key,l=[]); l.push(sg); } } } ix.segs=segs; return G._rivIx=ix; }
+function w3dRivSD(x,z){ const ix=w3dRivIx(), gx=Math.floor(x/3), gy=Math.floor(z/3); let best=9; for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){ const l=ix.get((gy+oy)*1000+gx+ox); if(!l) continue; for(const q of l){ const dx=q[2]-q[0], dy=q[3]-q[1], t=clamp(((x-q[0])*dx+(z-q[1])*dy)/(dx*dx+dy*dy||1e-9),0,1), d=Math.hypot(x-q[0]-dx*t,z-q[1]-dy*t)-(q[4]+(q[5]-q[4])*t); if(d<best) best=d; } } return best; }
 const W3D_WAT=-0.036, W3D_BED=-0.06;      // the water lies well below street level, so a bridge stands clear of it and boats pass under
-function w3dDip(x,z){ const d=waterSD(x,z); return d>=0.02?0:W3D_BED*smooth(-d,-0.02,0.2); }
+function w3dDip(x,z){ if(x<0||z<0||x>W-1||z>H-1) return W3D_BED; let d=(bilinear(G.h,x,z)-G.sea-0.004)/0.012; if(G.rivSD&&bilinear(G.rivSD,x,z)<1.6){ const r=w3dRivSD(x,z); if(r<d) d=r; } return d>=0?0:W3D_BED*smooth(-d,0,0.2); }
 function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, an=w3d.R.capabilities.getMaxAnisotropy();
   for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const tx0=x0+w*i/n, ty0=y0+h*j/n, tw=w/n, th=h/n;
     const mk=(k,fn,srgb)=>{ const cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(tw*k)); cv.height=Math.max(1,Math.round(th*k)); const g=cv.getContext('2d'); g.imageSmoothingEnabled=true;
@@ -273,7 +279,7 @@ function* w3dTiles(x0,y0,w,h,y,n,ppc,paint,paintRough,mat,put){ const T=w3d.T, a
     const tx=mk(ppc,paint,true), rt=paintRough?mk(ppc/2,paintRough,false):null;
     const loc=tw<20; let hilly=false, wet=false; for(let b=ty0;b<=ty0+th&&!hilly;b+=1) for(let a=tx0;a<=tx0+tw;a+=1) if(w3dHt(a,b)>1e-4){ hilly=true; break; }
     if(loc) for(let b=ty0;b<=ty0+th&&!wet;b+=0.5) for(let a=tx0;a<=tx0+tw;a+=0.5) if(waterSD(a,b)<0.3){ wet=true; break; }
-    const sg=wet?7:tw<20?2:1, shaped=hilly||wet, geo=shaped?new T.PlaneGeometry(tw,th,Math.min(128,Math.ceil(tw*sg)),Math.min(128,Math.ceil(th*sg))):new T.PlaneGeometry(tw,th);
+    const sg=wet?9:tw<20?2:1, shaped=hilly||wet, geo=shaped?new T.PlaneGeometry(tw,th,Math.min(128,Math.ceil(tw*sg)),Math.min(128,Math.ceil(th*sg))):new T.PlaneGeometry(tw,th);
     if(shaped){ const pa=geo.attributes.position; for(let v=0;v<pa.count;v++){ const px=tx0+tw/2+pa.getX(v), pz=ty0+th/2-pa.getY(v), hv=w3dHt(px,pz); if(hv>1e-4) pa.setZ(v,hv); else if(wet){ const dv=w3dDip(px,pz); if(dv<0) pa.setZ(v,dv); } } geo.computeVertexNormals();
       // on hills the slope is taken from the height field itself, so the shading runs unbroken from one piece of ground to the next
       if(hilly){ const na=geo.attributes.normal, e=0.5, Hq=(x,z)=>{ const h=w3dHt(x,z); return h>1e-4?h:0; }; for(let v=0;v<pa.count;v++){ if(pa.getZ(v)<=1e-4) continue; const px=tx0+tw/2+pa.getX(v), pz=ty0+th/2-pa.getY(v), hx=(Hq(px+e,pz)-Hq(px-e,pz))/(2*e), hz=(Hq(px,pz+e)-Hq(px,pz-e))/(2*e), l=Math.hypot(hx,hz,1); na.setXYZ(v,-hx/l,hz/l,1/l); } } }
@@ -1008,12 +1014,15 @@ function* w3dLocalGround(cx,cy,add){
   const dark=w3dDark(), GK=6, gc=w3d.groundCanvas; if(!gc) return;
   // texture: grain in grass and paving
   if(!w3d.noise){ const n=document.createElement('canvas'); n.width=n.height=128; const ng=n.getContext('2d'), id=ng.createImageData(128,128); for(let i=0;i<id.data.length;i+=4){ const v=128+((hashInt(i)&255)-128)*0.5; id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255; } ng.putImageData(id,0,0); w3d.noise=n; }
+  const Rg=G.rn, dryC=new Map(), dryEdge=e=>{ let v=dryC.get(e); if(v==null){ const a=Rg.ea[e], b=Rg.eb[e], l=Math.hypot(Rg.x[b]-Rg.x[a],Rg.y[b]-Rg.y[a]), n=Math.max(2,Math.ceil(l/0.1)); v=true; for(let k=0;k<=n&&v;k++) if(waterSD(lerp(Rg.x[a],Rg.x[b],k/n),lerp(Rg.y[a],Rg.y[b],k/n))<0.32) v=false; dryC.set(e,v); } return v; };
   const E=w3dEdgesIn(x0,y0,x0+sw,y0+sh), wc=dark?'#1c3550':'#3f7aa8', wd=ROAD_W.map(w=>w-0.03), pave=dark?'#5d5f66':'#d6d3cb', asph=dark?'#2a2c31':'#55585f'; yield;
   yield* w3dTiles(x0,y0,sw,sh,0.0004,3,K,(g,tx0,ty0,tw,th,k)=>{ const cv=g.canvas;
       g.drawImage(gc,(tx0-(B[0]-0.5))*GK,(ty0-(B[1]-0.5))*GK,tw*GK,th*GK,0,0,cv.width,cv.height);
       g.globalAlpha=0.07; g.globalCompositeOperation='overlay'; g.fillStyle=g.createPattern(w3d.noise,'repeat'); g.fillRect(0,0,cv.width,cv.height); g.globalAlpha=1; g.globalCompositeOperation='source-over';
       g.setTransform(k,0,0,k,-tx0*k,-ty0*k); w3dRock(g,tx0,ty0,tw,th,true); g.lineCap='butt'; w3dFields(g,tx0,ty0,tx0+tw,ty0+th,true); g.lineCap='round'; g.lineJoin='round';
-      g.strokeStyle=dark?'#3a3a30':'#b9ad8c'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w,0.18)+0.07; g.stroke(r.p); } g.strokeStyle=dark?'#17304a':'#356d94'; for(const r of (P2.rivers||[])){ g.lineWidth=Math.max(r.w-0.09,0.12); g.stroke(r.p); }
+      { const segs=w3dRivIx().segs.filter(q=>Math.max(q[0],q[2])>tx0-3&&Math.min(q[0],q[2])<tx0+tw+3&&Math.max(q[1],q[3])>ty0-3&&Math.min(q[1],q[3])<ty0+th+3), pass=(extra,col)=>{ g.strokeStyle=col; for(const q of segs){ const w=q[4]+q[5]+extra; if(w<=0.02) continue; g.lineWidth=w; g.beginPath(); g.moveTo(q[0],q[1]); g.lineTo(q[2],q[3]); g.stroke(); } };
+        // a green bank with a riverside path along it (walkers and cyclists), grass down to the water, then the water itself
+        pass(0.62,dark?'#36543a':'#7fae62'); pass(0.40,dark?'#5d5a4c':'#d9d2bd'); pass(0.33,dark?'#3a5c3e':'#86b468'); pass(-0.2,dark?'#17304a':'#356d94'); }
       // under the trees of a wood the ground is dark: leaf litter and shade, not lawn
       for(let y=Math.floor(ty0)-1;y<ty0+th+1;y++) for(let x=Math.floor(tx0)-1;x<tx0+tw+1;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]||G.pk[i]<=0.27) continue; for(let q=0;q<5;q++){ const hq=hashInt(i*211+q*977), px=x-0.5+(hq&255)/255, py=y-0.5+((hq>>8)&255)/255, gr=g.createRadialGradient(px,py,0,px,py,0.5); gr.addColorStop(0,dark?'rgba(20,40,22,.5)':'rgba(52,86,44,.5)'); gr.addColorStop(1,'rgba(52,86,44,0)'); g.fillStyle=gr; g.fillRect(px-0.5,py-0.5,1,1); } }
       // footpaths wandering through the parks
@@ -1021,7 +1030,7 @@ function* w3dLocalGround(cx,cy,add){
       for(let y=Math.floor(ty0);y<ty0+th+1;y++) for(let x=Math.floor(tx0);x<tx0+tw+1;x++){ if(x<0||y<0||x>=W||y>=H) continue; const i=y*W+x; if(G.water[i]||G.pk[i]<0.27) continue; const h=hashInt(i*17+3); if((h>>20)&3) continue;      /* a path here and there */
         g.moveTo(x-0.5,y-0.5+((h&255)/255)); g.bezierCurveTo(x-0.1,y-0.3,x+0.1,y+0.3,x+0.5,y-0.5+(((h>>8)&255)/255)); } g.stroke();
       if(P2.rail){ g.strokeStyle=dark?'#4a443e':'#9a8f84'; g.lineWidth=0.09; g.stroke(P2.rail); g.strokeStyle=dark?'#2a2a2a':'#4a4440'; g.lineWidth=0.006; for(const o of [-0.012,0.012]){ g.save(); g.translate(0,o); g.stroke(P2.rail); g.restore(); } }
-      w3dStreets(g,w3dEdgesIn(tx0,ty0,tx0+tw,ty0+th,E),wd,[[0.034,pave],[0.006,dark?'#3a3c42':'#777a80'],[0,asph],[-0.0035,k=>k===4?'#e8c547':'rgba(255,255,255,.85)',k=>k===4?[]:[0.025,0.03],2]]); },
+      w3dStreets(g,w3dEdgesIn(tx0,ty0,tx0+tw,ty0+th,E).filter(dryEdge),wd,[[0.034,pave],[0.006,dark?'#3a3c42':'#777a80'],[0,asph],[-0.0035,k=>k===4?'#e8c547':'rgba(255,255,255,.85)',k=>k===4?[]:[0.025,0.03],2]]); },
     null,tx=>w3dSee(new T.MeshStandardMaterial({map:tx,roughness:0.95,...w3dCutNear()})),m=>{ m.renderOrder=-6; add(m); });
   // the water surface, wherever there is water within this piece of ground
   { const pos=[], uv=[], idx=[], X0=Math.floor(x0), Y0=Math.floor(y0), nx=Math.ceil(sw)+1, ny=Math.ceil(sh)+1, id=new Int32Array((nx+1)*(ny+1)).fill(-1), wt=new Uint8Array((nx+1)*(ny+1));
