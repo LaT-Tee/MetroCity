@@ -26,17 +26,24 @@ function adGoogleInit(){ if(adGoogle!==null||AD.provider!=='adsense'||!AD.client
 // loaded with the page (not at the first click): an advertisement can then be ready when it is asked for, and the site shows its ad code to the ad network's review
 if(AD.enabled) (window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>adGoogleInit());
 // ---- the gate
-function adGate(done){ if(adBusy) return; const m=$('#adModal'); if(!m){ adGrant(); done(); return; } adGoogleInit();
+function adGate(done){ const m=$('#adModal'); if(adBusy&&m&&!m.hidden) return; adBusy=false; if(!m){ adGrant(); done(); return; } adGoogleInit();
   const wasPaused=paused, hold=()=>{ if(!paused) togglePlay(); if(typeof musicStop==='function') musicStop(); }, release=()=>{ if(!wasPaused&&paused) togglePlay(); if(typeof musicOn!=='undefined'&&musicOn&&typeof musicStart==='function') musicStart(); };
   const close=()=>{ m.hidden=true; adBusy=false; clearInterval(tick); }, win=free=>{ adGrant(); close(); release(); toast(t(free?'adNone':'adDone',{m:AD.unlockMinutes})); done(); }; let tick=0;
+  $('#adGo').disabled=false;
   $('#adTitle').textContent=t('adTitle'); $('#adBody').textContent=t('adBody',{m:AD.unlockMinutes}); $('#adGo').textContent=t('adWatch'); $('#adNo').textContent=t('adCancel'); $('#adStage').hidden=true; $('#adRow').hidden=false; m.hidden=false;
   $('#adNo').onclick=()=>{ close(); };
   // the built-in card: tips, a bar filling up, no way to skip
   const house=()=>{ adBusy=true; hold(); const tips=t('adTips'), t0=performance.now(), bar=$('#adBar'), tip=$('#adTip'), left=$('#adLeft'); $('#adTag').textContent=t('adHouse'); $('#adStage').hidden=false; $('#adRow').hidden=true; let k=-1;
       const step=()=>{ const el=(performance.now()-t0)/1000, kk=Math.floor(el/6)%tips.length; if(kk!==k){ k=kk; tip.textContent=tips[k]; } bar.style.width=Math.min(100,el/AD.seconds*100)+'%'; left.textContent=t('adWait',{s:Math.max(0,Math.ceil(AD.seconds-el))}); if(el>=AD.seconds) win(false); }; step(); tick=setInterval(step,200); };
-  $('#adGo').onclick=()=>{ if(AD.provider==='adsense'&&adGoogle&&window.adBreak){ adBusy=true; let seen=false, shown=false;
-      window.adBreak({type:'reward',name:'assistant',beforeAd:hold,afterAd:release,beforeReward:show=>{ shown=true; m.hidden=true; show(); },adViewed:()=>{ seen=true; },adDismissed:()=>{},
-        adBreakDone:()=>{ if(seen) win(false); else if(!shown) win(true); else { close(); release(); toast(t('adEarly')); } }}); }
+  /* Asking the ad network. It may answer with an advertisement, answer that it has none, or (an account still under review, a
+     blocked request) not answer at all: after a few seconds of silence the built-in card is shown instead, and whatever the
+     network says after that is ignored. Nothing here can leave the button dead. */
+  $('#adGo').onclick=()=>{ if(adBusy) return; const go=$('#adGo');
+    if(AD.provider==='adsense'&&adGoogle&&window.adBreak){ adBusy=true; go.disabled=true; go.textContent='…'; let seen=false, shown=false, over=false;
+      const dog=setTimeout(()=>{ if(shown||over) return; over=true; adBusy=false; go.disabled=false; house(); },4000), end=fn=>{ if(over) return; over=true; clearTimeout(dog); go.disabled=false; fn(); };
+      try{ window.adBreak({type:'reward',name:'assistant',beforeAd:()=>{ if(!over) hold(); },afterAd:()=>{ if(shown) release(); },beforeReward:show=>{ if(over) return; shown=true; clearTimeout(dog); m.hidden=true; show(); },adViewed:()=>{ seen=true; },adDismissed:()=>{},
+        adBreakDone:()=>end(()=>{ if(seen) win(false); else if(!shown){ adBusy=false; house(); } else { close(); release(); toast(t('adEarly')); } })}); }
+      catch(e){ end(()=>{ adBusy=false; house(); }); } }
     else house(); }; }
 // the assistant closes again when its time is up
 setInterval(()=>{ if(typeof assistOn!=='undefined'&&assistOn&&!adUnlocked()){ setAssist(false,true); toast(t('adExpired')); } },15000);
