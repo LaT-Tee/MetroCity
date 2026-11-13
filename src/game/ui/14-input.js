@@ -71,7 +71,6 @@ window.addEventListener('keydown',e=>{
   if((e.key==='a'||e.key==='A')&&!e.ctrlKey&&!e.metaKey){ setAssist(!assistOn); return; }
   if(e.key==='Tab'&&assistOn&&assist.top.length&&!(stroke&&stroke.drawing)){ e.preventDefault(); assist.focus=(assist.focus+(e.shiftKey?assist.top.length-1:1))%assist.top.length; renderAssist(); return; }
   if(e.key==='Enter'&&assistOn&&assist.top.length&&!(stroke&&stroke.drawing)&&!(e.target.closest&&e.target.closest('button,.line-item'))){ e.preventDefault(); adoptAssist(); return; }
-  if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ const L=lineById(activeLineId); if(L&&L.stops.length>=2){ cycleSvc(L); return; } }
   if(e.key==='['){ cycleLine(-1); return; } if(e.key===']'){ cycleLine(1); return; }
   if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==='y'||(e.shiftKey&&e.key.toLowerCase()==='z'))){ e.preventDefault(); redo(); return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); return; }

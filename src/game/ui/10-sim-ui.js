@@ -248,7 +248,7 @@ function updateBuildHint(){
   const el=$('#buildHint');
   if(tool==='build'){ const L=lineById(activeLineId); setHTML(el,L?`<span class="swatch" style="background:${lineColor(L)}"></span><span class="lnum" style="font-size:18px;color:var(--ink)">${L.num}</span><span>${t(touchMode?'hintBuildLineT':'hintBuildLine')}</span>`:`<span>${t(touchMode?'hintBuildT':'hintBuild')}</span>`); el.hidden=false; }
   else if(tool==='erase'){ setHTML(el,t('hintErase')); el.hidden=false; }
-  else if(lineById(activeLineId)){ const L=lineById(activeLineId); setHTML(el,`<span class="swatch" style="background:${lineColor(L)}"></span><span class="lnum" style="font-size:18px;color:var(--ink)">${L.num}</span><span>${t(touchMode?'hintPanT':'hintPan')}${!touchMode&&L.stops.length>=2&&!L.loop?'　'+t('hintExp'):''}</span>`); el.hidden=false; }
+  else if(lineById(activeLineId)){ const L=lineById(activeLineId); setHTML(el,`<span class="swatch" style="background:${lineColor(L)}"></span><span class="lnum" style="font-size:18px;color:var(--ink)">${L.num}</span><span>${t(touchMode?'hintPanT':'hintPan')}</span>`); el.hidden=false; }
   else el.hidden=true;
   cvs.classList.toggle('sel',!!activeLineId&&tool!=='erase');
 }

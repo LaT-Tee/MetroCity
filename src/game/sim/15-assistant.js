@@ -237,7 +237,7 @@ function assistJob(sugg){
   if(base){
     // 1) the improvement suggestions, in the order they are listed
     sugg.forEach((o,si)=>{ const src=si+1;
-      if(o.type==='exp'){ const L=lineById(o.line); if(L) tasks.push(()=>exp(L,src)); }
+      if(o.type==='exp') return;      /* faster trains: the operator's business now (autoOps) */
       else if(o.type==='xfer') tasks.push(()=>xfer(o,src));
       else if(o.type==='gap'||o.type==='proj') reach(o.x,o.y,src);
       else if(o.type==='slow'||o.type==='corr'){ const A=snapWp(o.x,o.y), B=snapWp(o.x2,o.y2);
@@ -245,9 +245,8 @@ function assistJob(sugg){
           if(o.why==='rapid'||dist(o.x,o.y,o.x2,o.y2)>45){ tasks.push(()=>fresh(corridor(A,B),src,true)); if(cst) tasks.push(()=>fresh(corridor(A,B,cst),src,true));
             for(const L of lines){ const near=(x,y)=>L.stops.some(id=>{ const q=stById(id); return q&&dist(q.x,q.y,x,y)<10; }); if(near(o.x,o.y)&&near(o.x2,o.y2)) tasks.push(()=>rapidConv(L,src)); } } }
         reach(o.x2,o.y2,src); reach(o.x,o.y,src);
-        for(const L of lines){ const near=(x,y)=>L.stops.some(id=>{ const q=stById(id); return q&&dist(q.x,q.y,x,y)<9; }); if(near(o.x,o.y)&&near(o.x2,o.y2)) tasks.push(()=>exp(L,src)); } } });
+        } });      /* faster trains on an existing line are the operator's business now (autoOps), not a suggestion */
     // 2) its own ideas: express trains, unserved destinations, diametric/tangential links between big destinations, loops and rings
-    for(const L of lines) if(!sugg.some(o=>o.type==='exp'&&o.line===L.id)) tasks.push(()=>exp(L,0));
     for(const L of lines){ tasks.push(()=>thru(L,0)); tasks.push(()=>rapidConv(L,0)); }
     for(const a of anchors.filter(a=>!a.served).slice(0,6)) reach(a.x,a.y,0);
     for(const c of assistCorridors()){ const A=snapWp(c.a[0],c.a[1]), B=snapWp(c.b[0],c.b[1]); if(A&&B) tasks.push(()=>fresh(corridor(A,B,cst),0)); }

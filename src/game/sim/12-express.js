@@ -33,3 +33,14 @@ function svcTimes(L){
   const xs=L.xs||[]; if(!xs.length) return [t0,t0,L.stops.length];
   const top=xs.length, ids=xs[top-1]; return [t0,tot/SVC_SPEED[top]+(ids.length-1)*DWELL,ids.length];
 }
+
+/* Operations run themselves. Twice a year every line is looked at: if running faster trains on it (skipping the quieter
+   stations) would save its riders time, they start, and the line is told so. Tiers only ever go up. The player builds
+   the network; the operator runs it. */
+function autoOps(){ const out=[]; let base=null;
+  for(const L of lines){ const nx=(L.svc||0)+1; if(L.stops.length<2||L.loop||isRapid(L)||nx>3||L.stops.length<SVC_MIN[nx]) continue;
+    const xs=expStops({stops:L.stops,loop:false,svc:nx}); if(xs.length<nx) continue; const ids=xs[nx-1]; ensurePaths(L);
+    const cumL=[0]; L.paths.forEach((p,k)=>cumL.push(cumL[k]+plen(p)/METRO_V)); const pos=ids.map(id=>L.stops.indexOf(id)), segT=[]; for(let q=1;q<pos.length;q++) segT.push((cumL[pos[q]]-cumL[pos[q-1]])/SVC_SPEED[nx]+DWELL);
+    base=base||estBase(); const e=quickEstimate(base,ids.map(id=>({id})),{segT,wait:SVC_WAIT[nx]}); if(!e||!(e.dAvg<-0.04)) continue;
+    L.svc=nx; refreshExpress(true); if(!L.xs||L.xs.length<nx){ L.svc=nx-1; refreshExpress(true); continue; } out.push(L); if(out.length>=2) break; }
+  if(out.length) netVersion++; return out; }
