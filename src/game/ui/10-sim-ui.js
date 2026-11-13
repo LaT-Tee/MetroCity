@@ -218,7 +218,7 @@ function renderLines(){
     const TR=throughRunning(), mates=[...new Set(TR.thru.filter(o=>o.a===L.id||o.b===L.id).map(o=>o.a===L.id?o.b:o.a))], sh=[...new Set(TR.pairs.filter(o=>o[0]===L.id||o[1]===L.id).map(o=>o[0]===L.id?o[1]:o[0]))].filter(id=>!mates.includes(id));
     const tags=[...mates.map(id=>lineById(id)).filter(Boolean).map(M=>`<span class="thru-tag" style="--c:${lineColor(M)}">${t('thruTag',{l:lineName(M)})}</span>`),...sh.map(id=>lineById(id)).filter(Boolean).map(M=>`<span class="thru-tag shared" style="--c:${lineColor(M)}">${t('sharedTag',{l:lineName(M)})}</span>`)].join('');
     const kindB=L.stops.length>=2?`<button class="svc-btn kind${isRapid(L)?' on':''}" type="button" data-act="kind" title="${t('kindTip')}">${isRapid(L)?t('kindRapid'):t('kindMetro')}</button>`:'';
-    const svcB=L.stops.length>=2&&!L.loop&&!isRapid(L)?`<button class="svc-btn" type="button" data-act="svc" data-lv="${lv}" title="${t('svcTip')}">${lv?t('svcName')[lv]:'+ '+t('svcShort')[1]}</button>`:'';
+    const svcB=lv&&L.stops.length>=2&&!L.loop&&!isRapid(L)?`<span class="svc-btn" data-lv="${lv}">${t('svcName')[lv]}</span>`:'';      /* shows the tier the operator runs; it is not set by hand */
     const svc=L.stops.length>=2?`<div class="svc-row">${kindB}${svcB}<span class="xr">${xr}</span></div>${tags?`<div class="thru-row">${tags}</div>`:''}`:'';
     return `<div class="line-item${L.id===activeLineId?' active':''}" data-id="${L.id}" role="button" tabindex="0">
       <span class="swatch" style="background:${lineColor(L)}"></span><span class="lnum">${L.num}</span>

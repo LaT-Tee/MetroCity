@@ -5,7 +5,6 @@ $('#redoBtn').addEventListener('click',redo);
 $('#newLineBtn').addEventListener('click',()=>{ if(activeLineCount()>=MAX_LINES){ toast(t('toastMax',{n:MAX_LINES})); return; } setTool('build'); activeLineId=null; forceNew=true; renderLines(); updateBuildHint(); toast(t('toastNewLine',{l:t('lineName',{n:nextLineNum})})); });
 $('#lineList').addEventListener('click',e=>{
   const item=e.target.closest('.line-item'); if(!item) return; const L=lineById(item.dataset.id); if(!L) return; const act=e.target.closest('[data-act]')?.dataset.act;
-  if(act==='svc'){ cycleSvc(L); return; }
   if(act==='kind'){ toggleKind(L); return; }
   if(act==='del'){ pushUndo(); lines=lines.filter(l=>l!==L); if(activeLineId===L.id) activeLineId=null; toast(t('toastLineDel',{l:lineName(L)})); changed(); updateBuildHint(); return; }
   if(tool==='erase') setTool('build');
