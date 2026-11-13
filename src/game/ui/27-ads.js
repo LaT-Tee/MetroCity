@@ -23,6 +23,8 @@ function adGoogleInit(){ if(adGoogle!==null||AD.provider!=='adsense'||!AD.client
   const s=document.createElement('script'); s.async=true; s.crossOrigin='anonymous'; s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+encodeURIComponent(AD.client); s.setAttribute('data-ad-frequency-hint','30s'); if(AD.test) s.setAttribute('data-adbreak-test','on');
   s.onload=()=>{ adGoogle=true; }; s.onerror=()=>{ adGoogle=false; }; document.head.appendChild(s);
   window.adsbygoogle=window.adsbygoogle||[]; window.adBreak=window.adConfig=function(o){ window.adsbygoogle.push(o); }; window.adConfig({preloadAdBreaks:'on',sound:'on'}); }
+// loaded with the page (not at the first click): an advertisement can then be ready when it is asked for, and the site shows its ad code to the ad network's review
+if(AD.enabled) (window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>adGoogleInit());
 // ---- the gate
 function adGate(done){ if(adBusy) return; const m=$('#adModal'); if(!m){ adGrant(); done(); return; } adGoogleInit();
   const wasPaused=paused, hold=()=>{ if(!paused) togglePlay(); if(typeof musicStop==='function') musicStop(); }, release=()=>{ if(!wasPaused&&paused) togglePlay(); if(typeof musicOn!=='undefined'&&musicOn&&typeof musicStart==='function') musicStart(); };
