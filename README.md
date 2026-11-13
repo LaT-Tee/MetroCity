@@ -79,7 +79,7 @@ npm run build    # 生成 dist/index.html：单个自包含文件，可直接双
 npm run check    # 无浏览器的逻辑自检（城市生成、通勤模拟、规划助手）
 ```
 
-线上版本由 Cloudflare Pages 从 `main` 自动构建发布。3D 视角首次打开时会从 CDN 加载 three.js，其余全部内联在那一个文件里。
+线上版本由 Cloudflare Pages 从 `main` 自动构建发布。包括 three.js 在内的一切都内联在那一个文件里，不依赖任何 CDN，离线也能玩。
 
 ## 代码结构
 

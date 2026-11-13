@@ -4,7 +4,7 @@
    the land (grass, parks, woods, sea, lakes and rivers), the street web, the buildings (houses with pitched roofs in
    the suburbs, apartment and office blocks, glass towers downtown, sheds by the industrial estates), trees in the
    parks and woods, and the metro on concrete viaducts with rails, overhead wires, platforms and proper trains. */
-const THREE_URL='https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
+// three.js is built into the page itself (no download when the 3D view is first opened, and it works offline)
 const w3d={ready:false,loading:false,T:null,active:false,sig:'',bc:null,labels:[],objs:[],local:[],gnd:[],trash:[],lj:null,gj:null};
 const TRK=0.08, BZ3=1.2, DECK=0.03, UGY=-0.075, TUN_W=0.036, TUN_H=0.046;   // deck ~12 m up, half-width ~4.5 m; tunnels ~11 m down
 const W3D_CAR=0.12, W3D_GAP=0.006, W3D_CARS=5, W3D_TO=0.0125;      // W3D_TO: each line is double track, one track this far either side of its centre
@@ -12,7 +12,7 @@ async function w3dStart(){
   w3d.active=true; const box=$('#cv3d'); box.hidden=false;
   if(w3d.ready){ w3dBuild(); return; } if(w3d.loading) return; w3d.loading=true;
   box.innerHTML=`<div class="note">${t('w3dLoading')}</div>`;
-  try{ w3d.T=await import(/* @vite-ignore */ THREE_URL); }catch(e){ w3d.loading=false; box.hidden=true; box.innerHTML=''; watch.view='2d'; toast(t('w3dFail')); renderWatchBar(); return; }
+  try{ w3d.T=await import('three'); }catch(e){ w3d.loading=false; box.hidden=true; box.innerHTML=''; watch.view='2d'; toast(t('w3dFail')); renderWatchBar(); return; }
   w3d.loading=false; if(!w3d.active){ box.hidden=true; return; }
   const T=w3d.T, R=new T.WebGLRenderer({antialias:true,stencil:true,powerPreference:'high-performance'}); w3d.prMax=Math.min(dpr,1.5); w3d.pr=w3d.prMax; R.setPixelRatio(w3d.pr); R.outputColorSpace=T.SRGBColorSpace;
   R.toneMapping=T.ACESFilmicToneMapping; R.toneMappingExposure=0.95; R.shadowMap.enabled=true; R.shadowMap.type=T.PCFSoftShadowMap;
