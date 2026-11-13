@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+  <!-- The planning assistant is opened by watching an advertisement. Settings (see src/game/ui/27-ads.js):
+       enabled: false to make the assistant free; provider: 'house' (built-in 30 s placeholder) or 'adsense'; client: 'ca-pub-…' -->
+  <script>window.MC_ADS={enabled:true,provider:'house',client:'',seconds:30,unlockMinutes:30,test:false};</script>
 </head>
 <body>
 <div id="app">
@@ -110,6 +113,13 @@
   </div>
   <div class="ach-pop" id="achPop" hidden></div>
   <div class="loading" id="loading" hidden></div>
+  <div class="modal" id="adModal" hidden>
+    <div class="report ad-card" role="dialog" aria-labelledby="adTitle">
+      <div class="rep-head"><div><h2 id="adTitle"></h2><div class="sub" id="adBody"></div></div></div>
+      <div class="ad-stage" id="adStage" hidden><div class="ad-tag" id="adTag"></div><div class="ad-tip" id="adTip"></div><div class="ad-bar"><i id="adBar"></i></div><div class="ad-left" id="adLeft"></div></div>
+      <div class="row" id="adRow"><span></span><button class="btn" id="adNo" type="button"></button><button class="btn primary" id="adGo" type="button"></button></div>
+    </div>
+  </div>
   <div class="modal" id="exportModal" hidden>
     <div class="report export-card" role="dialog" aria-labelledby="exTitle">
       <div class="rep-head"><div><h2 id="exTitle"></h2><div class="sub" id="exSub"></div></div></div>

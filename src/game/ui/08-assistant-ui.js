@@ -2,7 +2,8 @@
 const ASSIST_COL=['#ff6b00','#7b5cff','#00a39a'];
 let assistOn=false, assist={job:null,top:[],focus:0,key:'',t:0};
 try{ assistOn=localStorage.getItem('mc-assist')==='1'; }catch(e){}
-function setAssist(on,quiet){ assistOn=on; try{ localStorage.setItem('mc-assist',on?'1':'0'); }catch(e){} $('#assistBtn').setAttribute('aria-pressed',on);
+function setAssist(on,quiet){ if(on&&typeof adUnlocked==='function'&&!adUnlocked()){ if(quiet) on=false; else { adGate(()=>setAssist(true)); return; } }      /* opened by watching an advertisement (27-ads.js) */
+  assistOn=on; try{ localStorage.setItem('mc-assist',on?'1':'0'); }catch(e){} $('#assistBtn').setAttribute('aria-pressed',on);
   if(!on){ assist.job=null; assist.top=[]; assist.key=''; assist.bySrc=null; } suggKey=''; if(G) renderSuggestions(); if(!quiet) toast(t(on?'assistOn':'assistOff')); renderAssist(); }
 function assistTick(){
   if(!assistOn||!sim||!G) return;
