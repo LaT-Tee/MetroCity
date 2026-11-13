@@ -847,7 +847,8 @@ function w3dRoadMesh(cx,cy,R){
     const seg=(s0,s1,hw,cc,lat)=>quad(2,ax+dx*s0,az+dz*s0,ax+dx*s1,az+dz*s1,hw,cc,lat,0,0,up&&(t=>lf(s0+(s1-s0)*t))), dash=(lat,cc)=>{ for(let q=ta;q<l-tb-0.02;q+=0.07) seg(q,Math.min(q+0.03,l-tb),0.0011,cc,lat); };
     if(c===1) seg(ta,l-tb,0.0009,0xbfc1c4,0); else if(c===2) dash(0,0xe6e6e6); else { seg(ta,l-tb,0.001,0xe3c04a,0.0018); seg(ta,l-tb,0.001,0xe3c04a,-0.0018); dash(hwA(c)*0.5,0xe6e6e6); dash(-hwA(c)*0.5,0xe6e6e6); if(c===4){ seg(ta,l-tb,0.001,0xe6e6e6,hwA(c)-0.004); seg(ta,l-tb,0.001,0xe6e6e6,-hwA(c)+0.004); } }
     if(zeb) for(const [dg,s0] of [[da,nodes.get(a).a+0.004],[db,l-nodes.get(b).a-0.02]]){ if(dg<3) continue; for(let o=-hwA(c)+0.005;o<hwA(c)-0.003;o+=0.008) seg(s0,s0+0.016,0.002,0xe9e9e9,o); } }
-  for(const [n,o] of nodes){ const x=Rn.x[n], z=Rn.y[n]; if(o.c<4) disc(0,x,z,o.p,PAVE,o.y); disc(1,x,z,o.a,ASPH[o.c],o.y); }
+  for(const [n,o] of nodes){ const x=Rn.x[n], z=Rn.y[n], head=Rn.adj[n].length===1&&o.c<=2&&waterSD(x,z)>0.3?1.75:1;      /* a cul-de-sac ends in a turning head */
+    if(o.c<4) disc(0,x,z,o.p*head,PAVE,o.y); disc(1,x,z,o.a*head,ASPH[o.c],o.y); }
   const pos=[].concat(Ls[0],Ls[1],Ls[2]), cl=[].concat(Cs[0],Cs[1],Cs[2]), nor=new Float32Array(pos.length); for(let i=1;i<nor.length;i+=3) nor[i]=1;
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('normal',new T.Float32BufferAttribute(nor,3)); g.setAttribute('color',new T.Float32BufferAttribute(cl,3));
   const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true; if(!br.length) return [m];
@@ -952,6 +953,7 @@ function w3dCars(cx,cy,add){
 function w3dCarsTick(dt){
   const c=w3d.cars; if(!c) return; const T=w3d.T, Rn=G.rn, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
   const vp=w3d.vp||[0,0], again=o=>{ const an=Math.random()*6.283, r=7.5+Math.random()*3, l=Rn.eg.get(rnKey(Math.floor((vp[0]+Math.cos(an)*r)/RN_G),Math.floor((vp[1]+Math.sin(an)*r)/RN_G))); if(l&&l.length){ o.e=l[Math.floor(Math.random()*l.length)]; o.t=Math.random(); } };
+  if(c.R!==Rn){ if(c.R){ c.cars.forEach(again); w3d.rLift=null; } c.R=Rn; }      /* the street web was rebuilt: its numbering is new */
   c.cars.forEach((o,i)=>{ const a=Rn.ea[o.e], b=Rn.eb[o.e]; if(a==null||b==null){ again(o); return; } const ax=Rn.x[a], ay=Rn.y[a], bx=Rn.x[b], by=Rn.y[b], L=Math.hypot(bx-ax,by-ay)||0.1;
     if(Math.abs(ax-vp[0])>12||Math.abs(ay-vp[1])>12){ again(o); return; }      /* left far behind: comes back on a street well away from the viewer */
     o.t+=dt*o.v/L*(o.fwd?1:-1); if(o.t>1||o.t<0){ const nd=o.t>1?b:a, nx=Rn.adj[nd].filter(e=>e!==o.e); if(nx.length&&c.E.length){ o.e=nx[Math.floor(Math.random()*nx.length)]; o.fwd=Rn.ea[o.e]===nd; o.t=o.fwd?0:1; } else { o.fwd=!o.fwd; o.t=clamp(o.t,0,1); } return; }

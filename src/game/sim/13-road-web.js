@@ -147,6 +147,18 @@ function rnTidy(R){
       if(tot<minL&&chain.length&&deg(u)>=2){ for(const f of chain) if(R.ec[f]===lv){ R.ec[f]=lv-1; ch++; } } } }
   if(ch) R.ver++; return ch;
 }
+/* Stubs. A street that leaves a junction and stops after a few dozen metres, going nowhere, is not a street anyone
+   would have built. Once it has had two years to grow into something and has not, it is taken up. (A proper cul-de-sac
+   of a block's length or more stays, and gets a turning head; so does a road that leaves the map.) */
+function rnTrim(R){ const B=G.bounds, n=R.x.length, deg=new Int16Array(n), dead=new Uint8Array(R.ea.length), len=e=>Math.hypot(R.x[R.ea[e]]-R.x[R.eb[e]],R.y[R.ea[e]]-R.y[R.eb[e]]); let cut=0;
+  for(let i=0;i<n;i++) deg[i]=R.adj[i].length;
+  for(let pass=0;pass<3;pass++) for(let i=0;i<n;i++){ if(deg[i]!==1) continue; if(R.x[i]<B[0]+2||R.x[i]>B[2]-2||R.y[i]<B[1]+2||R.y[i]>B[3]-2) continue;
+    const chain=[]; let u=i, tot=0, prev=-1, ok=true; for(let g=0;g<8;g++){ const f=R.adj[u].find(q=>q!==prev&&!dead[q]); if(f==null) break; if(R.ec[f]>1||months-R.et[f]<24){ ok=false; break; } chain.push(f); tot+=len(f); prev=f; u=R.ea[f]===u?R.eb[f]:R.ea[f]; if(deg[u]!==2||tot>=0.85) break; }
+    if(!ok||!chain.length||tot>=0.85||deg[u]<3) continue; for(const f of chain){ dead[f]=1; deg[R.ea[f]]--; deg[R.eb[f]]--; cut++; } }
+  if(!cut) return 0;
+  const N=rnNew(); for(let i=0;i<n;i++) rnAddNode(N,R.x[i],R.y[i]);
+  for(let e=0;e<R.ea.length;e++){ if(dead[e]) continue; const k=N.ea.length, a=R.ea[e], b=R.eb[e]; N.ea.push(a); N.eb.push(b); N.ec.push(R.ec[e]); N.ef.push(R.ef[e]); N.et.push(R.et[e]); N.adj[a].push(k); N.adj[b].push(k); rnCells(N,k,q=>rnPut(N.eg,q,k)); }
+  N.trips=R.trips; N.ver=(R.ver||0)+1+Math.floor(Math.random()*1e6); G.rn=N; return cut; }
 // bridges: where the city has grown on both banks, a street crosses the river every few blocks
 function rnBridges(R,rand){
   rand=rand||Math.random; let added=0; const wat=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); return xi<0||yi<0||xi>=W||yi>=H?1:G.water[yi*W+xi]; }, Dat=(x,y)=>G.D[clamp(Math.round(y),0,H-1)*W+clamp(Math.round(x),0,W-1)];
@@ -164,7 +176,7 @@ function rnBuild(){
   const R=rnNew(); G.rn=R; const rand=mulberry32(G.seed*53+7);
   for(const p of G.highways) rnPolyline(R,p,4); for(const p of G.arterials) rnPolyline(R,p,3); for(const p of (G.locals||[])) rnPolyline(R,p,1);
   for(const r of G.extraRoads) rnPolyline(R,r.p,r.c==='hwy'?4:r.c==='art'?3:1); G.extraRoads=[];
-  rnBridges(R,rand); rnFill(R,rand); R.et.fill(-99); R.ver++; return R;
+  rnBridges(R,rand); rnFill(R,rand); R.et.fill(-99); R.ver++; rnTrim(R); return G.rn;
 }
 function rnFill(R,rand){ for(let round=0;round<16;round++){ updateRoadAccess(); const a=rnGrow(R,5000,rand); if(a<40) break; } rnTraffic(R,700,rand); rnWiden(R); rnTidy(R); }
 // compact save: node coords ×10 and edge endpoints as 16-bit, classes as bytes
@@ -188,7 +200,7 @@ function rnDecode(o){
 function rnPruneAir(){ if(!G.rn||!G.air) return; for(let i=0;i<W*H;i++) if(G.air[i]&1) G.roadUse[i]=0; for(const q of keepRects()) for(let y=Math.floor(q.y-1.2);y<=q.y+1.2;y++) for(let x=Math.floor(q.x-1.2);x<=q.x+1.2;x++) if(x>=0&&y>=0&&x<W&&y<H&&keepAt(x,y)) G.roadUse[y*W+x]=0; const o=rnEncode(G.rn); G.rn.enc=null; G.rn=rnDecode(o); G.rn.ver=(G.rn.ver||0)+1+Math.floor(Math.random()*1e6); }
 function rnAccKey(){ return G.rn?Math.floor(G.rn.ea.length/150):'-'+G.extraRoads.length; }
 // monthly: streets creep outward, traffic is counted, once a year busy streets widen
-function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0){ rnWiden(R); rnTidy(R); } if(months%12===6) rnBridges(R); return R.ver!==v; }
+function roadsTick(){ const R=G.rn; if(!R) return 0; const v=R.ver; rnGrow(R,420); rnTraffic(R,20); if(months%12===0){ rnWiden(R); rnTidy(R); if(rnTrim(R)) return true; } if(months%12===6) rnBridges(R); return R.ver!==v; }
 
 // population grid save: sqrt-scaled bytes with zero runs, ~100–200 KB
 function encodeD(){
