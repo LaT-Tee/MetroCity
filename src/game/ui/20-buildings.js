@@ -76,11 +76,13 @@ function bldTile(tx,ty){
     if(x<B[0]||y<B[1]||x>=B[2]||y>=B[3]) continue; const i=y*W+x; if(water[i]||pk[i]>0.255) continue; const d=D[i]; if(d<0.07) continue;
     let h=hashInt(i*31337+G.seed*7+5); const rnd=()=>{ h=hashInt(h); return (h&0xffff)/65536; };
     if(rnd()>(d<0.3?0.045:d<0.8?0.07:0.085)) continue;
-    const r=rnd()*100, k=d<0.3?(r<30?'park':r<50?'play':r<68?'pitch':r<82?'school':r<91?'gym':'stadium'):d<0.8?(r<18?'park':r<28?'play':r<40?'plaza':r<48?'pitch':r<58?'lot':r<67?'school':r<75?'church':r<83?'library':r<89?'gym':r<95?'hospital':'stadium'):(r<28?'plaza':r<46?'park':r<54?'lot':r<70?'mall':r<76?'church':r<86?'gov':r<94?'library':'hospital');
+    const r=rnd()*100, pick=tb=>{ let a=0; for(let q=0;q<tb.length;q+=2){ a+=tb[q+1]; if(r<a) return tb[q]; } return tb[tb.length-2]; };
+    const k=d<0.3?pick(['park',30,'play',20,'pitch',13,'tennis',5,'school',12,'gym',7,'pool',4,'cemetery',5,'stadium',4]):d<0.8?pick(['park',16,'play',9,'plaza',10,'pitch',7,'tennis',3,'lot',9,'school',8,'church',7,'library',7,'gym',5,'hospital',5,'market',4,'fire',4,'pool',2,'cemetery',2,'stadium',2]):pick(['plaza',26,'park',17,'lot',8,'mall',15,'church',6,'gov',9,'library',7,'hospital',5,'market',4,'fire',3]);
     let fw,fd; const q=rnd(), q2=rnd();
     if(k==='park'){ fw=0.5+q*0.5; fd=0.4+q2*0.45; } else if(k==='play'){ fw=0.2+q*0.12; fd=0.18+q2*0.1; } else if(k==='plaza'){ fw=0.32+q*0.3; fd=0.3+q2*0.25; }
     else if(k==='pitch'){ if(q<0.5){ fw=0.72; fd=0.46; } else { fw=0.24; fd=0.14; } } else if(k==='lot'){ fw=0.3+q*0.22; fd=0.22+q2*0.14; }
     else if(k==='school'){ fw=0.5+q*0.15; fd=0.4+q2*0.1; } else if(k==='church'){ fw=0.2+q*0.06; fd=0.3+q2*0.08; } else if(k==='library'){ fw=0.3+q*0.1; fd=0.28+q2*0.08; } else if(k==='gym'){ fw=0.42+q*0.13; fd=0.3+q2*0.06; }
+    else if(k==='pool'){ fw=0.34+q*0.08; fd=0.26+q2*0.05; } else if(k==='tennis'){ fw=0.3+q*0.1; fd=0.22+q2*0.04; } else if(k==='market'){ fw=0.36+q*0.1; fd=0.26+q2*0.06; } else if(k==='fire'){ fw=0.3+q*0.06; fd=0.26+q2*0.05; } else if(k==='cemetery'){ fw=0.46+q*0.2; fd=0.36+q2*0.14; }
     else if(k==='stadium'){ fw=1.0; fd=0.78; } else if(k==='gov'){ fw=0.5+q*0.12; fd=0.4+q2*0.08; } else if(k==='hospital'){ fw=0.5+q*0.1; fd=0.4+q2*0.06; } else { fw=0.58+q*0.2; fd=0.42+q2*0.12; }
     // face the nearest street
     let ang=0; { const l=rm.get(i); if(l&&l.length){ const sg=l[Math.floor(rnd()*l.length)%l.length]; ang=Math.atan2(sg[3]-sg[1],sg[2]-sg[0]); } }
@@ -96,6 +98,7 @@ function bldTile(tx,ty){
     else if(k==='mall') sub(0,-fd*0.2,fw*0.94,fd*0.56,13+q*5,'mall');
     else if(k==='library'){ f.hm=12; sub(0,-fd*0.1,fw*0.72,fd*0.58,12,'library'); } else if(k==='gym'){ f.hm=13; sub(0,-fd*0.04,fw*0.86,fd*0.78,13,'gym'); }
     else if(k==='gov'){ f.hm=16+q*6; sub(0,-fd*0.16,fw*0.8,fd*0.42,f.hm,'gov'); }
+    else if(k==='fire') sub(-fw*0.08,-fd*0.2,fw*0.7,fd*0.42,9,'school'); else if(k==='pool') sub(0,-fd*0.36,fw*0.7,fd*0.2,5,'library'); else if(k==='cemetery') sub(-fw*0.3,-fd*0.3,fw*0.16,fd*0.22,8,'church');
     else if(k==='hospital'){ f.hm=22+q*10; sub(0,-fd*0.22,fw*0.9,fd*0.28,f.hm,'hospital'); sub(-fw*0.32,fd*0.1,fw*0.2,fd*0.38,14,'hospital'); sub(fw*0.32,fd*0.1,fw*0.2,fd*0.38,14,'hospital'); } }
   // 1. plots along the streets
   if(R){ const es=[], seen=new Set(); for(let gy=Math.floor((y0-1.5)/RN_G);gy<=Math.floor((y0+BLD_T+1.5)/RN_G);gy++) for(let gx=Math.floor((x0-1.5)/RN_G);gx<=Math.floor((x0+BLD_T+1.5)/RN_G);gx++){ const l=R.eg.get(rnKey(gx,gy)); if(l) for(const e of l) if(!seen.has(e)){ seen.add(e); es.push(e); } }
@@ -180,9 +183,13 @@ function bldPaths(t,tx,ty){ if(t.p) return t.p;
     for(let k=0;k<n;k++){ const h=hashInt(i*59+k*7919), px=x-0.5+(h&1023)/1023, py=y-0.5+((h>>10)&1023)/1023; if(!wetAt(px,py,0.05)) tree(px,py,0.07+((h>>20)&63)/63*0.05); } }
   // grounds: one path per kind, plus white markings, footpaths and ponds
   const g={park:new Path2D(),play:new Path2D(),plaza:new Path2D(),pitch:new Path2D(),lot:new Path2D(),yard:new Path2D(),water:new Path2D(),line:new Path2D(),path:new Path2D(),dotA:new Path2D(),dotB:new Path2D()};
-  for(const f of t.feat){ const q=bldCorners(f), P=(u,v)=>featPt(f,u,v), ln=(p,a,b)=>{ p.moveTo(a[0],a[1]); p.lineTo(b[0],b[1]); }, kind={school:'yard',church:'park',mall:'lot',library:'plaza',gov:'plaza',hospital:'plaza',gym:'yard',stadium:'yard'}[f.k]||f.k; poly(g[kind],q);
+  for(const f of t.feat){ const q=bldCorners(f), P=(u,v)=>featPt(f,u,v), ln=(p,a,b)=>{ p.moveTo(a[0],a[1]); p.lineTo(b[0],b[1]); }, kind={school:'yard',church:'park',mall:'lot',library:'plaza',gov:'plaza',hospital:'plaza',gym:'yard',stadium:'yard',pool:'plaza',tennis:'pitch',market:'plaza',fire:'yard',cemetery:'park'}[f.k]||f.k; poly(g[kind],q);
     if(f.k==='park'||f.k==='church'){ for(const [u,v,sz] of featTrees(f)){ const c=P(u,v); tree(c[0],c[1],0.036*sz); }
       if(f.k==='park'){ ln(g.path,P(-1,0),P(1,0)); ln(g.path,P(0,-1),P(0,1)); if(f.w>0.7){ const c=P(0.45,0.45); g.water.moveTo(c[0]+f.w*0.14,c[1]); g.water.ellipse(c[0],c[1],f.w*0.14,f.d*0.12,f.a,0,6.283); } } }
+    else if(f.k==='pool'){ poly(g.water,[...P(-0.75,-0.25),...P(0.75,-0.25),...P(0.75,0.75),...P(-0.75,0.75)]); }
+    else if(f.k==='tennis'){ for(const u0 of [-0.9,0.05]){ ln(g.line,P(u0,-0.8),P(u0+0.85,-0.8)); ln(g.line,P(u0+0.85,-0.8),P(u0+0.85,0.8)); ln(g.line,P(u0+0.85,0.8),P(u0,0.8)); ln(g.line,P(u0,0.8),P(u0,-0.8)); ln(g.line,P(u0,0),P(u0+0.85,0)); } }
+    else if(f.k==='cemetery'){ ln(g.path,P(-1,0),P(1,0)); ln(g.path,P(0,-1),P(0,1)); for(let u=-0.8;u<=0.8;u+=0.2) for(const v of [-0.6,-0.3,0.3,0.6]){ const c=P(u,v); g.dotB.moveTo(c[0]+0.008,c[1]); g.dotB.arc(c[0],c[1],0.008,0,6.283); } }
+    else if(f.k==='market'){ for(let u=-0.75;u<=0.75;u+=0.25) for(const v of [-0.5,0,0.5]){ const c=P(u,v); (((u*8+v*4)|0)&1?g.dotA:g.dotB).rect(c[0]-0.02,c[1]-0.012,0.04,0.024); } }
     else if(f.k==='stadium'){ const m=0.5; poly(g.pitch,[...P(-m,-m),...P(m,-m),...P(m,m),...P(-m,m)]); ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); for(const e of [0.66,0.82,0.96]){ ln(g.path,P(-e,-e),P(e,-e)); ln(g.path,P(e,-e),P(e,e)); ln(g.path,P(e,e),P(-e,e)); ln(g.path,P(-e,e),P(-e,-e)); } }
     else if(f.k==='pitch'){ const m=0.9; ln(g.line,P(-m,-m),P(m,-m)); ln(g.line,P(m,-m),P(m,m)); ln(g.line,P(m,m),P(-m,m)); ln(g.line,P(-m,m),P(-m,-m)); ln(g.line,P(0,-m),P(0,m)); const c=P(0,0); g.line.moveTo(c[0]+f.d*0.16,c[1]); g.line.arc(c[0],c[1],f.d*0.16,0,6.283); }
     else if(f.k==='lot'||f.k==='mall'){ const v0=f.k==='mall'?0.35:-0.8, n=Math.max(3,Math.round(f.w/0.035)); for(let k=0;k<=n;k++){ const u=-0.9+1.8*k/n; ln(g.line,P(u,v0),P(u,v0+0.3)); ln(g.line,P(u,0.9),P(u,0.6)); } }
