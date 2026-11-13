@@ -376,7 +376,7 @@ function w3dBuild(){
   // viaducts: concrete deck and parapets, a band in the line colour, rails, piers, masts and overhead wires;
   // tunnels: a lit concrete tube; where the two meet, a portal
   const concrete=new T.MeshStandardMaterial({color:dark?0x77767a:0xc4c1ba,roughness:0.85}), railM=new T.MeshStandardMaterial({color:0x4a4a4c,roughness:0.35,metalness:0.6});
-  const hillM=new T.MeshStandardMaterial({color:0xb5b1a8,roughness:0.9,side:T.DoubleSide}), piers=[], masts=[], wire=[], cuts=[], tubes=[], portals=[]; w3d.trains=[]; w3d.portals=portals;
+  const hillM=new T.MeshStandardMaterial({color:0xb5b1a8,roughness:0.9,side:T.DoubleSide}), piers=[], masts=[], wire=[], cuts=[], tubes=[], portals=[]; w3d.pierPts=[]; w3d.trains=[]; w3d.portals=portals;
   const o3=(pc,off)=>offsetPts(pc,off).map((q,i)=>[q[0],q[1],pc[i][2]]);
   for(const L of lines) if(L.stops.length>=2) w3dStopsOn(L);
   w3dStationPlan(); for(const L of lines) if(L.stops.length>=2) w3dStopsOn(L); w3dLevelPlan();
@@ -396,7 +396,8 @@ function w3dBuild(){
     for(const [a,b] of w3dMinus(below,stCut(true))) tubes.push(w3dPart(P,a,b));
     const pts=P.pts; let accM=0; for(let i=1;i<pts.length;i++){ const d=dist(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); accM+=d;
       const a=Math.atan2(pts[i][1]-pts[i-1][1],pts[i][0]-pts[i-1][0]), y=P.Y[i]; if(Hl[i]||Hl[i-1]) continue;
-      if(y>0.02) piers.push([pts[i][0],pts[i][1],a,y/TRK]);
+      if(y>0.02){ // a pier never stands in a roadway: it is moved along the viaduct to the nearest clear spot, or that span simply runs longer
+        const ca=Math.cos(a), sa=Math.sin(a), clear=(x,z)=>!w3dOnRoad(x,z,0.014)&&!w3dOnRoad(x-sa*0.012,z+ca*0.012,0.006)&&!w3dOnRoad(x+sa*0.012,z-ca*0.012,0.006); for(const o of [0,-0.08,0.08,-0.16,0.16]){ const px=pts[i][0]+ca*o, pz=pts[i][1]+sa*o; if(clear(px,pz)){ piers.push([px,pz,a,y/TRK]); w3d.pierPts.push([px,pz,1]); break; } } }
       if(y>0.004){ for(const hh of [0.036,0.044]) wire.push(pts[i-1][0],P.Y[i-1]+hh,pts[i-1][1],pts[i][0],y+hh,pts[i][1]);
         if(accM>=0.33&&!stations.some(s=>Math.abs(s.x-pts[i][0])<0.35&&Math.abs(s.y-pts[i][1])<0.35&&dist(s.x,s.y,pts[i][0],pts[i][1])<0.35)){ accM=0; masts.push([pts[i][0]-Math.sin(a)*(DECK-0.004),pts[i][1]+Math.cos(a)*(DECK-0.004),a,y-TRK]); } } }
     // trains: five cars that each follow the track, silver bodies, a band in the line colour, dark window strip and car ends
@@ -440,6 +441,11 @@ function w3dBuild(){
         const mk=(list,yo)=>(w,h,d,x,y,z,c)=>{ const q=w3dBox(w,h,d,x,y+yo,z,c); q.m=Gm.clone().multiply(q.m); list.push(q); }, B=mk(under?uparts:parts,dy), S=mk(parts,0);
         const lc=lineColor(g[0].L);
         if(!under) B(Lp+0.06,0.014,span+0.02,0,TRK-0.0082,mid,0xc4c1ba);                                  // the wider deck
+        // more than one line through here: an island platform between each pair of them, so every track has a platform face
+        { const so=offs.slice().sort((p,q)=>p-q); for(let k=1;k<so.length;k++){ const wI=so[k]-so[k-1]-2*(W3D_TO+0.0108), zc=(so[k]+so[k-1])/2; if(wI<0.014) continue;
+            B(Lp,0.0075,wI,0,TRK+0.00375,zc,under?0xd8d5ce:pl); for(const e of [-1,1]) B(Lp,0.0004,0.003,0,TRK+0.0077,zc+e*(wI/2-0.0035),0xf2c200);
+            for(const x of [-0.34,-0.18,0.18,0.34]) B(under?0.004:0.0014,under?0.04:0.032,under?0.004:0.0014,x,TRK+(under?0.0275:0.0235),zc,under?0xeceae4:0xdfe3e7);
+            for(const x of [-Lp*0.3,0,Lp*0.3]){ B(0.03,0.0055,0.0012,x+0.03,TRK+0.031,zc,0xffffff); B(0.03,0.0012,0.00125,x+0.03,TRK+0.0292,zc,lineColor(g[Math.min(k,g.length-1)].L)); } for(const x of [-Lp*0.2,Lp*0.2]) B(0.016,0.003,0.004,x,TRK+0.009,zc,0x6d7480); } }
         for(const sd of [-1,1]){ const z=sd<0?lo-PW/2:hi+PW/2, edge=sd<0?lo:hi;
           B(Lp,0.0075,PW,0,TRK+0.00375,z,under?0xd8d5ce:pl); B(Lp,0.0004,0.003,0,TRK+0.0077,edge+sd*0.0035,0xf2c200);        // platform and tactile strip
           if(!under){ B(Lp,0.0008,0.0012,0,TRK+0.0145,z+sd*(PW/2-0.0006),0x9aa1a8); for(let x=-Lp/2;x<=Lp/2;x+=0.03) B(0.0007,0.007,0.0007,x,TRK+0.011,z+sd*(PW/2-0.0006),0x9aa1a8); }   // a railing on the outer edge
@@ -473,8 +479,13 @@ function w3dBuild(){
           else { S(0.12,0.0025,0.075,ex,0.00125,ez,0xc9c7c1); S(0.07,0.02,0.035,ex,0.01,ez,glass); S(0.082,0.003,0.045,ex,0.0215,ez,cano); S(0.082,0.004,0.0015,ex,0.0185,ez+0.022,lc); S(0.012,0.012,0.012,ex+0.06,0.03,ez,lc); S(0.0018,0.026,0.0018,ex+0.06,0.013,ez,col);
             spots.push({x:cx+hx*ex+nx*ez,y:cy+hy*ex+ny*ez,hx,hy,len:0.2,half:0.05,h:0.03,g:1}); } plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; }
         B(Lp*0.82,0.0022,span+0.006,0,TRK+0.0405,mid,cano);                                    // canopy
+        B(Lp*0.74,0.0006,Math.max(0.012,span*0.3),0,TRK+0.0418,mid,0x9fc3d9); for(let x=-Lp*0.4;x<=Lp*0.4+1e-6;x+=Lp*0.1) B(0.004,0.003,span+0.01,x,TRK+0.0422,mid,0xcfd4da); for(const e of [-1,1]) B(Lp*0.82,0.004,0.003,0,TRK+0.0405,mid+e*(span/2+0.003),lc);      // a skylight along its ridge, ribs across it, its edges in the line's colour
         // the concourse hangs under the deck, clear of whatever street runs below; stairs come down on the side that is not roadway
-        { const cw=Math.min(span*0.8,0.11); signs.push({m:Gm.clone().multiply(new T.Matrix4().makeTranslation(0,TRK-0.029+dy,mid+cw/2+0.0016)),w:0.17,h:0.012,text:nm(st.name),c:lc}); B(0.34,0.03,cw,0,TRK-0.029,mid,wall); B(0.3,0.016,cw+0.002,0,TRK-0.03,mid,glass); B(0.34,0.002,cw+0.004,0,TRK-0.0455,mid,0xb9b6ae);
+        for(const sd of [-1,1]) signs.push({m:Gm.clone().multiply(new T.Matrix4().makeTranslation(0,TRK+0.0362+dy,(sd<0?lo-PW:hi+PW)+sd*0.0016)).multiply(new T.Matrix4().makeRotationY(sd>0?0:Math.PI)),w:0.2,h:0.0115,text:nm(st.name),c:lc});      // its name along both edges of the canopy
+        if(g[0].y<0.062){ // close to the ground: steps up from a small entrance beside the platforms, no hall beneath
+          const sOk=sd=>[-0.1,0,0.1].every(e=>waterSD(cx+hx*e+nx*(mid+sd*(span/2+0.03)),cy+hy*e+ny*(mid+sd*(span/2+0.03)))>0.03)&&!w3dOnRoad(cx+nx*(mid+sd*(span/2+0.03)),cy+ny*(mid+sd*(span/2+0.03)),0.02), sd=[1,-1].find(sOk);
+          if(sd){ const z=mid+sd*(span/2+0.022); S(0.09,0.02,0.03,0,0.01,z,0xe9e5de); S(0.096,0.003,0.036,0,0.0215,z,cano); S(0.05,0.012,0.0008,0,0.009,z+sd*0.0154,0x55697a); } }
+        else { const cw=Math.min(span*0.8,0.11); signs.push({m:Gm.clone().multiply(new T.Matrix4().makeTranslation(0,TRK-0.029+dy,mid+cw/2+0.0016)),w:0.17,h:0.012,text:nm(st.name),c:lc}); B(0.34,0.03,cw,0,TRK-0.029,mid,wall); B(0.3,0.016,cw+0.002,0,TRK-0.03,mid,glass); B(0.34,0.002,cw+0.004,0,TRK-0.0455,mid,0xb9b6ae);
           const dryS=sd=>[-0.17,-0.12,0.12,0.17].every(e=>waterSD(cx+hx*e+nx*(mid+sd*(cw/2+0.012)),cy+hy*e+ny*(mid+sd*(cw/2+0.012)))>0.03), sideOk=sd=>dryS(sd)&&!w3dOnRoad(cx+nx*(mid+sd*(cw/2+0.03)),cy+ny*(mid+sd*(cw/2+0.03)),0.02), sds=[1,-1].filter(sideOk), use=sds.length?sds:[1,-1].filter(dryS).slice(0,1);
           for(const sd of use) for(const ex of [-0.12,0.12]){ const z=mid+sd*(cw/2+0.012); B(0.05,0.003,0.014,ex,0.0225,z,0xc9c6bf); B(0.05,0.003,0.014,ex+Math.sign(ex)*0.045,0.0075,z,0xc9c6bf); B(0.0025,TRK-0.045,0.0025,ex-Math.sign(ex)*0.02,(TRK-0.045)/2,z,col); B(0.06,0.0012,0.016,ex,TRK-0.047,z,lc); } }
         spots.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp+0.1,half:span/2+0.05,h:g[0].y+0.055}); plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); }
@@ -524,7 +535,7 @@ function w3dTube(pc,hw,h,faces){ const T=w3d.T, n=pc.length, pos=[], uv=[], col=
    are drawn together into parallel tracks side by side, each pair with its own platforms; lines that cross it in
    another direction get a level of their own, a deck higher on viaduct or a storey deeper underground, with ramps
    either side. So an interchange is a set of stacked, parallel platform groups, not tracks crossing in a star. */
-function w3dStationPlan(){ const gap=DECK*2+0.012;
+function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042;      /* at a station the lines of one direction stand further apart: there is an island platform between each pair */
   // stations of different lines that stand right next to each other are one complex: laid out together, so their platforms cannot overlap
   const used=stations.filter(st=>lines.some(L=>L.stops.length>=2&&L._p3&&L._p3.sU&&L.stops.includes(st.id))), par=used.map((_,i)=>i), find=i=>{ while(par[i]!==i) i=par[i]=par[par[i]]; return i; };
   const shares=(a,b)=>lines.some(L=>L.stops.includes(a.id)&&L.stops.includes(b.id));
@@ -537,7 +548,7 @@ function w3dStationPlan(){ const gap=DECK*2+0.012;
     cl.sort((a,b)=>b.m.length-a.m.length); const under=w3dHAt(here[0].P,here[0].u)<0;
     cl.forEach((c,ci)=>{ const ax=c.ax, n=[-ax[1],ax[0]], dY=ci*(under?-0.066:0.07);
       c.m.forEach(o=>{ o.lat=(o.p[0]-cx)*n[0]+(o.p[1]-cy)*n[1]; }); c.m.sort((a,b)=>a.lat-b.lat);
-      c.m.forEach((o,i)=>{ const want=c.m.length>1?(i-(c.m.length-1)/2)*gap:o.lat, P=o.P;
+      c.m.forEach((o,i)=>{ const want=c.m.length>1?(i-(c.m.length-1)/2)*gapS:o.lat, P=o.P;
         for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-o.u); if(du>3.6) continue;
           if(du<1.9){ const w=1-smooth(du,0.75,1.9), q=P.pts[v], t=(q[0]-cx)*ax[0]+(q[1]-cy)*ax[1]; P.pts[v]=[q[0]+(cx+ax[0]*t+n[0]*want-q[0])*w,q[1]+(cy+ax[1]*t+n[1]*want-q[1])*w]; }
           if(dY) P.Y[v]+=dY*(1-smooth(du,1.0,3.6)); } }); }); }
@@ -601,7 +612,7 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
     { const gm=new T.MeshStandardMaterial({color:0x6f7a84,roughness:0.6,metalness:0.3}), cm=new T.MeshStandardMaterial({color:0xb5b1a8,roughness:0.9}); let a0=-1;
       for(let i=0;i<=rl.length;i++){ const up=i<rl.length&&lift[i]>0.0015; if(up&&a0<0) a0=i; if(!up&&a0>=0){ const seg=rl3.slice(Math.max(0,a0-1),i+1), off=Math.max(0,a0-1); if(seg.length>1){ const dk=w3dAdd(new T.Mesh(w3dRibbon(seg,0.04,0,0.012),cm)); dk.castShadow=true; dk.receiveShadow=true; const em=w3dAdd(new T.Mesh(w3dRibbon(seg,0.034,-0.011,0.05),cm)); em.receiveShadow=true;
             for(const sd of [1,-1]) w3dAdd(new T.Mesh(w3dRibbon(offsetPts(seg.map(q=>[q[0],q[1]]),sd*0.041).map((q,k)=>[q[0],q[1],seg[k][2]]),0.0016,0.016,0.03),gm)).castShadow=true; } a0=-1; } }
-      let acc=0; for(let i=1;i<rl.length;i++){ acc+=cum[i]-cum[i-1]; if(acc<0.5||!(waterSD(rl[i][0],rl[i][1])<-0.08)) continue; acc=0; const a=Math.atan2(rl[i][1]-rl[i-1][1],rl[i][0]-rl[i-1][0]), F=frame(rl[i][0],rl[i][1],a); F.B(0.02,lift[i]-W3D_BED,0.09,0,(lift[i]+W3D_BED)/2-0.012,0,0xa9a59c); F.B(0.03,0.006,0.1,0,lift[i]-0.014,0,0xb5b1a8); } }
+      let acc=0; for(let i=1;i<rl.length;i++){ acc+=cum[i]-cum[i-1]; if(acc<0.5||!(waterSD(rl[i][0],rl[i][1])<-0.08)) continue; acc=0; const a=Math.atan2(rl[i][1]-rl[i-1][1],rl[i][0]-rl[i-1][0]), F=frame(rl[i][0],rl[i][1],a); w3d.pierPts.push([rl[i][0],rl[i][1],0]); F.B(0.02,lift[i]-W3D_BED,0.09,0,(lift[i]+W3D_BED)/2-0.012,0,0xa9a59c); F.B(0.03,0.006,0.1,0,lift[i]-0.014,0,0xb5b1a8); } }
     let acc=0; for(let i=1;i<rl.length;i++){ acc+=cum[i]-cum[i-1]; if(acc<0.4||w3dHt(rl[i][0],rl[i][1])>0.02) continue; acc=0; const a=Math.atan2(rl[i][1]-rl[i-1][1],rl[i][0]-rl[i-1][0]), F=frame(rl[i][0],rl[i][1],a), ly=lift[i]; F.B(0.0016,0.05,0.0016,0,0.025+ly,0.034,0x8a9099); F.B(0.0012,0.0012,0.068,0,0.049+ly,0,0x8a9099); }
     // an intercity train: eight long cars, white with a blue band
     const cp=[], CL=0.165; cp.push(w3dBox(CL,0.026,0.02,0,0.016,0,0xf2f3f5),w3dBox(CL*0.99,0.0045,0.0204,0,0.0105,0,0x2f5fb5),w3dBox(CL*0.92,0.007,0.0206,0,0.02,0,0x2a3644),w3dBox(CL*0.96,0.002,0.016,0,0.03,0,0xc4c9cf)); for(const e of [-1,1]) cp.push(w3dBox(0.003,0.014,0.016,e*(CL/2+0.0004),0.018,0,0x1d2530));
@@ -656,10 +667,10 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
     for(let x=-2.9;x<=2.9;x+=0.2) F.B(0.006,0.085,0.004,x,0.072,tz+ts*0.477,0x6f8496); { const DY=0.046, dz=tz+ts*0.84, RL=1.5, sl=Math.atan2(DY,RL), rl=Math.hypot(DY,RL), asph=0x4a4d53, CC=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0xe8c020,0x6c7076];
       // a car: body, glazed cabin, roof, four wheels. along: lying along the front (x) or nose-in (z)
       const car=(lx,y,lz,c,along)=>{ const q=(w,h,d,ox,oy,oz,cc)=>along?F.B(w,h,d,lx+ox,y+oy,lz+oz,cc):F.B(d,h,w,lx+oz,y+oy,lz+ox,cc); q(0.027,0.0048,0.0118,0,0.0042,0,c); q(0.015,0.0038,0.0106,-0.0015,0.0084,0,0x26303a); q(0.0135,0.0008,0.0098,-0.0015,0.0106,0,c); for(const ex of [-0.0085,0.0085]) for(const ez of [-0.0052,0.0052]) q(0.0048,0.0036,0.0018,ex,0.0018,ez,0x15171a); };
-      F.B(5.9,0.006,0.2,0,DY-0.003,dz,0xb9b6ae); F.B(5.9,0.0006,0.17,0,DY+0.0004,dz,asph); for(const e of [-1,1]) F.B(5.9,0.008,0.004,0,DY+0.004,dz+e*0.1,0xd6d3cc); for(let x=-2.8;x<=2.8;x+=0.35) for(const e of [-1,1]) F.B(0.01,DY-0.006,0.01,x,(DY-0.006)/2,dz+e*0.085,0xa9a59c);      // the departures deck on its columns
+      F.B(5.9,0.006,0.24,0,DY-0.003,dz,0xb9b6ae); F.B(5.9,0.0006,0.2,0,DY+0.0004,dz,asph); for(const e of [-1,1]) F.B(5.9,0.008,0.004,0,DY+0.004,dz+e*0.118,0xd6d3cc); for(let x=-2.8;x<=2.8;x+=0.35) for(const e of [-1,1]) F.B(0.01,DY-0.006,0.01,x,(DY-0.006)/2,dz+e*0.108,0xa9a59c);      // the departures deck on its columns
       for(const e of [-1,1]){ F.R(rl,0.006,0.2,e*(2.95+RL/2),DY/2-0.003,dz,0xb9b6ae,new T.Matrix4().makeRotationZ(-e*sl)); F.R(rl,0.0006,0.17,e*(2.95+RL/2),DY/2+0.0006,dz,asph,new T.Matrix4().makeRotationZ(-e*sl)); for(const f of [0.3,0.6]) F.B(0.01,DY*f,0.16,e*(2.95+RL*(1-f)),DY*f/2-0.003,dz,0xa9a59c); }      // the ramps up to it
       // everything laid on the ground here has its own height, well clear of the ground and of each other, and none of it overlaps: nothing to flicker
-      F.B(8.9,0.004,0.2,0,0.002,dz,asph); F.B(5.6,0.006,0.03,0,0.003,dz-ts*0.115,0xd9d6cf);                                               // arrivals at ground level beneath, with its kerb
+      F.B(8.9,0.004,0.18,0,0.002,dz,asph); F.B(5.6,0.006,0.03,0,0.003,dz-ts*0.135,0xd9d6cf);                                               // arrivals at ground level beneath, with its kerb
       F.B(5.9,0.004,0.08,0,0.002,tz+ts*0.7,0xcfc8b8);                                                                                       // the pavement between the doors and the kerb
       for(let x=-2.6;x<=2.6;x+=0.65){ car(x,DY+0.0007,dz+ts*0.03,CC[(Math.round(x*10)&7)%7],true); car(x+0.2,0.004,dz-ts*0.03,CC[(Math.round(x*7)&7)%7],true); }      // cars setting down and picking up
       F.B(5.9,0.003,0.26,0,0.118,dz,0xe9ecef); for(let x=-2.8;x<=2.8;x+=0.7) F.B(0.008,0.118-DY,0.008,x,DY+(0.118-DY)/2,dz+ts*0.11,0xa9b0b9);     // the canopy over the departures kerb
@@ -852,13 +863,13 @@ function w3dRoadMesh(cx,cy,R){
   for(const e of es){ const [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; let s0=-1, s1=-1; const n=Math.max(2,Math.ceil(l/0.08)); for(let k=0;k<=n;k++){ const t=k/n; if(waterSD(ax+(bx-ax)*t,az+(bz-az)*t)<0.03){ if(s0<0) s0=t*l; s1=t*l; } } if(s0>=0) wetI.set(e,[s0,s1]); }
   const own=(e,sd)=>{ const w=wetI.get(e); if(!w) return 0; const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; return W3D_BR*(1-smooth(d,0,RAMP)); };
   for(const [n,o] of nodes) o.y=0; for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); na.y=Math.max(na.y,own(e,0)); nb.y=Math.max(nb.y,own(e,l)); }
-  const lifts=w3d.rLift=new Map();
+  const lifts=w3d.rLift=new Map(), pierL=w3d.pierPts2=[];
   for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e); if(up) lifts.set(e,lf);
     if(c<4) quad(0,ax,az,bx,bz,hwP(c),PAVE,0,0,0,up&&fn); else quad(0,ax,az,bx,bz,hwP(c),0x8d9096,0,0,0,up&&fn); quad(1,ax,az,bx,bz,hwA(c),ASPH[c],0,0,0,up&&fn);
     if(up){ const w=hwP(c), P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const sd=l*k/n, x=ax+dx*sd, z=az+dz*sd, y=lf(sd); P2.push([x,z,TRK+y+w3dHt(x,z)]); }
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
       // piers in the water, abutments where the deck leaves the bank
-      for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
+      for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; { let blocked=false; for(const o of [-w*0.7,0,w*0.7]){ const h=rnNearEdge(Rn,x-dz*o,z+dx*o,0.3); if(h&&h.e!==e&&h.d<ROAD_W[Rn.ec[h.e]]/2+0.01&&!wetI.has(h.e)){ blocked=true; break; } } if(blocked) continue; } pierL.push([x,z,0]); const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
     if(c<1) continue; const da=Rn.adj[a].length, db=Rn.adj[b].length, zeb=c>=2&&c<4, ta=da>=3?nodes.get(a).a+(zeb?0.026:0.006):0, tb=db>=3?nodes.get(b).a+(zeb?0.026:0.006):0; if(l-ta-tb<0.03) continue;
     const seg=(s0,s1,hw,cc,lat)=>quad(2,ax+dx*s0,az+dz*s0,ax+dx*s1,az+dz*s1,hw,cc,lat,0,0,up&&(t=>lf(s0+(s1-s0)*t))), dash=(lat,cc)=>{ for(let q=ta;q<l-tb-0.02;q+=0.07) seg(q,Math.min(q+0.03,l-tb),0.0011,cc,lat); };
     if(c===1) seg(ta,l-tb,0.0009,0xbfc1c4,0); else if(c===2) dash(0,0xe6e6e6); else { seg(ta,l-tb,0.001,0xe3c04a,0.0018); seg(ta,l-tb,0.001,0xe3c04a,-0.0018); dash(hwA(c)*0.5,0xe6e6e6); dash(-hwA(c)*0.5,0xe6e6e6); if(c===4){ seg(ta,l-tb,0.001,0xe6e6e6,hwA(c)-0.004); seg(ta,l-tb,0.001,0xe6e6e6,-hwA(c)+0.004); } }
@@ -954,12 +965,12 @@ function w3dFeatures(cx,cy,R,addTree,spires){
   return out; }
 /* Boats: sailing boats and ferries on the open water, barges and launches on the rivers. Where a boat is depends only
    on its place and the time of day, so they are the same boats, in the same places, however the viewer got there. */
-function w3dBoats(cx,cy,add){ const T=w3d.T, R=18, K=[[],[],[]];
+function w3dBoats(cx,cy,add){ const T=w3d.T, R=18, K=[[],[],[]], PP=[...(w3d.pierPts||[]),...(w3d.pierPts2||[])].filter(q=>Math.abs(q[0]-cx)<R+4&&Math.abs(q[1]-cy)<R+4), pierAt=(x,y)=>{ for(const q of PP) if(Math.abs(q[0]-x)<0.09&&Math.abs(q[1]-y)<0.09) return true; return false; };      /* no boat's course passes within a boat's length of a pier */
   for(let y=Math.floor(cy-R);y<=cy+R;y++) for(let x=Math.floor(cx-R);x<=cx+R;x++){ if(x<2||y<2||x>=W-2||y>=H-2) continue; const wv=G.water[y*W+x]; if(!wv) continue; const riv=wv===2, h=hashInt(x*7349+y*9151+G.seed*31); if((h&255)>(riv?56:26)) continue;
     const px=x+((h>>8)&255)/255-0.5, py=y+((h>>16)&255)/255-0.5, side=riv?0.14:0.6; if(waterSD(px,py)>-0.1) continue; let dx, dy;
     if(riv){ const gx=bilinear(G.rivSD,px+0.25,py)-bilinear(G.rivSD,px-0.25,py), gy=bilinear(G.rivSD,px,py+0.25)-bilinear(G.rivSD,px,py-0.25), l=Math.hypot(gx,gy); if(l<1e-4) continue; dx=-gy/l; dy=gx/l; } else { const an=((h>>20)&255)/255*6.283; dx=Math.cos(an); dy=Math.sin(an); }
     // how far it can go each way and stay in deep water
-    const open=t=>{ const qx=px+dx*t, qy=py+dy*t; return waterSD(qx,qy)<-0.1&&waterSD(qx-dy*side,qy+dx*side)<-0.02&&waterSD(qx+dy*side,qy-dx*side)<-0.02; }; if(!open(0)) continue;
+    const open=t=>{ const qx=px+dx*t, qy=py+dy*t; return !pierAt(qx,qy)&&waterSD(qx,qy)<-0.1&&waterSD(qx-dy*side,qy+dx*side)<-0.02&&waterSD(qx+dy*side,qy-dx*side)<-0.02; }; if(!open(0)) continue;
     let t0=0, t1=0; while(t1<3&&open(t1+0.25)) t1+=0.25; while(t0>-3&&open(t0-0.25)) t0-=0.25; t1-=0.2; t0+=0.2; if(t1-t0<0.5) continue;
     const kind=riv?((h>>28)&1?2:1):((h>>28)&3)===0?1:0; K[kind].push({x:px+dx*(t0+t1)/2,y:py+dy*(t0+t1)/2,dx,dy,amp:(t1-t0)/2,ph:(h>>4)&1023,w:(kind===0?0.05:kind===1?0.09:0.045)/((t1-t0)/2)}); }
   const mats=new T.MeshStandardMaterial({vertexColors:true,roughness:0.55,metalness:0.05}), cone=(r,h2,sx,sz,x,y,z,c)=>({g:new T.ConeGeometry(r,h2,4),m:new T.Matrix4().makeTranslation(x,y,z).multiply(new T.Matrix4().makeScale(sx,1,sz)),c});

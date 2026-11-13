@@ -3,7 +3,7 @@
    Each rule is enforced where the thing is made; this is the proof, run on several cities before a change goes out.
    __mc.dbg.audit() in the console; every count should be 0. (The 3D counts need the 3D view to have been opened.) */
 function auditWorld(fresh){ const fz=bldFreeze; if(fresh){ bldFreeze=false; bldBump(); } try{ return auditWorld_(); } finally { bldFreeze=fz; } }
-function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,roadKeep:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,stSlope:0,stAirfield:0}, ex={};
+function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,roadKeep:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,pierRoad:0,stSlope:0,stAirfield:0}, ex={};
   const bad=(k,o)=>{ r[k]++; const e=ex[k]||(ex[k]=[]); if(e.length<4) e.push(o.map(v=>typeof v==='number'?+v.toFixed(2):v)); };
   for(const st of stations) if(waterSD(st.x,st.y)<0.2) bad('stWet',[st.x,st.y]);
   for(const f of [G.fac.station,G.fac.coach,...(G.fac2||[]).filter(f=>f.t!=='air')]) if(waterSD(f.x,f.y)<0) bad('facWet',[f.t||'main',f.x,f.y]);
@@ -23,6 +23,7 @@ function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,
     for(const c of w3dCrossings()){ if(c.par>0.94) continue; const ya=w3dHAt(c.A,c.ua), yb=w3dHAt(c.B,c.ub); if(Math.abs(ya-yb)<0.05) bad('lineClash',[c.x,c.y,ya,yb]); }
     for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; let run=false; for(let v=0;v<P.pts.length;v++){ const w=P.Y[v]>-0.055&&P.Y[v]<0.028&&waterSD(P.pts[v][0],P.pts[v][1])<0; if(w&&!run) bad('lineWet',[P.pts[v][0],P.pts[v][1],P.Y[v]]); run=w; } }
     for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2||!P.sU) continue; for(const u of P.sU){ const y=w3dHAt(P,u); if(Math.abs(w3dHAt(P,u-0.38)-y)>0.004||Math.abs(w3dHAt(P,u+0.38)-y)>0.004) bad('stSlope',[...polyAt(P.pts,P.cum,u),y,w3dHAt(P,u-0.38),w3dHAt(P,u+0.38)]); } }
+    for(const q of (w3d.pierPts||[])) if(q[2]&&w3dOnRoad(q[0],q[1],0.006)) bad('pierRoad',[q[0],q[1]]);
     for(const st of stations){ if(G.air&&(G.air[Math.round(st.y)*W+Math.round(st.x)]&1)&&w3d.stY&&w3d.stY.get(st.id)>-0.03) bad('stAirfield',[st.x,st.y]); } }
   else r.note='3D not built: spot/plat/line counts not checked';
   r.total=Object.values(r).reduce((a,v)=>a+(typeof v==='number'?v:0),0); r.ex=ex; return r; }
