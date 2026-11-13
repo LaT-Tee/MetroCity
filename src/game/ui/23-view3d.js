@@ -89,6 +89,7 @@ function w3dTextures(){ const T=w3d.T; if(w3d.facadeTex) return;
 function w3dNormalOf(tx,k){ const T=w3d.T, c=tx.image, w=c.width, h=c.height, src=c.getContext('2d').getImageData(0,0,w,h).data, o=document.createElement('canvas'); o.width=w; o.height=h; const g=o.getContext('2d'), id=g.createImageData(w,h), L=(x,y)=>{ const i=(((y+h)%h)*w+((x+w)%w))*4; return (src[i]*0.3+src[i+1]*0.59+src[i+2]*0.11)/255; };
   for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const dx=(L(x+1,y)-L(x-1,y))*k, dy=(L(x,y+1)-L(x,y-1))*k, l=Math.hypot(dx,dy,1), i=(y*w+x)*4; id.data[i]=(-dx/l*0.5+0.5)*255; id.data[i+1]=(dy/l*0.5+0.5)*255; id.data[i+2]=(1/l*0.5+0.5)*255; id.data[i+3]=255; }
   g.putImageData(id,0,0); const n=new T.CanvasTexture(o); n.wrapS=n.wrapT=T.RepeatWrapping; n.anisotropy=8; return n; }
+const W3D_NIGHT={value:0};
 function w3dFacadeMat(map,opt){ const T=w3d.T, m=new T.MeshStandardMaterial({map,normalMap:w3dNormalOf(map,2.2),normalScale:new T.Vector2(0.7,0.7),...opt});
   m.onBeforeCompile=sh=>{ sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 aRep;\nvarying float vFootY;').replace('#include <begin_vertex>','#include <begin_vertex>\n\t#ifdef USE_INSTANCING\n\tvFootY=(instanceMatrix*vec4(position,1.0)).y;\n\t#else\n\tvFootY=1.0;\n\t#endif').replace('#include <uv_vertex>',`#include <uv_vertex>
     vec2 rep = abs(normal.x)>0.5 ? aRep.zy : (abs(normal.y)>0.5 ? vec2(0.0) : aRep.xy);
@@ -100,8 +101,16 @@ function w3dFacadeMat(map,opt){ const T=w3d.T, m=new T.MeshStandardMaterial({map
     #endif
 `); };
   // (above) walls darken towards the ground, as they do where the sky is hidden by the street: the cheapest thing that makes a box stand on its site
-  { const prev=m.onBeforeCompile; m.onBeforeCompile=sh=>{ prev(sh); sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vFootY;').replace('#include <color_fragment>','#include <color_fragment>\n\tdiffuseColor.rgb*=mix(0.62,1.0,smoothstep(0.0,0.05,vFootY));'); }; }
-  m.customProgramCacheKey=()=>'facade3'; return m; }
+  { const prev=m.onBeforeCompile; m.onBeforeCompile=sh=>{ prev(sh); sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vFootY;').replace('#include <color_fragment>','#include <color_fragment>\n\tdiffuseColor.rgb*=mix(0.62,1.0,smoothstep(0.0,0.05,vFootY));').replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+    // at night the windows light up: the glass in the facade (bluish and darker than the walls), some bays lit and some not
+    if(uNight>0.01){ vec3 cc=diffuseColor.rgb; float glass=step(cc.r+0.02,cc.b)*step(dot(cc,vec3(0.33)),0.62);
+      #ifdef USE_MAP
+      vec2 bay=floor(vMapUv);
+      #else
+      vec2 bay=vec2(0.0);
+      #endif
+      float rr=fract(sin(dot(bay,vec2(12.9898,78.233)))*43758.5453), on=step(0.58,rr)*(0.55+0.45*fract(rr*7.31)); totalEmissiveRadiance+=vec3(1.0,0.72,0.4)*glass*on*smoothstep(0.55,1.0,uNight)*1.5; }`).replace('#include <common>','#include <common>\nuniform float uNight;'); sh.uniforms.uNight=W3D_NIGHT; }; }
+  m.customProgramCacheKey=()=>'facade4'; return m; }
 // ---- buildings: a handful of facade kinds, each one material shared by every building of that kind
 const W3D_HOUSE=[0xf3eee4,0xeae3d6,0xdcd6cc,0xefe4cf,0xe1e5e8,0xd9cdbd,0xc9d2d6,0xf0e2d8];
 const W3D_ROOF=[0x9a4a36,0x7d4436,0x5a6068,0x4a5463,0x6b5a4e,0x3f4a57,0x8c8a86,0x6e3b33];
@@ -349,9 +358,9 @@ function w3dBuild(){
   w3d.S.environment=w3d.env;
   // the sky itself: a dome that travels with the camera, blue deepening overhead, haze at the horizon, a glow round the sun
   // and clouds drifting on the wind (a few layers of soft noise, flattened towards the horizon)
-  if(!w3d.sky){ const sm=new T.ShaderMaterial({side:T.BackSide,depthWrite:false,depthTest:false,fog:false,uniforms:{uT:{value:0},uSun:{value:new T.Vector3(-8,14,10).normalize()}},
+  if(!w3d.sky){ const sm=new T.ShaderMaterial({side:T.BackSide,depthWrite:false,depthTest:false,fog:false,uniforms:{uT:{value:0},uSun:{value:new T.Vector3(-8,14,10).normalize()},uNight:W3D_NIGHT},
       vertexShader:'varying vec3 vD; void main(){ vD=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-      fragmentShader:`varying vec3 vD; uniform float uT; uniform vec3 uSun;
+      fragmentShader:`varying vec3 vD; uniform float uT; uniform vec3 uSun; uniform float uNight;
         float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
         float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y); }
         float fbm(vec2 p){ float a=0.5, s=0.0; for(int i=0;i<5;i++){ s+=a*n2(p); p=p*2.03+vec2(17.0,9.0); a*=0.5; } return s; }
@@ -361,6 +370,10 @@ function w3dBuild(){
           if(d.y>0.012){ vec2 uv=d.xz/(d.y+0.18)*1.5+vec2(uT*0.008,uT*0.003); float c=fbm(uv), c2=fbm(uv*2.3+vec2(4.0,-uT*0.006));
             float cov=smoothstep(0.50,0.72,c*0.75+c2*0.25), lit=0.82+0.18*smoothstep(0.45,0.8,fbm(uv+uSun.xz*0.25));
             col=mix(col,vec3(1.0,0.99,0.97)*lit,cov*smoothstep(0.012,0.14,d.y)*0.92); }
+          // dusk and night: the sky goes to a deep blue with an afterglow low down, then stars
+          float nn=uNight; vec3 dusk=mix(vec3(0.98,0.56,0.32),vec3(0.16,0.2,0.42),smoothstep(0.0,0.35,y)); col=mix(col,dusk,smoothstep(0.0,0.45,nn)*(1.0-smoothstep(0.55,1.0,nn)));
+          col=mix(col,mix(vec3(0.07,0.09,0.18),vec3(0.015,0.02,0.05),pow(y,0.5)),smoothstep(0.45,1.0,nn));
+          if(nn>0.5&&d.y>0.05){ vec2 sp=floor(d.xz/(d.y+0.3)*260.0); float st=step(0.9975,h2(sp)); col+=vec3(st)*smoothstep(0.6,1.0,nn)*0.9; }
           gl_FragColor=vec4(col,1.0); }`});
     w3d.sky=new T.Mesh(new T.SphereGeometry(55,32,16),sm); w3d.sky.renderOrder=-1000; w3d.sky.frustumCulled=false; w3d.sky.userData.keepSky=true; }
   if(!w3d.sky.parent) w3d.S.add(w3d.sky);
@@ -874,7 +887,7 @@ function w3dRoadMesh(cx,cy,R){
      water, on a ramp either side, with piers standing in the bed. The rise is worked out along each street: the stretch
      over the water is at full height, and it falls away over RAMP cells beyond; junctions pass the height on to the
      streets that meet there, so a ramp can run on into the next street. */
-  const br=[], BRC=0xbdb9b1, RAMP=0.95, wetI=new Map(), geo=e=>{ const a=Rn.ea[e], b=Rn.eb[e]; return [Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],Math.hypot(Rn.x[b]-Rn.x[a],Rn.y[b]-Rn.y[a])]; };
+  const lamps=[], br=[], BRC=0xbdb9b1, RAMP=0.95, wetI=new Map(), geo=e=>{ const a=Rn.ea[e], b=Rn.eb[e]; return [Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],Math.hypot(Rn.x[b]-Rn.x[a],Rn.y[b]-Rn.y[a])]; };
   for(const e of es){ const [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; let s0=-1, s1=-1; const n=Math.max(2,Math.ceil(l/0.08)); for(let k=0;k<=n;k++){ const t=k/n; if(waterSD(ax+(bx-ax)*t,az+(bz-az)*t)<0.03){ if(s0<0) s0=t*l; s1=t*l; } } if(s0>=0) wetI.set(e,[s0,s1]); }
   const own=(e,sd)=>{ const w=wetI.get(e); if(!w) return 0; const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; return W3D_BR*(1-smooth(d,0,RAMP)); };
   for(const [n,o] of nodes) o.y=0; for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); na.y=Math.max(na.y,own(e,0)); nb.y=Math.max(nb.y,own(e,l)); }
@@ -885,6 +898,7 @@ function w3dRoadMesh(cx,cy,R){
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
       // piers in the water, abutments where the deck leaves the bank
       for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; { let blocked=false; for(const o of [-w*0.7,0,w*0.7]){ const h=rnNearEdge(Rn,x-dz*o,z+dx*o,0.3); if(h&&h.e!==e&&h.d<ROAD_W[Rn.ec[h.e]]/2+0.01&&!wetI.has(h.e)){ blocked=true; break; } } if(blocked) continue; } pierL.push([x,z,0]); const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
+    if(c>=2&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7) for(let sd=0.15;sd<l-0.1;sd+=0.32){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=Math.round(sd/0.32)&1?1:-1; lamps.push([x-dz*o*k,z+dx*o*k,Math.atan2(dz,dx)+(k>0?Math.PI/2:-Math.PI/2)]); }
     if(c<1) continue; const da=Rn.adj[a].length, db=Rn.adj[b].length, zeb=c>=2&&c<4, ta=da>=3?nodes.get(a).a+(zeb?0.026:0.006):0, tb=db>=3?nodes.get(b).a+(zeb?0.026:0.006):0; if(l-ta-tb<0.03) continue;
     const seg=(s0,s1,hw,cc,lat)=>quad(2,ax+dx*s0,az+dz*s0,ax+dx*s1,az+dz*s1,hw,cc,lat,0,0,up&&(t=>lf(s0+(s1-s0)*t))), dash=(lat,cc)=>{ for(let q=ta;q<l-tb-0.02;q+=0.07) seg(q,Math.min(q+0.03,l-tb),0.0011,cc,lat); };
     if(c===1) seg(ta,l-tb,0.0009,0xbfc1c4,0); else if(c===2) dash(0,0xe6e6e6); else { seg(ta,l-tb,0.001,0xe3c04a,0.0018); seg(ta,l-tb,0.001,0xe3c04a,-0.0018); dash(hwA(c)*0.5,0xe6e6e6); dash(-hwA(c)*0.5,0xe6e6e6); if(c===4){ seg(ta,l-tb,0.001,0xe6e6e6,hwA(c)-0.004); seg(ta,l-tb,0.001,0xe6e6e6,-hwA(c)+0.004); } }
@@ -893,8 +907,12 @@ function w3dRoadMesh(cx,cy,R){
     if(o.c<4) disc(0,x,z,o.p*head,PAVE,o.y); disc(1,x,z,o.a*head,ASPH[o.c],o.y); }
   const pos=[].concat(Ls[0],Ls[1],Ls[2]), cl=[].concat(Cs[0],Cs[1],Cs[2]), nor=new Float32Array(pos.length); for(let i=1;i<nor.length;i+=3) nor[i]=1;
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('normal',new T.Float32BufferAttribute(nor,3)); g.setAttribute('color',new T.Float32BufferAttribute(cl,3));
-  const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true; if(!br.length) return [m];
-  const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; return [bm,m]; }
+  const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true;
+  const out=[m]; if(br.length){ const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; out.unshift(bm); }
+  if(lamps.length){ const pg=w3dMerge([w3dBox(0.0012,0.032,0.0012,0,0.016,0,0x5a6068),w3dBox(0.012,0.0012,0.0012,0.006,0.0315,0,0x5a6068)]), hg=new T.BoxGeometry(0.006,0.0016,0.003); hg.translate(0.011,0.0305,0);
+    const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
+    lm.userData.keep=true; lamps.forEach((q,i)=>{ Q.setFromAxisAngle(up,-q[2]); M.compose(V.set(q[0],w3dHt(q[0],q[1]),q[1]),Q,one); pm.setMatrixAt(i,M); hm.setMatrixAt(i,M); }); pm.castShadow=true; out.push(pm,hm); }
+  return out; }
 const w3dCarGeo=()=>w3dMerge([w3dBox(0.028,0.0052,0.012,0,0.0046,0,0xffffff),w3dBox(0.0155,0.004,0.0108,-0.0018,0.0092,0,0x26303a),w3dBox(0.014,0.0009,0.01,-0.0018,0.0116,0,0xffffff),w3dBox(0.0012,0.0016,0.0102,0.0138,0.0052,0,0xfff3c4),w3dBox(0.0012,0.0016,0.0102,-0.0138,0.0052,0,0xb3261e),...[-0.0088,0.0088].flatMap(x=>[-0.0054,0.0054].map(z=>w3dBox(0.005,0.0038,0.0018,x,0.0019,z,0x15171a)))]);
 // What stands in the parks, squares, playgrounds, pitches, car parks and churchyards near the viewer. Everything is
 // placed from the plot's own number, so a place looks the same every time it is passed.
@@ -1100,6 +1118,10 @@ function w3dTap(cx,cy){ const r=w3d.R.domElement.getBoundingClientRect(), T=w3d.
   for(const tr of (w3d.trains||[])){ if(!tr.L._p3) continue; for(let k=0;k<tr.n;k++){ const p=w3dTrainPos(tr,k); v.set(p.x,w3dHAt(tr.L._p3,p.u)+0.015,p.y).project(w3d.cam3); if(v.z>1) continue; const sx=(v.x+1)/2*r.width+r.left, sy=(1-v.y)/2*r.height+r.top, d=Math.hypot(sx-cx,sy-cy); if(d<bd){ bd=d; best={L:tr.L,p}; } } }
   if(best){ const L=best.L, sc=stopCum(L), u=best.p.f*sc[sc.length-1]; let k0=0; if(best.p.dir>0){ for(let j=0;j<sc.length;j++) if(sc[j]<=u) k0=j; } else { k0=sc.length-1; for(let j=sc.length-1;j>=0;j--) if(sc[j]>=u) k0=j; }
     const s=pickTrain(L,Math.min(k0,L.stops.length-1),best.p.dir); if(s){ watch.subj=s; watch.user=0; renderWatchBar(); } } }
+  // the time of day: morning, noon, a long golden evening, night, dawn. Only the light changes, never what is there.
+function w3dTod(dt){ w3d.tod=w3d.todFix!=null?w3d.todFix:((w3d.tod==null?0.12:w3d.tod)+dt/360)%1; const td=w3d.tod, n=td<0.55?0:td<0.68?smooth(td,0.55,0.68):td<0.9?1:1-smooth(td,0.9,0.98); W3D_NIGHT.value=n;
+    const gold=smooth(td,0.45,0.6)*(1-smooth(td,0.62,0.7)); w3d.sun.intensity=2.9*(1-n*0.92); w3d.sun.color.setRGB(1,0.94-gold*0.25,0.85-gold*0.45); w3d.hemi.intensity=0.42*(1-n*0.8); w3d.hemi.color.setRGB(0.87-n*0.6,0.91-n*0.55,0.96-n*0.35);
+    w3d.R.toneMappingExposure=0.95*(1-n*0.62); if(w3d.S.fog) w3d.S.fog.color.setRGB(0.87-n*0.8+gold*0.08,0.91-n*0.83-gold*0.05,0.93-n*0.78-gold*0.12); if(w3d.lampM) w3d.lampM.emissiveIntensity=n*3; if(w3d.watM) w3d.watM.envMapIntensity=1.5*(1-n*0.8); }
 function w3dFrame(dt){
   if(!w3d.active||!w3d.ready) return; bldFreeze=true; w3d.seeDt=dt; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
@@ -1113,7 +1135,7 @@ function w3dFrame(dt){
   if(w3d.gj&&!w3d.lj&&w3dRun(w3d.gj,4)) w3d.gj=null;
   for(const tr of (w3d.trains||[])){ if(!tr.L._p3) continue; for(let k=0;k<tr.n;k++){ const p=w3dTrainPos(tr,k); w3dSetCars(tr.m,k*W3D_CARS,tr.L,p.u,p.dir); } tr.m.instanceMatrix.needsUpdate=true; }
   if(w3d.look){ const q=w3d.look; w3d.vp=[q.x,q.z]; w3dLocal(q.x,q.z); w3d.cam3.position.set(q.x+Math.cos(q.az)*q.d,q.h,q.z+Math.sin(q.az)*q.d); w3d.cam3.lookAt(q.x,q.ty||0.03,q.z); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; } if(w3d.watM) w3d.watM.userData.uT.value=performance.now()/1000%4000;
-    w3d.sun.target.position.set(q.x,0,q.z); w3d.sun.position.set(q.x-8,14,q.z+10); R.shadowMap.needsUpdate=true; R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }      /* a fixed look at a place (debugging) */
+    w3dTod(0); w3d.sun.target.position.set(q.x,0,q.z); w3d.sun.position.set(q.x-8,14,q.z+10); R.shadowMap.needsUpdate=true; R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }      /* a fixed look at a place (debugging) */
   if(!st){ R.render(w3d.S,w3d.cam3); w3dEmpty(); return; }
   const P3=st.L&&st.L._p3, ru=P3?w3dRideU(st):null; let x, z, u3, hx=st.hx, hz=st.hy, sg=1;
   if(ru){ u3=ru.u; sg=ru.sg; w3d.lastSg=sg; const p=polyAt(P3.pts,P3.cum,u3), h=polyHead(P3.pts,P3.cum,u3,0.08); x=p[0]; z=p[1]; hx=h[0]*sg; hz=h[1]*sg; }
@@ -1171,6 +1193,7 @@ function w3dFrame(dt){
   w3d.cam3.position.set(...w3d.camPos); w3d.cam3.lookAt(...w3d.camTgt); if(!seat&&w3d.cc&&w3d.cc.roll) w3d.cam3.rotateZ(-w3d.cc.roll); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; } if(w3d.watM) w3d.watM.userData.uT.value=performance.now()/1000%4000;
   // how strongly the underground shows through (see w3dRender): on while the watched train is below ground and seen from outside, fading in and out
   { w3d.seeOn=!seat&&!!P3&&(inHill||(yT<0?true:yT>0.03?false:!!w3d.seeOn)); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1); w3d.seeAt=P3?[x,yT,z,u3,sg,P3,len3]:null; }
+  w3dTod(dt);
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;
