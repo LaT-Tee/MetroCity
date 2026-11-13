@@ -51,12 +51,7 @@ function analyze(){
     for(const f of cand){ if(picked.length>=3) break; if([...out,...picked].some(o=>(o.type==='corr'||o.type==='slow')&&dist(o.x,o.y,f.x,f.y)<14&&dist(o.x2,o.y2,f.x2,f.y2)<14)) continue;
       picked.push({type:'slow',x:f.x,y:f.y,x2:f.x2,y2:f.y2,people:f.people,avg:f.tt,why:f.idealMetro>=Math.min(lim,f.tt*0.85)?'rapid':f.metro==null?'none':f.metro>f.car*0.9?'detour':'weak'}); }
     out.push(...picked); }
-  // 6. long, busy lines where people ride far: an express would help
-  if(sim){ const avgR=built.reduce((s,L)=>s+(sim.lineRide[L.id]||0),0)/Math.max(1,built.length);
-    for(const L of built){ const nx=(L.svc||0)+1; if(L.loop||isRapid(L)||nx>3||L.stops.length<SVC_MIN[nx]) continue; ensurePaths(L);
-      const seg=L.paths.map(p=>plen(p)/METRO_V), t0=seg.reduce((a,b)=>a+b,0)+(L.stops.length-1)*DWELL, r=sim.lineRide[L.id]||0;
-      if(t0<20+nx*4||r<avgR*0.6) continue; const pts=linePathPts(L), m=pts[Math.floor(pts.length*0.6)];
-      out.push({type:'exp',line:L.id,x:m[0],y:m[1],mins:t0,people:r*0.5,next:nx}); } }
+  // 6. (faster trains on a long, busy line are no longer suggested: the operator starts them by itself, see autoOps)
   // 7. stations carrying more than they comfortably can
   if(sim){ for(const st of stations){ const b=sim.stBoard[st.id]||0; if(b>3.5e5) out.push({type:'busy',x:st.x,y:st.y,st:st.id,people:b}); } }
   // order: interchanges first (cheapest fix), then the biggest groups of people
