@@ -11,7 +11,7 @@ function newCity(seed,saved){ bldCache=new Map(); bldVer++;
     stations.forEach(s=>{ if(!s.name||typeof s.name==='string'||s.name.r) s.name=nameStation(s.x,s.y); });
     lines.forEach((L,i)=>{ if(L.ci==null) L.ci=(L.num-1)%LINE_COLORS.length; ensurePaths(L); });
     if(G.dRestored){ relocate(0.7); growth.lastBaseD=Float32Array.from(G.D); } else if(activeLineCount()){ sim=runSim(); for(let k=0;k<40;k++){ growthTick(); relocate(0.03); } growth.active=true; } }
-  if(!G.rn) rnBuild(); else rnPruneAir();
+  if(!G.rn) rnBuild(); else { rnPruneAir(); facAccess(); }
   sim=runSim(); baseline=baseline||{avg:0,jam:1};
   petition=saved&&saved.pet&&saved.pet.p||null; petLog=saved&&saved.pet&&saved.pet.log||{won:0,lost:0,last:-9,past:[]}; petNetSeen=-1; petCard(); assistKeep=saved&&saved.ask||null;
   renderBase(); buildPaths(); fit(); netVersion++; geomKey='';

@@ -191,7 +191,7 @@ function rnBuild(){
   const R=rnNew(); G.rn=R; const rand=mulberry32(G.seed*53+7);
   for(const p of G.highways) rnPolyline(R,p,4); for(const p of G.arterials) rnPolyline(R,p,3); for(const p of (G.locals||[])) rnPolyline(R,p,1);
   for(const r of G.extraRoads) rnPolyline(R,r.p,r.c==='hwy'?4:r.c==='art'?3:1); G.extraRoads=[];
-  rnBridges(R,rand); rnFill(R,rand); rnJoinEnds(R); R.et.fill(-99); R.ver++; rnTrim(R); return G.rn;
+  rnBridges(R,rand); rnFill(R,rand); rnJoinEnds(R); R.et.fill(-99); R.ver++; rnTrim(R); facAccess(); return G.rn;
 }
 function rnFill(R,rand){ for(let round=0;round<16;round++){ updateRoadAccess(); const a=rnGrow(R,5000,rand); if(a<40) break; } rnTraffic(R,700,rand); rnWiden(R); rnTidy(R); }
 // compact save: node coords ×10 and edge endpoints as 16-bit, classes as bytes

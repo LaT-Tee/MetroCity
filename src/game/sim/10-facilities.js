@@ -45,6 +45,16 @@ function coachSite(co){ const C=G._sites||(G._sites=new Map()), key='c'+co.x+','
 function projSite(p){ if(p.px!=null) return p; let px=p.x, pz=p.y; const okAt=(x,z)=>{ for(const [ox,oz] of [[0,0],[0.3,0.3],[-0.3,0.3],[0.3,-0.3],[-0.3,-0.3]]){ if(waterSD(x+ox,z+oz)<0.08) return false; if(G.rn){ const h=rnNearEdge(G.rn,x+ox,z+oz,0.2); if(h&&h.d<ROAD_W[G.rn.ec[h.e]]/2+0.02) return false; } } for(let i=0;i<G.rail.length;i+=2) if(dist(G.rail[i][0],G.rail[i][1],x,z)<0.6) return false; return !(G.air&&G.air[clamp(Math.round(z),0,H-1)*W+clamp(Math.round(x),0,W-1)]); };
   let got=okAt(px,pz); for(let r=0.2;r<=1.6&&!got;r+=0.2) for(let k=0;k<10;k++){ const an=k*0.6283+r, x=p.x+Math.cos(an)*r, z=p.y+Math.sin(an)*r; if(okAt(x,z)){ px=x; pz=z; got=true; break; } } if(!got){ const d=dryNear(px,pz,0.5,6); if(d){ px=d[0]; pz=d[1]; } }
   p.px=Math.round(px*100)/100; p.pz=Math.round(pz*100)/100; return p; }
+/* Every railway station is reached by road: a street from the nearest junction to the edge of its forecourt, in front of
+   the hall. (The airport has its own road to the terminal; the coach station stands beside its street.) */
+function facAccess(){ const R=G.rn; if(!R) return 0; let n=0;
+  for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ const q=railSite(st), nx=-Math.sin(q.a), ny=Math.cos(q.a), fx=q.x+nx*q.sd*0.44, fy=q.y+ny*q.sd*0.44;
+    if(waterSD(fx,fy)<0.1) continue; const h=rnNearEdge(R,fx,fy,0.2); if(h&&h.d<0.12) continue;      // a street already runs past the forecourt
+    let best=-1, bd=1e9; for(let gy=Math.floor((fy-3)/RN_G);gy<=Math.floor((fy+3)/RN_G);gy++) for(let gx=Math.floor((fx-3)/RN_G);gx<=Math.floor((fx+3)/RN_G);gx++){ const a=R.ng.get(rnKey(gx,gy)); if(!a) continue;
+      for(const j of a){ if(!R.adj[j].length) continue; const vx=R.x[j]-fx, vy=R.y[j]-fy, d=Math.hypot(vx,vy); if(d>3||d<0.15) continue; if((vx*nx+vy*ny)*q.sd<-0.1*d) continue;   // out from the front, not round behind the station
+        let ok=true; const m=Math.max(2,Math.ceil(d/0.2)); for(let k=1;k<m&&ok;k++){ const px=lerp(fx,R.x[j],k/m), py=lerp(fy,R.y[j],k/m); if(waterSD(px,py)<0.1||keepAt(px,py,0.01)) ok=false; } if(ok&&d<bd){ bd=d; best=j; } } }
+    if(best<0) continue; const a0=rnAddNode(R,fx,fy); rnLink(R,a0,R.x[best],R.y[best],2,0.3); if(R.adj[a0].length) n++; }
+  return n; }
 function keepRects(){ const key=(G.fac2||[]).length+'|'+(G.projects||[]).length+'|'+G.rail.length+'|'+(G.rn?1:0); if(G._keepK===key) return G._keep; const out=[];
   for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ const q=railSite(st), ca=Math.cos(q.a), sa=Math.sin(q.a); out.push({x:q.x-sa*q.sd*0.07,y:q.y+ca*q.sd*0.07,hx:ca,hy:sa,hl:0.86,hw:0.27}); }
   if(G.rn) for(const co of [G.fac.coach,...(G.fac2||[]).filter(f=>f.t==='coach')]){ const q=coachSite(co); out.push({x:q.x,y:q.y,hx:Math.cos(q.a),hy:Math.sin(q.a),hl:0.3,hw:0.18}); }
@@ -59,7 +69,7 @@ function checkFacilities(lv){
   const want=[['rail',lv>=3&&has('rail')<1||lv>=5&&has('rail')<2],['coach',lv>=3&&has('coach')<1||lv>=5&&has('coach')<2],['air',(has('air')<1&&(lv>=5||G.popTotal>=growth.pop0*1.5))||(has('air')<2&&(lv>=6||G.popTotal>=growth.pop0*2.2))]];
   for(const [t,ok] of want){ if(!ok||made.length) continue; const f=t==='rail'?siteRail():t==='coach'?siteCoach():siteAirport(); if(!f) continue;
     if(t==='rail'&&G.fac2.some(o=>o.t==='rail'&&o.d===f.d)) f.v=1;
-    G.fac2.push(f); if(t==='air'){ airportClear(f); rnPruneAir(); } else rnPruneAir(); const pt=facPoint(f); boostJobs(pt.x,pt.y,t==='air'?0.7:t==='rail'?0.35:0.2);
+    G.fac2.push(f); if(t==='air'){ airportClear(f); rnPruneAir(); } else { rnPruneAir(); facAccess(); } const pt=facPoint(f); boostJobs(pt.x,pt.y,t==='air'?0.7:t==='rail'?0.35:0.2);
     if(t==='air') routeRoad(airGate(f),G.centers[0],'hwy'); else { const p=nearestPlace(pt.x,pt.y); if(p&&dist(p.x,p.y,pt.x,pt.y)>6) routeRoad(pt,p,'art'); }
     made.push(f); }
   return made;
