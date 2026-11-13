@@ -9,7 +9,7 @@ function assistTick(){
   if(stroke&&stroke.drawing) return;
   const key=lines.map(L=>L.id+':'+L.stops.join('.')+':'+(L.svc||0)+(L.loop?'o':'')).join('|')+'#'+Math.floor(months/24)+'|'+G.stage+'|'+lastSugg.map(o=>o.type+Math.round(o.x/8)+','+Math.round(o.y/8)).join(';');
   if(!assist.job&&key!==assist.key&&!jobs.length&&performance.now()-assist.t>400){ const t0=performance.now(); assist.key=key; assist.job=assistJob(lastSugg); assist.lastJob=assist.job; assist.jobSig=suggSig(lastSugg); assist.t=performance.now(); assist.msC=Math.max(assist.msC||0,assist.t-t0); if(!assist.top.length) renderAssist(); return; }
-  if(assist.job){ const t0=performance.now(); while(performance.now()-t0<5){ if(assist.job.step()){ const prev=assist.top[assist.focus]; assist.top=assist.job.top; assist.job=null;
+  if(assist.job){ const t0=performance.now(); while(performance.now()-t0<5){ if(assist.job.step()){ const prev=assist.top[assist.focus]; assist.top=assist.job.top; assist.job=null; if(assist.top[0]){ const sg=assistSig(assist.top[0]); if(sg!==assistKeep){ assistKeep=sg; persistSoon(); } }
         const same=prev?assist.top.findIndex(r=>r.type===prev.type&&r.line===prev.line&&r.nodes.length===prev.nodes.length):-1; assist.focus=same>=0?same:0;
         const by={}; (assist.lastJob.bySrc||new Map()).forEach((r,k)=>by[k]=r); assist.bySrc=by; assist.sig=assist.jobSig; suggKey=''; renderSuggestions(); renderAssist(); break; } } assist.ms=Math.max(assist.ms||0,performance.now()-t0); }
 }

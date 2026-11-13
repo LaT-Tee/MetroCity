@@ -52,6 +52,9 @@ function setHTML(el,html){ if(!el) return; if(el._h!==html){ el.innerHTML=html; 
 // is this point in the water, or within m cells of it? The coast comes from the height field and the rivers from their
 // own distance field, both read between the cells, so the answer follows the drawn shoreline rather than whole cells
 function wetAt(x,y,m){ m=m||0; if(x<0||y<0||x>W-1||y>H-1) return true; if(bilinear(G.h,x,y)<G.sea+0.004+m*0.012) return true; return !!G.rivSD&&bilinear(G.rivSD,x,y)<m; }
+// Chance in the simulation is drawn from the city's seed and the month, not from the clock: the same city in the same month
+// goes the same way however often the page is reloaded, so what the assistant advises does not change from one visit to the next.
+function simRand(salt){ return mulberry32((Math.imul((G&&G.seed)|0,0x9E3779B1)^Math.imul(((typeof months==='number'?months:0)+1)|0,40503)^Math.imul(salt|0,0x85EBCA6B))>>>0); }
 // how far a point is from the water's edge, in cells: negative in the sea, a lake or a river, positive on land
 function waterSD(x,y){ if(x<0||y<0||x>W-1||y>H-1) return -1; let d=(bilinear(G.h,x,y)-G.sea-0.004)/0.012; if(G.rivSD){ const r=bilinear(G.rivSD,x,y); if(r<d) d=r; } return d; }
 // is the ground an airport at (x,y), runways along a, would pave all dry? wsd(x,y) is the distance from water. Returns bit 1 for the

@@ -72,6 +72,9 @@ function assistCorridors(){
 /* The assistant works through the improvement suggestions first — each one is turned into concrete options
    (extend a line, add a stop, branch from a station, express trains, an interchange) — then adds a few ideas of its own.
    Every option is scored with the same quick estimate and ranked by how much commuting time it saves. */
+// what a recommendation is, in a few words: its kind, its line, and roughly where its stops are (so the same idea is recognised again)
+let assistKeep=null;
+function assistSig(r){ const P=n=>n.id!=null?stById(n.id):n; return r.type+'|'+(r.line||'')+'|'+(r.nodes||[]).map(n=>{ const q=P(n); return q?Math.round(q.x/4)+','+Math.round(q.y/4):''; }).join(';'); }
 function assistJob(sugg){
   sugg=sugg||[];
   const base=estBase(), cov=coverageMask(5.4), res=[], tasks=[], P=n=>n.id!=null?stById(n.id):n, xy=n=>{ const p=P(n); return [p.x,p.y]; };
@@ -83,9 +86,22 @@ function assistJob(sugg){
       const key=Math.floor((a[1]+b[1])/16)*1000+Math.floor((a[0]+b[0])/16); const bkt=ctx.bk.get(key); const sg={a,b,line:L.id}; if(bkt) bkt.push(sg); else ctx.bk.set(key,[sg]); } }
   const pushRes=(r,e)=>{ if(!e||!(e.dAvg<(r.type==='xfer'?-0.002:-0.03))) return;   /* every crossing should be an interchange: even a small gain is worth it */
     const L0=r.type==='ext'?lineById(r.line):null, full=L0?[...(r.atStart?L0.stops.slice().reverse():L0.stops).slice(0,-1).map(id=>({id})),...r.nodes]:r.nodes;
-    if(spends(r)&&used>=2&&e.dAvg>-0.15) return; r.w=budgetW(r)*roomW(r,full); if(!(r.w>0)) return;
+    if(spends(r)&&used>=2&&e.dAvg>-0.15) return; r.w=budgetW(r)*roomW(r,full)*futureW(r)*shapeW(r,full); if(!(r.w>0)) return;
     const pts=r.nodes.map(P), newSt=r.nodes.filter(n=>n.id==null).length; r.dAvg=e.dAvg; r.dRiders=e.dRiders;
     r.cost=r.type==='ring'?r.nodes.filter(n=>n.id==null).length*ST_COST+plen([...pts,pts[0]].map(p=>[p.x,p.y]))*TRACK_COST:r.type==='xfer'||r.type==='ins'?ST_COST:r.type==='exp'?lineLength(lineById(r.line))*TRACK_COST*0.12:r.type==='rapid'?lineLength(lineById(r.line))*TRACK_COST*(RAPID_COST-1):newSt*ST_COST+plen(pts.map(p=>[p.x,p.y]))*TRACK_COST; res.push(r); };
+  /* Today's minutes are not the whole of it. A plan is worth more when it also serves what is coming: a place the city has
+     asked to have connected, a development going up or just opened, the railway station, coach station or airport while
+     they have no metro, and ground where the town still has room to grow round a new station. */
+  const futurePts=[]; { const far=(x,y)=>petNearest(x,y).d>PET_R; if(typeof petition!=='undefined'&&petition&&petition.key) futurePts.push([petition.x,petition.y,0.3]);
+    (G.projects||[]).forEach(pj=>{ if(months-pj.m0<PROJ_BUILD+36&&far(pj.x,pj.y)) futurePts.push([pj.x,pj.y,0.18]); });
+    for(const q of [[G.fac.station.x,G.fac.station.y],[G.fac.coach.x,G.fac.coach.y],[G.fac.airport.term.x,G.fac.airport.term.y],...(G.fac2||[]).map(f=>{ const o=facPoint(f); return [o.x,o.y]; })]) if(far(q[0],q[1])) futurePts.push([q[0],q[1],0.2]); }
+  const futureW=r=>{ if(r.type==='exp'||r.type==='rapid') return 1; let b=0, sS=0, nS=0; const hit=new Set();
+    for(const nd of r.nodes){ if(nd.id!=null) continue; futurePts.forEach((q,i)=>{ if(!hit.has(i)&&dist(nd.x,nd.y,q[0],q[1])<=PET_R){ hit.add(i); b+=q[2]; } }); if(growth&&growth.S){ sS+=growth.S[clamp(Math.round(nd.y),0,H-1)*W+clamp(Math.round(nd.x),0,W-1)]||0; nS++; } }
+    return 1+Math.min(0.7,b+(nS?0.15*Math.min(1,sS/nS):0)); };
+  /* And it has to be a line someone would build: reasonably direct between its ends, without a string of hard turns. */
+  const shapeW=(r,full)=>{ if(r.type!=='new'&&r.type!=='ext') return 1; const pts=full.map(P); if(pts.length<3) return 1; const len=plen(pts.map(q=>[q.x,q.y])), chord=dist(pts[0].x,pts[0].y,pts[pts.length-1].x,pts[pts.length-1].y)||1, ratio=len/chord; let turns=0;
+    for(let k=1;k<pts.length-1;k++){ const ux=pts[k].x-pts[k-1].x, uy=pts[k].y-pts[k-1].y, vx=pts[k+1].x-pts[k].x, vy=pts[k+1].y-pts[k].y; if((ux*vx+uy*vy)/((Math.hypot(ux,uy)||1)*(Math.hypot(vx,vy)||1))<0.5) turns++; }
+    return (ratio>1.45?Math.sqrt(1.45/ratio):1)*Math.pow(0.96,turns); };
   const retraces=nodes=>{ for(let q=1;q<nodes.length;q++){ const a=nodes[q-1].id, b=nodes[q].id; if(a!=null&&b!=null&&lines.some(L=>{ const i=L.stops.indexOf(a); return i>=0&&(L.stops[i+1]===b||L.stops[i-1]===b); })) return true; } return false; };
   const LEN_CAP=220, STOP_CAP=34, capOf=L=>isRapid(L)?LEN_CAP*1.5:LEN_CAP, tooLong=(L,nodes)=>lineLength(L)+plen(nodes.map(xy))>capOf(L)||L.stops.length+nodes.length>STOP_CAP;   // a regional rapid line may run further
   // the line budget is finite: every new line or ring spends one of MAX_LINES. Extending a line reaches more people and
@@ -254,7 +270,10 @@ function assistJob(sugg){
     //    a ring that fixes the whole network shouldn't hide behind a small fix for one listed trip
     const ans=[...bySrc.values()].sort((a,b)=>gain(b)-gain(a)), own=res.filter(r=>!r.src).sort((a,b)=>gain(b)-gain(a));
     const lead=own.length&&gain(own[0])>0.3&&(!ans.length||gain(own[0])>gain(ans[0])*2)?[own.shift()]:[];
-    const ordered=[...lead,...ans,...own]; const top=[];
+    const ordered=[...lead,...ans,...own];
+    // steady advice: what was recommended last time stays first for as long as it is still about as good as anything else
+    if(assistKeep&&ordered.length>1){ const i=ordered.findIndex(r=>assistSig(r)===assistKeep); if(i>0&&gain(ordered[i])>=gain(ordered[0])*0.8){ const r=ordered.splice(i,1)[0]; ordered.unshift(r); } }
+    const top=[];
     for(const r of ordered){ if(top.length>=3) break; const pr=r.nodes.map(P);
       if(top.some(o=>{ if(o.type==='exp'||r.type==='exp'||o.type==='rapid'||r.type==='rapid') return o.type===r.type&&o.line===r.line; if((o.type==='ins'||o.type==='xfer')&&(r.type==='ins'||r.type==='xfer')) return o.line===r.line&&dist(o.nodes[0].x,o.nodes[0].y,r.nodes[0].x,r.nodes[0].y)<6;
         const po=o.nodes.map(P); return pr.filter(p=>po.some(q=>dist(p.x,p.y,q.x,q.y)<5)).length>pr.length/3; })) continue; top.push(r); }

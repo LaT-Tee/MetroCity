@@ -86,7 +86,7 @@ function blurD(){
   return out;
 }
 function relocate(frac,rand){
-  rand=rand||Math.random; const n=W*H, D=G.D, J=G.J;
+  rand=rand||simRand(11); const n=W*H, D=G.D, J=G.J;
   const cD=new Float64Array(n), cJ=new Float64Array(n); let s1=0,s2=0; for(let i=0;i<n;i++){ s1+=D[i]; cD[i]=s1; s2+=J[i]; cJ[i]=s2; }
   const pick=(c)=>{ const r=rand()*c[n-1]; let lo=0,hi=n-1; while(lo<hi){ const m=(lo+hi)>>1; if(c[m]<r) lo=m+1; else hi=m; } return lo; };
   const pt=i=>[(i%W)+rand()-.5,Math.floor(i/W)+rand()-.5];

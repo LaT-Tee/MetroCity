@@ -64,7 +64,7 @@ function rnSpacing(d){ return d>=1?1.25:d>=0.4?1.25+(1-d)/0.6*0.45:d>=0.05?1.7+(
 function rnOkTurn(R,a,dx,dy){ const l=Math.hypot(dx,dy)||1; for(const e of R.adj[a]){ const o=R.ea[e]===a?R.eb[e]:R.ea[e], ox=R.x[o]-R.x[a], oy=R.y[o]-R.y[a], ol=Math.hypot(ox,oy)||1; if((ox*dx+oy*dy)/(ol*l)>0.85) return false; } return true; }
 function rnLandOk(x,y){ const xi=Math.round(x), yi=Math.round(y); if(xi<0||yi<0||xi>=W||yi>=H) return false; const i=yi*W+xi; return !G.water[i]&&G.e[i]<0.74&&G.pk[i]<0.3&&!(G.air&&G.air[i])&&!wetAt(x,y,0.22); }
 function rnGrow(R,tries,rand){
-  rand=rand||Math.random; const B=G.bounds; let added=0; if(R.x.length>RN_MAXN) return 0;
+  rand=rand||simRand(23); const B=G.bounds; let added=0; if(R.x.length>RN_MAXN) return 0;
   // only places people live that are still far from any road
   // distance to the nearest road comes from the growth model's road-access field (refreshed as roads are added)
   if(!growth.roadAcc) updateRoadAccess(); const RAc=growth.roadAcc;
@@ -109,7 +109,7 @@ function rnGrow(R,tries,rand){
 }
 // trips on the street graph: roads people keep using get wider
 function rnTraffic(R,n,rand){
-  rand=rand||Math.random; const N=R.x.length; if(N<2||!G.agents||!G.agents.length) return;
+  rand=rand||simRand(37); const N=R.x.length; if(N<2||!G.agents||!G.agents.length) return;
   if(!R.dd||R.dd.length<N){ R.dd=new Float32Array(N+4096); R.pe=new Int32Array(N+4096); R.st=new Int32Array(N+4096); R.run=0; }
   const dd=R.dd, pe=R.pe, st=R.st;
   for(let k=0;k<n;k++){
@@ -161,7 +161,7 @@ function rnTrim(R){ const B=G.bounds, n=R.x.length, deg=new Int16Array(n), dead=
   N.trips=R.trips; N.ver=(R.ver||0)+1+Math.floor(Math.random()*1e6); G.rn=N; return cut; }
 // bridges: where the city has grown on both banks, a street crosses the river every few blocks
 function rnBridges(R,rand){
-  rand=rand||Math.random; let added=0; const wat=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); return xi<0||yi<0||xi>=W||yi>=H?1:G.water[yi*W+xi]; }, Dat=(x,y)=>G.D[clamp(Math.round(y),0,H-1)*W+clamp(Math.round(x),0,W-1)];
+  rand=rand||simRand(41); let added=0; const wat=(x,y)=>{ const xi=Math.round(x), yi=Math.round(y); return xi<0||yi<0||xi>=W||yi>=H?1:G.water[yi*W+xi]; }, Dat=(x,y)=>G.D[clamp(Math.round(y),0,H-1)*W+clamp(Math.round(x),0,W-1)];
   for(const r of (G.rivers||[])){ let acc=2+rand()*3;
     for(let k=1;k<r.length-1;k++){ const p=r[k], q=r[k-1]; acc-=dist(p[0],p[1],q[0],q[1]); if(acc>0) continue; acc=1.2;
       if(!inB(p[0],p[1],3)||wat(p[0],p[1])!==2) continue; const tx=r[k+1][0]-q[0], ty=r[k+1][1]-q[1], tl=Math.hypot(tx,ty)||1, nx=-ty/tl, ny=tx/tl;
