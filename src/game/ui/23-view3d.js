@@ -884,6 +884,11 @@ function* w3dLocalGen(cx,cy,grp,far){
 // (pavement, roadway, paint), so every edge is sharp at any distance and angle.
 // a street's height at one of its junctions: on the ground, or up on the bridge deck where the junction is over water
 const W3D_BR=0.03;      // a road bridge's deck above street level
+// which junctions are flyovers (an expressway over lesser streets) and which expressway pieces climb over them
+function w3dFlySet(es){ const Rn=G.rn, flyN=new Set(), flyI=new Map(), seenN=new Set();
+  for(const e of es) for(const n of [Rn.ea[e],Rn.eb[e]]){ if(seenN.has(n)) continue; seenN.add(n); const ad=Rn.adj[n]; if(ad.length<3) continue; let hw=0, lo=0; for(const f of ad){ if(Rn.ec[f]>=4) hw++; else lo++; } if(hw>=1&&hw<=2&&lo>=1&&waterSD(Rn.x[n],Rn.y[n])>0.5&&!keepAt(Rn.x[n],Rn.y[n],0.3)) flyN.add(n); }
+  for(const e of es){ if(Rn.ec[e]<4) continue; const ends=[]; if(flyN.has(Rn.ea[e])) ends.push(0); if(flyN.has(Rn.eb[e])) ends.push(1); if(ends.length) flyI.set(e,ends); }
+  return {flyN,flyI}; }
 function w3dRoadMesh(cx,cy,R){
   const T=w3d.T, Rn=G.rn; if(!Rn) return null; const Ls=[[],[],[]], Cs=[[],[],[]], col=new T.Color(), Y=0.0007;
   // a strip of road: cut into half-cell lengths, each end set on the ground under it, so a street follows a slope instead of spanning it
@@ -900,17 +905,23 @@ function w3dRoadMesh(cx,cy,R){
      streets that meet there, so a ramp can run on into the next street. */
   const lamps=[], br=[], BRC=0xbdb9b1, RAMP=0.95, wetI=new Map(), geo=e=>{ const a=Rn.ea[e], b=Rn.eb[e]; return [Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],Math.hypot(Rn.x[b]-Rn.x[a],Rn.y[b]-Rn.y[a])]; };
   for(const e of es){ const [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; let s0=-1, s1=-1; const n=Math.max(2,Math.ceil(l/0.08)); for(let k=0;k<=n;k++){ const t=k/n; if(waterSD(ax+(bx-ax)*t,az+(bz-az)*t)<0.03){ if(s0<0) s0=t*l; s1=t*l; } } if(s0>=0) wetI.set(e,[s0,s1]); }
-  const own=(e,sd)=>{ const w=wetI.get(e); if(!w) return 0; const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; return W3D_BR*(1-smooth(d,0,RAMP)); };
-  for(const [n,o] of nodes) o.y=0; for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); na.y=Math.max(na.y,own(e,0)); nb.y=Math.max(nb.y,own(e,l)); }
+  /* Flyovers. Where an expressway meets lesser streets at a junction, it does not stop at lights: it is carried over on a
+     deck, coming down again on a ramp either side, and the streets below cross under it at ground level. */
+  const {flyN,flyI}=w3dFlySet(es), FLY=0.036, FR=0.95;
+  const own=(e,sd)=>{ let v=0; const w=wetI.get(e); if(w){ const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; v=W3D_BR*(1-smooth(d,0,RAMP)); } const f=flyI.get(e); if(f){ const l=geo(e)[4]; for(const k of f){ const d=Math.abs(sd-k*l); v=Math.max(v,FLY*(1-smooth(d,0.14,0.14+FR))); } } return v; };
+  for(const [n,o] of nodes) o.y=0; for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); if(!flyN.has(Rn.ea[e])) na.y=Math.max(na.y,own(e,0)); if(!flyN.has(Rn.eb[e])) nb.y=Math.max(nb.y,own(e,l)); }
+  // at a flyover junction the ground disc is the size of the streets below, not of the expressway passing over it
+  for(const n of flyN){ const o=nodes.get(n); let p=0, q=0, c=0; for(const f of Rn.adj[n]) if(Rn.ec[f]<4){ p=Math.max(p,hwP(Rn.ec[f])); q=Math.max(q,hwA(Rn.ec[f])); c=Math.max(c,Rn.ec[f]); } o.p=p; o.a=q; o.c=c; }
   const lifts=w3d.rLift=new Map(), pierL=w3d.pierPts2=[];
-  for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e); if(up) lifts.set(e,lf);
+  w3d.flyN=flyN;
+  for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e)||flyI.has(e); if(up) lifts.set(e,lf);
     if(c<4) quad(0,ax,az,bx,bz,hwP(c),PAVE,0,0,0,up&&fn); else quad(0,ax,az,bx,bz,hwP(c),0x8d9096,0,0,0,up&&fn); quad(1,ax,az,bx,bz,hwA(c),ASPH[c],0,0,0,up&&fn);
     if(up){ const w=hwP(c), P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const sd=l*k/n, x=ax+dx*sd, z=az+dz*sd, y=lf(sd); P2.push([x,z,TRK+y+w3dHt(x,z)]); }
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
       // piers in the water, abutments where the deck leaves the bank
       for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; { let blocked=false; for(const o of [-w*0.7,0,w*0.7]){ const h=rnNearEdge(Rn,x-dz*o,z+dx*o,0.3); if(h&&h.e!==e&&h.d<ROAD_W[Rn.ec[h.e]]/2+0.01&&!wetI.has(h.e)){ blocked=true; break; } } if(blocked) continue; } pierL.push([x,z,0]); const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
     if(c>=2&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7) for(let sd=0.15;sd<l-0.1;sd+=0.32){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=Math.round(sd/0.32)&1?1:-1; lamps.push([x-dz*o*k,z+dx*o*k,Math.atan2(dz,dx)+(k>0?Math.PI/2:-Math.PI/2)]); }
-    if(c<1) continue; const da=Rn.adj[a].length, db=Rn.adj[b].length, zeb=c>=2&&c<4, ta=da>=3?nodes.get(a).a+(zeb?0.026:0.006):0, tb=db>=3?nodes.get(b).a+(zeb?0.026:0.006):0; if(l-ta-tb<0.03) continue;
+    if(c<1) continue; const da=flyN.has(a)&&c>=4?2:Rn.adj[a].length, db=flyN.has(b)&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4, ta=da>=3?nodes.get(a).a+(zeb?0.026:0.006):0, tb=db>=3?nodes.get(b).a+(zeb?0.026:0.006):0; if(l-ta-tb<0.03) continue;
     const seg=(s0,s1,hw,cc,lat)=>quad(2,ax+dx*s0,az+dz*s0,ax+dx*s1,az+dz*s1,hw,cc,lat,0,0,up&&(t=>lf(s0+(s1-s0)*t))), dash=(lat,cc)=>{ for(let q=ta;q<l-tb-0.02;q+=0.07) seg(q,Math.min(q+0.03,l-tb),0.0011,cc,lat); };
     if(c===1) seg(ta,l-tb,0.0009,0xbfc1c4,0); else if(c===2) dash(0,0xe6e6e6); else { seg(ta,l-tb,0.001,0xe3c04a,0.0018); seg(ta,l-tb,0.001,0xe3c04a,-0.0018); dash(hwA(c)*0.5,0xe6e6e6); dash(-hwA(c)*0.5,0xe6e6e6); if(c===4){ seg(ta,l-tb,0.001,0xe6e6e6,hwA(c)-0.004); seg(ta,l-tb,0.001,0xe6e6e6,-hwA(c)+0.004); } }
     if(zeb) for(const [dg,s0] of [[da,nodes.get(a).a+0.004],[db,l-nodes.get(b).a-0.02]]){ if(dg<3) continue; for(let o=-hwA(c)+0.005;o<hwA(c)-0.003;o+=0.008) seg(s0,s0+0.016,0.002,0xe9e9e9,o); } }
@@ -1069,7 +1080,7 @@ function* w3dLocalGround(cx,cy,add){
   const dark=w3dDark(), GK=6, gc=w3d.groundCanvas; if(!gc) return;
   // texture: grain in grass and paving
   if(!w3d.noise){ const n=document.createElement('canvas'); n.width=n.height=128; const ng=n.getContext('2d'), id=ng.createImageData(128,128); for(let i=0;i<id.data.length;i+=4){ const v=128+((hashInt(i)&255)-128)*0.5; id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255; } ng.putImageData(id,0,0); w3d.noise=n; }
-  const Rg=G.rn, dryC=new Map(), dryEdge=e=>{ let v=dryC.get(e); if(v==null){ const a=Rg.ea[e], b=Rg.eb[e], l=Math.hypot(Rg.x[b]-Rg.x[a],Rg.y[b]-Rg.y[a]), n=Math.max(2,Math.ceil(l/0.1)); v=true; for(let k=0;k<=n&&v;k++) if(waterSD(lerp(Rg.x[a],Rg.x[b],k/n),lerp(Rg.y[a],Rg.y[b],k/n))<0.32) v=false; dryC.set(e,v); } return v; };
+  const Rg=G.rn, dryC=new Map(), flyE=new Set(Rg?w3dFlySet(w3dEdgesIn(x0-1,y0-1,x0+sw+1,y0+sh+1)).flyI.keys():[]), dryEdge=e=>{ let v=dryC.get(e); if(v==null){ const a=Rg.ea[e], b=Rg.eb[e], l=Math.hypot(Rg.x[b]-Rg.x[a],Rg.y[b]-Rg.y[a]), n=Math.max(2,Math.ceil(l/0.1)); v=!flyE.has(e); for(let k=0;k<=n&&v;k++) if(waterSD(lerp(Rg.x[a],Rg.x[b],k/n),lerp(Rg.y[a],Rg.y[b],k/n))<0.32) v=false; dryC.set(e,v); } return v; };
   const E=w3dEdgesIn(x0,y0,x0+sw,y0+sh), wc=dark?'#1c3550':'#3f7aa8', wd=ROAD_W.map(w=>w-0.03), pave=dark?'#5d5f66':'#d6d3cb', asph=dark?'#2a2c31':'#55585f'; yield;
   yield* w3dTiles(x0,y0,sw,sh,0.0004,3,K,(g,tx0,ty0,tw,th,k)=>{ const cv=g.canvas;
       g.drawImage(gc,(tx0-(B[0]-0.5))*GK,(ty0-(B[1]-0.5))*GK,tw*GK,th*GK,0,0,cv.width,cv.height);
