@@ -455,6 +455,8 @@ function w3dBuild(){
   // columns, name boards, benches and a concourse under the viaduct; lines running side by side share one station.
   // Underground the same platforms stand in a lit hall, with an entrance pavilion on the street above.
   { const stB=w3dBoxes(), parts=[], uparts=[], hall=[], hallX=[], spots=[], plats=[], signs=[], hubOf=k=>(w3d.hubs||[]).some(q=>q.cx===k); w3d.plats=plats; w3dLandmarks(parts,spots,signs); const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
+    // an interchange with platforms above ground is entered there: its platforms below ground reach the elevated station by passage
+    for(const st of stations){ const cxI=w3d.stCx&&w3d.stCx.get(st.id); if(!cxI||cxI.n<2||hubOf(cxI.k)) continue; for(const L of lines){ const P=L._p3; if(L.stops.length<2||!P||!P.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const u=P.sU[k]; if(w3dHAt(P,u)>0.02){ const q=polyAt(P.pts,P.cum,u); (w3d.hubs||(w3d.hubs=[])).push({x:q[0],y:q[1],r:3,cx:cxI.k,elev:1}); break; } } }
     for(const st of stations){ const here=[]; for(const L of lines){ if(L.stops.length<2||!L._p3||!L._p3.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const u=L._p3.sU[k], p=polyAt(L._p3.pts,L._p3.cum,u), h=polyHead(L._p3.pts,L._p3.cum,u,0.2); here.push({L,p,h,y:w3dHAt(L._p3,u)}); }
       const groups=[]; for(const o of here){ const g=groups.find(g=>Math.abs(g[0].h[0]*o.h[0]+g[0].h[1]*o.h[1])>0.85&&dist(g[0].p[0],g[0].p[1],o.p[0],o.p[1])<0.7&&Math.abs(g[0].y-o.y)<0.03); if(g) g.push(o); else groups.push([o]); }
       if(here.length) w3d.stY.set(st.id,Math.max(...here.map(o=>o.y)));
@@ -594,14 +596,16 @@ function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042; w3d.stShift=n
        another either: the second group stops just past the crossing, clear of the first group's platforms, and a covered
        bridge joins the two (as at a big Japanese interchange, where one line's platforms lie beside the other's). */
     const halfMain=cl.length?(cl[0].m.length*gapS)/2+0.12:0.2;
-    cl.forEach((c,ci)=>{ const ax=c.ax, n=[-ax[1],ax[0]], dY=ci*(under?-0.066:0.07), sh=ci&&!under?W3D_PLAT/2+halfMain+0.1+(ci-1)*0.3:0;
+    cl.forEach((c,ci)=>{ const ax=c.ax, n=[-ax[1],ax[0]], dY0=ci*(under?-0.066:0.07), sh=0;
       c.m.forEach(o=>{ o.lat=(o.p[0]-cx)*n[0]+(o.p[1]-cy)*n[1]; }); c.m.sort((a,b)=>a.lat-b.lat);
       c.m.forEach((o,i)=>{ const want=c.m.length>1?(i-(c.m.length-1)/2)*gapS:o.lat, P=o.P, len=P.cum[P.cum.length-1];
         let du0=0; if(sh){ const sg=o.u+sh<len-0.6?1:-1; du0=sg*sh; if(o.u+du0<0.6||o.u+du0>len-0.6) du0=0; if(du0){ const L=lines.find(l=>l._p3===P), st=sts.find(q=>L&&L.stops.includes(q.id)); if(L&&st) w3d.stShift.set(L.id+'|'+st.id,du0); } }
-        const uc=o.u+du0;
-        for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-o.u), dc=Math.abs(P.cum[v]-uc); if(du>3.6&&dc>3.6) continue;
+        // above ground, a line crossing the main ones goes underground through the station: one station, its platforms on two levels,
+        // the crossing line's beneath the others' (a level deeper again for a third direction)
+        const yNow=w3dHAt(P,o.u), dY=ci&&!under?(UGY-0.07*(ci-1))-yNow:dY0, ease=ci&&!under?4.6:3.6;
+        for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-o.u); if(du>ease) continue;
           if(du<1.9){ const w=1-smooth(du,0.75,1.9), q=P.pts[v], t=(q[0]-cx)*ax[0]+(q[1]-cy)*ax[1]; P.pts[v]=[q[0]+(cx+ax[0]*t+n[0]*want-q[0])*w,q[1]+(cy+ax[1]*t+n[1]*want-q[1])*w]; }
-          if(dY) P.Y[v]+=dY*(1-smooth(Math.min(du,dc),1.0,3.6)); } }); }); }
+          if(dY) P.Y[v]+=dY*(1-smooth(du,1.0,ease)); } }); }); }
   for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; for(let i=1;i<P.pts.length;i++) P.cum[i]=P.cum[i-1]+dist(P.pts[i-1][0],P.pts[i-1][1],P.pts[i][0],P.pts[i][1]); } }
 /* No line passes through another, and none runs at the level of the water.
    Where the paths of two lines cross at the same height (other than two tracks of one corridor weaving), one of them
@@ -796,6 +800,7 @@ function w3dLocal(cx,cy){
   const far=!w3d.bc||!w3d.local.length||dist(w3d.bc[0],w3d.bc[1],cx,cy)>20;
   if(!far&&!w3d.bcStale&&dist(w3d.bc[0],w3d.bc[1],cx,cy)<6) return;
   w3d.bc=[cx,cy]; w3d.bcStale=false; const grp=new w3d.T.Group(); grp.visible=false; w3d.S.add(grp);
+  w3d.parked=[];
   const nj={it:w3dLocalGen(cx,cy,grp,far),grp,c:[cx,cy]};
   // a cut: the city catches up, and everything is built at once (the view changes anyway)
   if(far){ bldFreeze=false; w3d.cutYear=Math.floor(months/12); w3d.pjSig=null; w3d.cut=true; try{ w3dRun(nj,Infinity); } finally { bldFreeze=true; } }
@@ -999,7 +1004,7 @@ function w3dFeatures(cx,cy,R,addTree,spires){
       const ln=(w,d,x,z)=>Gd(w,d,x,z,wl,0.002); ln(f.w*m,0.0025,0,-hd*m); ln(f.w*m,0.0025,0,hd*m); ln(0.0025,f.d*m,-hw*m,0); ln(0.0025,f.d*m,hw*m,0); ln(0.0025,f.d*m,0,0);
       for(const sx of [-1,1]){ const x=sx*hw*m; if(big){ B(0.0012,0.012,0.0012,x,0.006,-0.024,wl); B(0.0012,0.012,0.0012,x,0.006,0.024,wl); B(0.0012,0.0012,0.05,x,0.012,0,wl); ln(f.w*0.14,0.0025,x-sx*f.w*0.07,-hd*0.45); ln(f.w*0.14,0.0025,x-sx*f.w*0.07,hd*0.45); ln(0.0025,f.d*0.45,x-sx*f.w*0.14,0); } else { B(0.0012,0.02,0.0012,x,0.01,0,0x5a6068); B(0.001,0.007,0.01,x-sx*0.003,0.019,0,wl); } }
       if(big){ B(f.w*0.5,0.008,0.012,0,0.004,-hd-0.01,0x9aa3ad); B(f.w*0.5,0.008,0.008,0,0.01,-hd-0.016,0x8a939d); for(const [u,v] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ B(0.0016,0.05,0.0016,u*hw,0.025,v*hd,0x6a7078); B(0.01,0.003,0.006,u*hw,0.051,v*hd,0xf4f1e4); } } }
-    else if(f.k==='lot'||f.k==='mall'){ const v0=f.k==='mall'?0.38:-0.82, rows=[[v0,1],[0.86,-1]], n=Math.max(3,Math.round(f.w/0.035));
+    else if(f.k==='lot'||f.k==='mall'){ const v0=f.k==='mall'?0.38:-0.82, rows=[[v0,1]], n=Math.max(3,Math.round(f.w/0.035)); if(Math.abs((0.86-0.15)-(v0+0.15))*hd>=0.036) rows.push([0.86,-1]);      /* a second row only where it does not reach into the first (a car is 0.028 long) */
       for(const [v,sd] of rows) for(let k=0;k<=n;k++){ const u=-0.92+1.84*k/n; Gd(0.0016,f.d*0.15,u*hw,(v+sd*0.15)*hd,0xe6e6e6,0.0016); if(k<n&&rnd()<0.62) cars.push([...featPt(f,u+0.92/n,v+sd*0.15),f.a+(sd>0?1:-1)*Math.PI/2,(h>>>8)&7]); }
       lamp(0,(v0+0.86)/2*hd); if(f.k==='lot') B(0.014,0.012,0.01,-hw+0.012,0.006,-hd+0.01,0xe0a030); }
     else if(f.k==='library'){ const H1=f.hm/150*BZ3*1.3*0.7, zf=-f.d*0.1+f.d*0.29; B(f.w*0.5,0.004,0.03,0,0.002,zf+0.016,0xd9d3c4); B(f.w*0.42,0.008,0.02,0,0.004,zf+0.011,0xdcd6c8);       /* steps, a row of columns under the gable, lamps and trees */
@@ -1028,6 +1033,7 @@ function w3dFeatures(cx,cy,R,addTree,spires){
   if(flat.length){ const m=new T.Mesh(w3dMerge(flat),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.95,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3,...w3dCut()}))); m.receiveShadow=true; m.renderOrder=-2; out.push(m); }
   if(parts.length){ const m=new T.Mesh(w3dMerge(parts),w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.7,metalness:0.05}))); m.castShadow=true; m.receiveShadow=true; out.push(m); }
   if(cars.length){ const cols=[0xf2f2f2,0x1f2329,0xb7bcc3,0xa1262c,0x2c4d7a,0x6c7076,0xe0e0dc,0x3b3f45], m=new T.InstancedMesh(w3dCarGeo(),w3dVehMat({roughness:0.35,metalness:0.4}),cars.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1), col=new T.Color();
+    (w3d.parked||(w3d.parked=[])).push(...cars.map(c=>[c[0],c[1],c[2]]));
     cars.forEach((c,i)=>{ Q.setFromAxisAngle(up,-c[2]); M.compose(V.set(c[0],0.0012+w3dHt(c[0],c[1]),c[1]),Q,one); m.setMatrixAt(i,M); col.set(cols[c[3]]); m.setColorAt(i,col); }); m.castShadow=true; m.receiveShadow=true; out.push(m); }
   return out; }
 /* Boats: sailing boats and ferries on the open water, barges and launches on the rivers. Where a boat is depends only
