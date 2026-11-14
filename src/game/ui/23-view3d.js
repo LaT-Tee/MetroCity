@@ -959,6 +959,14 @@ function w3dElevSet(es){ const Rn=G.rn, hi=new Map(), dense=n=>{ const i=clamp(M
   // a lone raised node between two on the ground is not worth a viaduct
   for(const [n,h] of hi){ if(!h) continue; let nb=0; for(const f of Rn.adj[n]) if(Rn.ec[f]>=4){ const o=Rn.ea[f]===n?Rn.eb[f]:Rn.ea[f]; if(hi.get(o)) nb++; } if(!nb) hi.set(n,0); }
   for(const e of es) if(Rn.ec[e]>=4&&(hi.get(Rn.ea[e])||hi.get(Rn.eb[e]))) up.add(e);
+  /* An elevated road does not fork at a street junction: where three or more raised pieces meet, the two that run most
+     nearly straight through stay up and the others are left on the ground (they meet the street below). */
+  for(const [n,h] of hi){ if(!h) continue; const ad=Rn.adj[n].filter(f=>up.has(f)); if(ad.length<3) continue; const dir=f=>{ const o=Rn.ea[f]===n?Rn.eb[f]:Rn.ea[f], l=Math.hypot(Rn.x[o]-Rn.x[n],Rn.y[o]-Rn.y[n])||1; return [(Rn.x[o]-Rn.x[n])/l,(Rn.y[o]-Rn.y[n])/l]; };
+    let best=null, bc=2; for(let i=0;i<ad.length;i++) for(let j=i+1;j<ad.length;j++){ const a=dir(ad[i]), b=dir(ad[j]), c=a[0]*b[0]+a[1]*b[1]; if(c<bc){ bc=c; best=[ad[i],ad[j]]; } }
+    for(const f of ad) if(!best.includes(f)) up.delete(f); }
+  // and every raised piece that is left with a free end high up comes down on a ramp to the ground there
+  for(const e of [...up]) for(const n of [Rn.ea[e],Rn.eb[e]]) if(hi.get(n)&&!Rn.adj[n].some(f=>f!==e&&up.has(f))) hi.set(n,0);
+  for(const e of [...up]) if(!hi.get(Rn.ea[e])&&!hi.get(Rn.eb[e])) up.delete(e);
   return {hi,up}; }
 function w3dRoadMesh(cx,cy,R){
   const T=w3d.T, Rn=G.rn; if(!Rn) return null; const Ls=[[],[],[]], Cs=[[],[],[]], col=new T.Color(), Y=0.0007;
@@ -1061,8 +1069,7 @@ function w3dRoadMesh(cx,cy,R){
       // on the street: the outer lane closed under the ramp (hatched, edged), then the ramp's lane joining it
       for(let k=1;k<R3.length;k++){ const p0=R3[k-1], p1=R3[k]; if(Math.min(p0[2],p1[2])-TRK<0.004||p0[3]<DIV) continue; quad(2,p0[0],p0[1],p1[0],p1[1],RW/2,0x5a5d63,0,0.0008,0.0008); for(const e of [1,-1]) quad(2,p0[0],p0[1],p1[0],p1[1],0.0012,WHT,e*RW/2,0.0009,0.0009);
         if(k%2===0){ const mx=(p0[0]+p1[0])/2, mz=(p0[1]+p1[1])/2, dx=p1[0]-p0[0], dz=p1[1]-p0[1], dl=Math.hypot(dx,dz)||1; quad(2,mx-dx/dl*0.012-dz/dl*RW*0.45,mz-dz/dl*0.012+dx/dl*RW*0.45,mx+dx/dl*0.012+dz/dl*RW*0.45,mz+dz/dl*0.012-dx/dl*RW*0.45,0.0014,WHT,0,0.0009,0.0009); } } } }
-  // a junction of three or more elevated runs: a round deck to join them
-  for(const [n,h] of exH){ if(!h||exN(n).length<3) continue; const x=Rn.x[n], z=Rn.y[n], y=h+w3dHt(x,z); br.push({g:new T.CylinderGeometry(DW*1.2,DW*1.2,0.008,24),m:new T.Matrix4().makeTranslation(x,TRK-TRK+y-0.0044,z),c:BRC},{g:new T.CylinderGeometry(DW*1.2-0.006,DW*1.2-0.006,0.0006,24),m:new T.Matrix4().makeTranslation(x,y+0.0005,z),c:0x4a4d53}); }
+
   // the median strip on the ground under the deck
   for(const e of exUp){ const a=Rn.ea[e], b=Rn.eb[e]; quad(2,Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],0.016,0xbdb9b1,0,0.0007,0.0007); }
   const out=[m]; if(br.length){ const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; out.unshift(bm); }
