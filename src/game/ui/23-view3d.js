@@ -1026,32 +1026,41 @@ function w3dRoadMesh(cx,cy,R){
     chains.push(seq.map(k=>[Rn.x[k],Rn.y[k],exH.get(k)||0])); }
   const smoothC=pc=>{ let P=pc; for(let it=0;it<2;it++){ const Q=[P[0]]; for(let k=0;k<P.length-1;k++){ const a=P[k], b=P[k+1]; Q.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25,a[2]*0.75+b[2]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75,a[2]*0.25+b[2]*0.75]); } Q.push(P[P.length-1]); P=Q; } return P; };
   const dens=pc=>{ const o=[pc[0]]; for(let k=1;k<pc.length;k++){ const a=pc[k-1], b=pc[k], m=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/0.2)); for(let q=1;q<=m;q++) o.push([lerp(a[0],b[0],q/m),lerp(a[1],b[1],q/m),lerp(a[2],b[2],q/m)]); } return o; };
+  const cumC_=pc=>{ const arr=[0]; for(let k=1;k<pc.length;k++) arr.push(arr[k-1]+Math.hypot(pc[k][0]-pc[k-1][0],pc[k][1]-pc[k-1][1])); const t=arr[arr.length-1]; return Object.assign(new Number(t),{arr}); }, atCh=(pc,u)=>{ const arr=cumC_(pc).arr; let k=1; while(k<pc.length-1&&arr[k]<u) k++; const f=clamp((u-arr[k-1])/((arr[k]-arr[k-1])||1),0,1); return [lerp(pc[k-1][0],pc[k][0],f),lerp(pc[k-1][1],pc[k][1],f),lerp(pc[k-1][2],pc[k][2],f)]; };
   const y3=(q,dy)=>[q[0],q[1],TRK+q[2]+w3dHt(q[0],q[1])+(dy||0)], offs=(pc,o)=>offsetPts(pc,o).map((q,i)=>[q[0],q[1],pc[i][2]]);
   for(const ch of chains){ if(ch.length<2) continue; const pc=dens(smoothC(ch)), P3=pc.map(q=>y3(q)); for(let k=1;k<pc.length;k++) exDeck.push([pc[k-1][0],pc[k-1][1],pc[k-1][2],pc[k][0],pc[k][1],pc[k][2]]);
-    br.push({g:w3dRibbon(P3,DW,-0.0004,0.008),c:BRC},{g:w3dRibbon(P3,DW-0.006,0.0002,0.0006),c:0x4a4d53}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offs(P3,sd*(DW-0.002)),0.002,0.008,0.009),c:0xcfcbc3});
+    br.push({g:w3dRibbon(P3,DW,-0.0004,0.008),c:BRC},{g:w3dRibbon(P3,DW-0.006,0.0002,0.0006),c:0x4a4d53});
     for(const o of [0,-0.03,0.03]){ const L=offs(P3,o); for(let k=1;k<L.length;k+=2) if(o===0) br.push({g:w3dRibbon([L[k-1],L[k]].map(q=>[q[0],q[1],q[2]+0.0009]),0.0012,0,0.0002),c:0xe3c04a}); else if(k%4===1) br.push({g:w3dRibbon([L[k-1],L[k]].map(q=>[q[0],q[1],q[2]+0.0009]),0.0009,0,0.0002),c:WHT}); }
     // piers in the median strip of the street below, every half cell, clear of the railway, the metro and cross streets
     let acc=0.25; for(let k=1;k<pc.length;k++){ acc+=Math.hypot(pc[k][0]-pc[k-1][0],pc[k][1]-pc[k-1][1]); if(acc<0.5||pc[k][2]<0.03) continue; const x=pc[k][0], z=pc[k][1], h=pc[k][2]; if(w3dPierClash(x,z,0.01)) continue; const hh=rnNearEdge(Rn,x,z,0.2); if(hh&&Rn.ec[hh.e]<4&&hh.d<ROAD_W[Rn.ec[hh.e]]/2+0.02) continue; acc=0;
       const a=Math.atan2(pc[k][1]-pc[k-1][1],pc[k][0]-pc[k-1][0]), q=w3dBox(0.03,h,0.012,0,h/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,w3dHt(x,z),z).multiply(new T.Matrix4().makeRotationY(-a)).multiply(q.m); br.push(q); exPier.push([x,z]); }
-    /* Ways on and off along the way: every few blocks a ramp lane leaves the deck on each side and comes down beside the
-       street's outer lane in the same direction (one side down, the other up), with hatched guide lines where the lanes
-       part and join. A ramp is only placed where no cross street meets the road under it. */
-    const tot=pc.reduce((a,q,k)=>k?a+Math.hypot(q[0]-pc[k-1][0],q[1]-pc[k-1][1]):0,0), cumC=[0]; for(let k=1;k<pc.length;k++) cumC.push(cumC[k-1]+Math.hypot(pc[k][0]-pc[k-1][0],pc[k][1]-pc[k-1][1]));
-    const atC=u=>{ let k=1; while(k<pc.length-1&&cumC[k]<u) k++; const f=clamp((u-cumC[k-1])/((cumC[k]-cumC[k-1])||1),0,1); return [lerp(pc[k-1][0],pc[k][0],f),lerp(pc[k-1][1],pc[k][1],f),lerp(pc[k-1][2],pc[k][2],f)]; }, RL=1.3, gW=ROAD_W[4]/2;
-    for(let u0=1.2;u0+RL<tot-1.0;u0+=3.4){ let ok=true; for(let u=u0-0.15;u<=u0+RL+0.15&&ok;u+=0.1){ const q=atC(u); if(q[2]<W3D_EXH-0.001) ok=false; for(const f of (()=>{ const h=rnNearEdge(Rn,q[0],q[1],0.35); return h?[h]:[]; })()) if(Rn.ec[f.e]<4&&f.d<ROAD_W[Rn.ec[f.e]]/2+gW) ok=false; } if(!ok) continue;
-      for(const sd of [1,-1]){ const R3=[]; for(let k=0;k<=13;k++){ const t=k/13, u=sd>0?u0+RL*t:u0+RL*(1-t), q=atC(u), q2=atC(Math.min(tot,u+0.05)), hx=q2[0]-q[0], hz=q2[1]-q[1], hl=Math.hypot(hx,hz)||1, nx=-hz/hl, nz=hx/hl, side=lerp(DW+RW/2+0.004,gW-RW/2,smooth(t,0,0.4)), y=W3D_EXH*(1-smooth(t,0.1,1)); R3.push([q[0]+nx*side*sd,q[1]+nz*side*sd,TRK+y+w3dHt(q[0],q[1])]); }
-        br.push({g:w3dRibbon(R3,RW/2+0.003,-0.0004,0.007),c:BRC},{g:w3dRibbon(R3,RW/2-0.002,0.0002,0.0006),c:0x4a4d53}); for(const e of [1,-1]) br.push({g:w3dRibbon(offs(R3,e*(RW/2+0.002)),0.0015,0.007,0.008),c:0xcfcbc3});
-        for(let k=2;k<R3.length-2;k++) if(R3[k][2]-TRK>0.03){ const q=R3[k], qq=w3dBox(0.012,q[2]-TRK,0.012,q[0],(q[2]-TRK)/2,q[1],0xaeaaa2); br.push(qq); }
-        // under the ramp the street's outer lane is closed: a hatched area with a solid edge, the lane narrowing into it
-        for(let k=1;k<R3.length;k++){ const p0=R3[k-1], p1=R3[k]; if(Math.min(p0[2],p1[2])-TRK<0.004) continue; const g0=w3dHt(p0[0],p0[1]); quad(2,p0[0],p0[1],p1[0],p1[1],RW/2,0x5a5d63,0,0.0008,0.0008);
-          for(const e of [1,-1]) quad(2,p0[0],p0[1],p1[0],p1[1],0.0012,WHT,e*RW/2,0.0009,0.0009);
-          const mx=(p0[0]+p1[0])/2, mz=(p0[1]+p1[1])/2, dx=p1[0]-p0[0], dz=p1[1]-p0[1], dl=Math.hypot(dx,dz)||1; if(k%2===0) quad(2,mx-dx/dl*0.012-dz/dl*RW*0.45,mz-dz/dl*0.012+dx/dl*RW*0.45,mx+dx/dl*0.012+dz/dl*RW*0.45,mz+dz/dl*0.012-dx/dl*RW*0.45,0.0014,WHT,0,0.0009,0.0009); }
-        // the guide lines: hatching where the ramp lane leaves the deck, and where it meets the street's outer lane
-        (w3d.exRamps||(w3d.exRamps=[])).push([R3[R3.length-1][0],R3[R3.length-1][1],R3[0][0],R3[0][1]]);
-        const foot=R3[R3.length-1], top=R3[0], fq=atC(sd>0?u0+RL:u0), fq2=atC(sd>0?u0+RL+0.05:u0+0.05), hx=fq2[0]-fq[0], hz=fq2[1]-fq[1], hl=Math.hypot(hx,hz)||1;
-        for(let k=0;k<6;k++){ const along=(sd>0?1:-1)*(0.02+k*0.03), x=foot[0]+hx/hl*along, z=foot[1]+hz/hl*along; quad(2,x-hx/hl*0.012+(-hz/hl)*0.012*sd,z-hz/hl*0.012+(hx/hl)*0.012*sd,x+hx/hl*0.012-(-hz/hl)*0.012*sd,z+hz/hl*0.012-(hx/hl)*0.012*sd,0.0016,WHT,0,0.0009,0.0009); }
-        { const g0=atC(sd>0?u0+RL+0.2:u0-0.2); quad(2,foot[0],foot[1],g0[0]+(-hz/hl)*sd*(gW-RW),g0[1]+(hx/hl)*sd*(gW-RW),0.0012,WHT,0,0.0009,0.0009); }
-        for(let k=0;k<4;k++){ const t=0.04+k*0.04, a1=R3[Math.round(t*13)]; br.push({g:w3dRibbon([[a1[0],a1[1],a1[2]+0.001],[lerp(a1[0],top[0],0.3),lerp(a1[1],top[1],0.3),a1[2]+0.001]],0.001,0,0.0002),c:WHT}); } } } }
+    /* Ways on and off, as they are built. A ramp leaves from the deck's own outer lane: the deck widens by a lane, the
+       ramp runs beside the through lanes at deck height for a while (no barrier between), parts from them, comes down
+       beside the street and lands in the street's outer lane in the same direction of travel. Each side has its own,
+       pointing the way that side's traffic goes (which depends on which side of the road traffic keeps to). The deck's
+       parapet opens where the ramp leaves, the gore between them is hatched, and on the street below the lane under
+       the ramp is closed off until it lands. Ramps only where no cross street meets the road beneath. */
+    const tot=cumC_(pc), atC=u=>atCh(pc,u), RL=1.3, DIV=0.5, gW=ROAD_W[4]/2, ramps=[];
+    for(let u0=1.2;u0+RL+DIV<tot-1.0;u0+=3.6){ let ok=true; for(let u=u0-0.2;u<=u0+RL+DIV+0.2&&ok;u+=0.1){ const q=atC(u); if(q[2]<W3D_EXH-0.001) ok=false; const h=rnNearEdge(Rn,q[0],q[1],0.35); if(h&&Rn.ec[h.e]<4&&h.d<ROAD_W[Rn.ec[h.e]]/2+gW) ok=false; } if(!ok) continue;
+      for(const sd of [1,-1]){ const o=sd*DRIVE; ramps.push({sd,o,top:o>0?u0:u0+RL+DIV,u0}); } }
+    // the deck's parapets, open where a ramp leaves
+    for(const sd of [1,-1]){ const cut=ramps.filter(r=>r.sd===sd).map(r=>[Math.min(r.top,r.top+r.o*(DIV+0.25)),Math.max(r.top,r.top+r.o*(DIV+0.25))]); const pcS=offs(P3,sd*(DW-0.002)), cum=cumC_(pc).arr; let seg=[];
+      const flush=()=>{ if(seg.length>1) br.push({g:w3dRibbon(seg,0.002,0.008,0.009),c:0xcfcbc3}); seg=[]; }; for(let k=0;k<pcS.length;k++){ const u=cum[k]; if(cut.some(c=>u>c[0]&&u<c[1])){ flush(); continue; } seg.push(pcS[k]); } flush(); }
+    for(const r of ramps){ const {sd,o,top}=r, Lt=DIV+RL, R3=[], N=22;
+      for(let k=0;k<=N;k++){ const s0=Lt*k/N, u=top+o*s0, q=atC(u), q2=atC(u+0.05), hx=q2[0]-q[0], hz=q2[1]-q[1], hl=Math.hypot(hx,hz)||1, nx=-hz/hl, nz=hx/hl;
+        const side=s0<DIV?lerp(DW-RW/2-0.003,DW+RW/2+0.004,smooth(s0,0.1,DIV)):lerp(DW+RW/2+0.004,gW-RW/2,smooth(s0,DIV,DIV+RL*0.6)), y=s0<DIV?q[2]:W3D_EXH*(1-smooth(s0,DIV,Lt));
+        R3.push([q[0]+nx*side*sd,q[1]+nz*side*sd,TRK+y+w3dHt(q[0],q[1]),s0]); }
+      (w3d.exRamps||(w3d.exRamps=[])).push([R3[N][0],R3[N][1],R3[0][0],R3[0][1]]);
+      br.push({g:w3dRibbon(R3,RW/2+0.003,-0.0004,0.007),c:BRC},{g:w3dRibbon(R3,RW/2-0.002,0.0002,0.0006),c:0x4a4d53});
+      // its parapets: the outer one all the way, the inner one only once it has left the deck
+      br.push({g:w3dRibbon(offs(R3,sd*(RW/2+0.002)),0.0015,0.007,0.008),c:0xcfcbc3}); { const inn=offs(R3,-sd*(RW/2+0.002)).filter((q,k)=>R3[k][3]>DIV*0.95); if(inn.length>1) br.push({g:w3dRibbon(inn,0.0015,0.007,0.008),c:0xcfcbc3}); }
+      for(let k=2;k<R3.length-1;k++) if(R3[k][2]-TRK>0.03&&R3[k][3]>DIV) br.push(w3dBox(0.012,R3[k][2]-TRK,0.012,R3[k][0],(R3[k][2]-TRK)/2,R3[k][1],0xaeaaa2));
+      // the gore on the deck: chevrons between the through lanes and the ramp as they part
+      for(let k=0;k<5;k++){ const s0=DIV*(0.35+k*0.13), u=top+o*s0, q=atC(u), q2=atC(u+0.05), hx=q2[0]-q[0], hz=q2[1]-q[1], hl=Math.hypot(hx,hz)||1, nx=-hz/hl, nz=hx/hl, off=sd*(DW-0.002+ (k+1)*0.002), y=TRK+q[2]+w3dHt(q[0],q[1])+0.0012;
+        br.push({g:w3dRibbon([[q[0]+nx*off-hx/hl*0.008*o,q[1]+nz*off-hz/hl*0.008*o,y],[q[0]+nx*(off+sd*0.012)+hx/hl*0.004*o,q[1]+nz*(off+sd*0.012)+hz/hl*0.004*o,y]],0.0009,0,0.0002),c:WHT}); }
+      // on the street: the outer lane closed under the ramp (hatched, edged), then the ramp's lane joining it
+      for(let k=1;k<R3.length;k++){ const p0=R3[k-1], p1=R3[k]; if(Math.min(p0[2],p1[2])-TRK<0.004||p0[3]<DIV) continue; quad(2,p0[0],p0[1],p1[0],p1[1],RW/2,0x5a5d63,0,0.0008,0.0008); for(const e of [1,-1]) quad(2,p0[0],p0[1],p1[0],p1[1],0.0012,WHT,e*RW/2,0.0009,0.0009);
+        if(k%2===0){ const mx=(p0[0]+p1[0])/2, mz=(p0[1]+p1[1])/2, dx=p1[0]-p0[0], dz=p1[1]-p0[1], dl=Math.hypot(dx,dz)||1; quad(2,mx-dx/dl*0.012-dz/dl*RW*0.45,mz-dz/dl*0.012+dx/dl*RW*0.45,mx+dx/dl*0.012+dz/dl*RW*0.45,mz+dz/dl*0.012-dx/dl*RW*0.45,0.0014,WHT,0,0.0009,0.0009); } } } }
   // a junction of three or more elevated runs: a round deck to join them
   for(const [n,h] of exH){ if(!h||exN(n).length<3) continue; const x=Rn.x[n], z=Rn.y[n], y=h+w3dHt(x,z); br.push({g:new T.CylinderGeometry(DW*1.2,DW*1.2,0.008,24),m:new T.Matrix4().makeTranslation(x,TRK-TRK+y-0.0044,z),c:BRC},{g:new T.CylinderGeometry(DW*1.2-0.006,DW*1.2-0.006,0.0006,24),m:new T.Matrix4().makeTranslation(x,y+0.0005,z),c:0x4a4d53}); }
   // the median strip on the ground under the deck
@@ -1198,7 +1207,7 @@ function w3dCarsTick(dt){
   c.cars.forEach((o,i)=>{ const a=Rn.ea[o.e], b=Rn.eb[o.e]; if(a==null||b==null){ again(o); return; } const ax=Rn.x[a], ay=Rn.y[a], bx=Rn.x[b], by=Rn.y[b], L=Math.hypot(bx-ax,by-ay)||0.1;
     if(Math.abs(ax-vp[0])>12||Math.abs(ay-vp[1])>12){ again(o); return; }      /* left far behind: comes back on a street well away from the viewer */
     o.t+=dt*o.v/L*(o.fwd?1:-1); if(o.t>1||o.t<0){ const nd=o.t>1?b:a, nx=Rn.adj[nd].filter(e=>e!==o.e); if(nx.length&&c.E.length){ o.e=nx[Math.floor(Math.random()*nx.length)]; o.fwd=Rn.ea[o.e]===nd; o.t=o.fwd?0:1; } else { o.fwd=!o.fwd; o.t=clamp(o.t,0,1); } return; }
-    const dx=(bx-ax)/L, dy=(by-ay)/L, s=o.fwd?1:-1, lane=0.012*s, x=ax+(bx-ax)*o.t-dy*lane, y=ay+(by-ay)*o.t+dx*lane;
+    const dx=(bx-ax)/L, dy=(by-ay)/L, s=o.fwd?1:-1, lane=0.012*s*DRIVE, x=ax+(bx-ax)*o.t-dy*lane, y=ay+(by-ay)*o.t+dx*lane;
     Q.setFromAxisAngle(up,-Math.atan2(dy*s,dx*s)); { const lf=w3d.rLift&&w3d.rLift.get(o.e); M.compose(V.set(x,0.0005+w3dHt(x,y)+(lf?lf(o.t*L):0),y),Q,one); } c.m.setMatrixAt(i,M); });
   c.m.instanceMatrix.needsUpdate=true; }
 // near the viewer the ground is redrawn sharp: 56 px per cell (about 2.7 m a pixel) so kerbs, lane markings and paths read from the train
