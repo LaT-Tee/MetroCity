@@ -450,7 +450,7 @@ function w3dBuild(){
   w3d.shellM=[];      /* materials of tunnel and hall walls and roofs: drawn specially when the underground is looked into (w3dRender) */
   if(tubes.length){ w3dTunnelTex(); const tm=w3dSee(new T.MeshBasicMaterial({map:w3d.tunTex,vertexColors:true,side:T.DoubleSide,fog:false})); const tmS=tm.clone(); w3d.shellM.push(tmS); for(const pc of tubes){ w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[0]),tm)).layers.enable(1); { const sh=w3dAdd(new T.Mesh(w3dTube(pc,TUN_W,TUN_H,[2,4,6]),tmS)); sh.layers.enable(2); } }
     // deep earth under everything, seen through the thinned ground round a train underground
-    const B=G.bounds, ef=new T.Mesh(new T.PlaneGeometry(B[2]-B[0]+40,B[3]-B[1]+40),new T.MeshBasicMaterial({color:0x4d463d,fog:false})); ef.rotation.x=-Math.PI/2; ef.position.set((B[0]+B[2])/2,UGY*2.9,(B[1]+B[3])/2); w3dAdd(ef); }
+    const B=G.bounds, ef=new T.Mesh(new T.PlaneGeometry(B[2]-B[0]+40,B[3]-B[1]+40),new T.MeshBasicMaterial({color:0x4d463d,fog:false})); ef.rotation.x=-Math.PI/2; ef.position.set((B[0]+B[2])/2,-0.33,(B[1]+B[3])/2);      /* below the deepest passages */ w3dAdd(ef); }
   // stations: platforms beside the outermost tracks, a canopy over all of them with the line colours on its edge,
   // columns, name boards, benches and a concourse under the viaduct; lines running side by side share one station.
   // Underground the same platforms stand in a lit hall, with an entrance pavilion on the street above.
@@ -501,8 +501,7 @@ function w3dBuild(){
                 const h=rnNearEdge(G.rn,cx+nx*mid,cy+ny*mid,1.2); if(h){ const R=G.rn, e=h.e, ra=Math.atan2(R.y[R.eb[e]]-R.y[R.ea[e]],R.x[R.eb[e]]-R.x[R.ea[e]]), ux=Math.cos(ra), uy=Math.sin(ra), rw=ROAD_W[R.ec[e]]/2+0.025, WW=Math.min(0.3,BW*0.75);
                   for(const t of [0,0.18,-0.18,0.36,-0.36]){ const px=h.px+ux*t, py=h.py+uy*t, wings=[1,-1].map(s2=>[px-uy*s2*(rw+0.055),py+ux*s2*(rw+0.055)]); if(wings.every(w=>clearW(w[0],w[1],ux,uy,WW/2,0.05)&&freeOfW(w[0],w[1],0.03))){ bridge={px,py,a:ra,ux,uy,rw,WW,wings}; break; } } } } } }          { const sx=cx+nx*mid, sy=cy+ny*mid, ci=clamp(Math.round(sy),0,H-1)*W+clamp(Math.round(sx),0,W-1); let hub=null, bd=1e9;
             for(const q of (w3d.hubs||[])){ const d=dist(q.x,q.y,sx,sy); if((q.air?(G.air&&G.air[ci]&&d<16):d<q.r)&&(q.cx==null||q.cx===cxKey)&&d<bd){ bd=d; hub=q; } }
-            if(hub){ if(bd>0.3){ const ang=Math.atan2(hub.y-sy,hub.x-sx), Cm=new T.Matrix4().makeTranslation((sx+hub.x)/2,0,(sy+hub.y)/2).multiply(new T.Matrix4().makeRotationY(-ang)), yf=g[0].y+0.0065, cb=(list,w,h,d,y,z,c)=>{ const q=w3dBox(w,h,d,0,y,z,c); q.m=Cm.clone().multiply(q.m); list.push(q); };
-                cb(hall,bd,0.002,0.034,yf,0,0xd8d5ce); cb(hall,bd,0.0006,0.004,yf+0.0014,0,lc); for(const sd of [-1,1]) cb(hallX,bd,0.03,0.002,yf+0.015,sd*0.018,0xcbc8c0); cb(hallX,bd,0.002,0.038,yf+0.031,0,0xd6d3cc); }
+            if(hub){ if(bd>0.3) w3dPassage(hall,hallX,sx,sy,g[0].y,hub.x,hub.y,hub.elev?TRK:0,lc);
               plats.push({x:sx,y:sy,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; } }
           if(bridge){ const {px,py,a:ra,ux,uy,rw,WW,wings}=bridge, Fm=new T.Matrix4().makeTranslation(px,0,py).multiply(new T.Matrix4().makeRotationY(-ra)), Bw=(w,h,d,lx,y,lz,c)=>{ const q=w3dBox(w,h,d,lx,y,lz,c); q.m=Fm.clone().multiply(q.m); parts.push(q); }, hb=0.07+0.012*Math.min(3,nLx);
               wings.forEach((w,k)=>{ const s2=k?-1:1; stB.mall({x:w[0]-WW/2,y:w[1]-0.045,w:WW,d:0.09,h:hb/BZ3,a:ra},((st.id*2654435761)>>>0)+k); Bw(WW+0.02,0.003,0.11,0,0.0015,s2*(rw+0.055),0xc9c7c1); spots.push({x:w[0],y:w[1],hx:ux,hy:uy,len:WW+0.02,half:0.055,h:hb+0.02,g:1}); });
@@ -580,6 +579,17 @@ function w3dTube(pc,hw,h,faces){ const T=w3d.T, n=pc.length, pos=[], uv=[], col=
    are drawn together into parallel tracks side by side, each pair with its own platforms; lines that cross it in
    another direction get a level of their own, a deck higher on viaduct or a storey deeper underground, with ramps
    either side. So an interchange is a set of stacked, parallel platform groups, not tracks crossing in a star. */
+/* A passage between platforms underground and the building they are entered from (a terminal, a station hall, the
+   other level of an interchange). A long one does not run at platform level, where it would cut through other lines'
+   tunnels: a shaft takes it down below every tunnel, it runs there with moving walkways, lit, and a shaft at the far
+   end takes it up into the building. A short one is a plain corridor at platform level. */
+function w3dPassage(hall,hallX,ax,az,ay,bx,bz,by,lc){ const T=w3d.T, d=dist(ax,az,bx,bz), ang=Math.atan2(bz-az,bx-ax), deep=d>0.45, yP=deep?-0.27:ay+0.0065, W=deep?0.05:0.034, Hh=0.032;
+  const Cm=new T.Matrix4().makeTranslation((ax+bx)/2,0,(az+bz)/2).multiply(new T.Matrix4().makeRotationY(-ang)), cb=(list,w,h,dd,x,y,z,c)=>{ const q=w3dBox(w,h,dd,x,y,z,c); q.m=Cm.clone().multiply(q.m); list.push(q); }, L=deep?d-0.05:d;
+  cb(hall,L,0.002,W,0,yP,0,0xd8d5ce); cb(hall,L,0.0006,0.004,0,yP+0.0014,0,lc); for(const sd of [-1,1]) cb(hallX,L,Hh,0.002,0,yP+Hh/2,sd*(W/2),0xcbc8c0); cb(hallX,L,0.002,W+0.004,0,yP+Hh,0,0xd6d3cc); cb(hall,L*0.96,0.0006,0.006,0,yP+Hh-0.0015,0,0xffffff);
+  if(deep){ for(const sd of [-1,1]){ cb(hall,L-0.06,0.0016,0.012,0,yP+0.0018,sd*0.012,0x3a3d43); for(const e of [-1,1]) cb(hall,L-0.06,0.0008,0.0008,0,yP+0.0028,sd*0.012+e*0.006,0xf2c200); cb(hall,L-0.06,0.006,0.001,0,yP+0.006,sd*0.019,0x2b3440); }
+    for(let x=-L/2+0.1;x<L/2-0.08;x+=0.24) for(const sd of [-1,1]) cb(hall,0.05,0.016,0.0006,x,yP+0.016,sd*(W/2-0.0012),[0xd9534f,0x3f7fbf,0xe0a030,0x4f9e62][Math.round((x+sd)*7)&3]);      // posters along the walls
+    // the shafts: lift and escalator wells at both ends
+    for(const [sx,top] of [[-d/2,ay+0.04],[d/2,by]]){ const h=top-yP; cb(hall,0.06,0.002,0.06,sx,yP,0,0xd8d5ce); for(const e of [-1,1]){ cb(hallX,0.002,h,0.06,sx+e*0.03,yP+h/2,0,0xcbc8c0); cb(hallX,0.06,h,0.002,sx,yP+h/2,e*0.03,0xcbc8c0); } cb(hall,0.012,h*0.96,0.02,sx,yP+h/2,0,0x8f98a3); } } }
 function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042; w3d.stShift=new Map();      /* at a station the lines of one direction stand further apart: there is an island platform between each pair */
   // stations of different lines that stand right next to each other are one complex: laid out together, so their platforms cannot overlap
   const used=stations.filter(st=>lines.some(L=>L.stops.length>=2&&L._p3&&L._p3.sU&&L.stops.includes(st.id))), par=used.map((_,i)=>i), find=i=>{ while(par[i]!==i) i=par[i]=par[par[i]]; return i; };
