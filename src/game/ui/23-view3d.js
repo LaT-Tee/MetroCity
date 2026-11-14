@@ -773,7 +773,7 @@ function w3dLandmarks(parts,spots,signs){ const T=w3d.T, B0=G.bounds, texB=w3dBo
     else if(p.t==='gov'){ top=0.26; B(0.56,0.014,0.4,0,0.007,0,0xe9e6dc); B(0.5,0.09,0.26,0,0.059,-0.04,0xf1ede2); B(0.52,0.008,0.28,0,0.108,-0.04,0xe1dccf); for(let x=-0.2;x<=0.2001;x+=0.05) C(0.008,0.009,0.08,x,0.054,0.105,0xf7f4ea,10); B(0.46,0.012,0.04,0,0.1,0.105,0xe9e6dc); C(0.08,0.08,0.05,0,0.137,-0.04,0xf1ede2,18); dome(0.075,0,0.162,-0.04,0x7fa69a,1.0); B(0.004,0.04,0.004,0,0.255,-0.04,0xd9b84a); for(const x of [-0.24,0.24]) B(0.003,0.1,0.003,x,0.05,0.24,0xcfd4da); }
     else if(p.t==='arena'){ top=0.16; parts.push({g:new T.CylinderGeometry(0.3,0.26,0.1,28,1,true),m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.05,0)).multiply(new T.Matrix4().makeScale(1,1,0.78)),c:0xd9dde2}); parts.push({g:new T.CylinderGeometry(0.2,0.29,0.085,28,1,true),m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.0475,0)).multiply(new T.Matrix4().makeScale(1,1,0.78)),c:0x8f98a3}); parts.push({g:new T.TorusGeometry(0.3,0.012,6,28),m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.102,0)).multiply(new T.Matrix4().makeScale(1,1,0.78)).multiply(new T.Matrix4().makeRotationX(Math.PI/2)),c:0xf2f3f5});
       B(0.3,0.002,0.19,0,0.0052,0,0x5b9846); B(0.26,0.0022,0.002,0,0.0054,0,0xffffff); for(const [x,z] of [[-0.3,-0.26],[0.3,-0.26],[0.3,0.26],[-0.3,0.26]]){ B(0.006,0.16,0.006,x,0.08,z,0xb9bec4); B(0.04,0.012,0.02,x,0.164,z,0xf7f4ea); } }
-    spots.push({x:px,y:pz,hx:Math.cos(a),hy:Math.sin(a),len:0.8,half:0.4,h:top,g:1,lm:1});
+    spots.push({x:px,y:pz,hx:Math.cos(a),hy:Math.sin(a),len:0.8,half:0.4,h:top,g:1,lm:1}); if(p.done) w3d.hubs.push({x:px,y:pz,r:1.3});      /* a metro station under the development is entered from it */
     if(p.done) signs.push({m:F.Fm.clone().multiply(new T.Matrix4().makeTranslation(0,0.03,0.372)),w:0.26,h:0.016,text:nm(projName(p)),c:'#7a4a9a'}); }
   for(const m of texB.meshes(true)) w3dAdd(m);
 }
@@ -987,18 +987,46 @@ function w3dRoadMesh(cx,cy,R){
   const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true;
   /* The elevated expressway: its own deck above the ground road (which keeps its junctions), piers standing in a median
      strip down the middle of the road below, and where it ends a ramp in the middle lanes that climbs from the street. */
-  const exDeck=w3d.exDeck=[], exPier=w3d.exPier=[], DW=0.064;
-  for(const e of exUp){ const a=Rn.ea[e], b=Rn.eb[e], ax=Rn.x[a], az=Rn.y[a], bx=Rn.x[b], bz=Rn.y[b], l=Math.hypot(bx-ax,bz-az); if(l<1e-4) continue; const ha=exH.get(a)||0, hb=exH.get(b)||0, dx=(bx-ax)/l, dz=(bz-az)/l;
-    const P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const t=k/n, x=ax+(bx-ax)*t, z=az+(bz-az)*t; P2.push([x,z,TRK+lerp(ha,hb,t)+w3dHt(x,z)]); }
-    exDeck.push([ax,az,ha,bx,bz,hb]);
-    br.push({g:w3dRibbon(P2,DW,-0.0004,0.008),c:BRC},{g:w3dRibbon(P2,DW-0.006,0.0002,0.0006),c:0x4a4d53}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(DW-0.002)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.002,0.008,0.009),c:0xcfcbc3});
-    for(let k=0.06;k<l-0.06;k+=0.09){ const t0=k/l, t1=Math.min(1,(k+0.04)/l); br.push({g:w3dRibbon([[ax+(bx-ax)*t0,az+(bz-az)*t0,TRK+lerp(ha,hb,t0)+0.0009],[ax+(bx-ax)*t1,az+(bz-az)*t1,TRK+lerp(ha,hb,t1)+0.0009]],0.001,0,0.0002),c:0xe6e6e6}); }
-    // the median strip below, the length of the deck and its ramp
-    quad(2,ax,az,bx,bz,0.016,0xbdb9b1,0,0.0007,0.0007);
-    for(let k=0.25;k<l;k+=0.5){ const t=k/l, h=lerp(ha,hb,t); if(h<0.03) continue; const x=ax+(bx-ax)*t, z=az+(bz-az)*t; if(w3dPierClash(x,z,0.01)) continue; const q=w3dBox(0.03,h,0.012,0,h/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,w3dHt(x,z),z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); exPier.push([x,z]); } }
-  // round joints where the deck bends, so its edge runs on without a notch
-  for(const [n,h] of exH){ if(!h) continue; let k=0; for(const f of Rn.adj[n]) if(exUp.has(f)) k++; if(k<2) continue; const x=Rn.x[n], z=Rn.y[n], y=h+w3dHt(x,z);
-    br.push({g:new T.CylinderGeometry(DW,DW,0.008,20),m:new T.Matrix4().makeTranslation(x,y-0.0044,z),c:BRC},{g:new T.CylinderGeometry(DW-0.006,DW-0.006,0.0006,20),m:new T.Matrix4().makeTranslation(x,y+0.0005,z),c:0x4a4d53}); }
+  w3d.exRamps=[];   const exDeck=w3d.exDeck=[], exPier=w3d.exPier=[], DW=0.064, RW=0.034, WHT=0xe6e6e6;
+  // the deck is laid as one smooth ribbon along each run of elevated road (no joints to show), its corners rounded off
+  const chains=[], used=new Set(), exN=n=>Rn.adj[n].filter(f=>exUp.has(f));
+  for(const e0 of exUp){ if(used.has(e0)) continue; let pts=[], e=e0, n=Rn.ea[e0]; { // walk back to an end
+      let guard=0; while(guard++<400){ const nx=exN(n).filter(f=>f!==e); if(exN(n).length!==2||!nx.length||used.has(nx[0])||nx[0]===e0) break; e=nx[0]; n=Rn.ea[e]===n?Rn.eb[e]:Rn.ea[e]; } }
+    let cur=n, ce=exN(n).length===2?null:null; const seq=[cur]; let edge=exN(cur).find(f=>!used.has(f)), guard=0;
+    while(edge!=null&&guard++<400){ used.add(edge); cur=Rn.ea[edge]===cur?Rn.eb[edge]:Rn.ea[edge]; seq.push(cur); const nx=exN(cur).filter(f=>!used.has(f)); if(exN(cur).length!==2||!nx.length) break; edge=nx[0]; }
+    chains.push(seq.map(k=>[Rn.x[k],Rn.y[k],exH.get(k)||0])); }
+  const smoothC=pc=>{ let P=pc; for(let it=0;it<2;it++){ const Q=[P[0]]; for(let k=0;k<P.length-1;k++){ const a=P[k], b=P[k+1]; Q.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25,a[2]*0.75+b[2]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75,a[2]*0.25+b[2]*0.75]); } Q.push(P[P.length-1]); P=Q; } return P; };
+  const dens=pc=>{ const o=[pc[0]]; for(let k=1;k<pc.length;k++){ const a=pc[k-1], b=pc[k], m=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/0.2)); for(let q=1;q<=m;q++) o.push([lerp(a[0],b[0],q/m),lerp(a[1],b[1],q/m),lerp(a[2],b[2],q/m)]); } return o; };
+  const y3=(q,dy)=>[q[0],q[1],TRK+q[2]+w3dHt(q[0],q[1])+(dy||0)], offs=(pc,o)=>offsetPts(pc,o).map((q,i)=>[q[0],q[1],pc[i][2]]);
+  for(const ch of chains){ if(ch.length<2) continue; const pc=dens(smoothC(ch)), P3=pc.map(q=>y3(q)); for(let k=1;k<pc.length;k++) exDeck.push([pc[k-1][0],pc[k-1][1],pc[k-1][2],pc[k][0],pc[k][1],pc[k][2]]);
+    br.push({g:w3dRibbon(P3,DW,-0.0004,0.008),c:BRC},{g:w3dRibbon(P3,DW-0.006,0.0002,0.0006),c:0x4a4d53}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offs(P3,sd*(DW-0.002)),0.002,0.008,0.009),c:0xcfcbc3});
+    for(const o of [0,-0.03,0.03]){ const L=offs(P3,o); for(let k=1;k<L.length;k+=2) if(o===0) br.push({g:w3dRibbon([L[k-1],L[k]].map(q=>[q[0],q[1],q[2]+0.0009]),0.0012,0,0.0002),c:0xe3c04a}); else if(k%4===1) br.push({g:w3dRibbon([L[k-1],L[k]].map(q=>[q[0],q[1],q[2]+0.0009]),0.0009,0,0.0002),c:WHT}); }
+    // piers in the median strip of the street below, every half cell, clear of the railway, the metro and cross streets
+    let acc=0.25; for(let k=1;k<pc.length;k++){ acc+=Math.hypot(pc[k][0]-pc[k-1][0],pc[k][1]-pc[k-1][1]); if(acc<0.5||pc[k][2]<0.03) continue; const x=pc[k][0], z=pc[k][1], h=pc[k][2]; if(w3dPierClash(x,z,0.01)) continue; const hh=rnNearEdge(Rn,x,z,0.2); if(hh&&Rn.ec[hh.e]<4&&hh.d<ROAD_W[Rn.ec[hh.e]]/2+0.02) continue; acc=0;
+      const a=Math.atan2(pc[k][1]-pc[k-1][1],pc[k][0]-pc[k-1][0]), q=w3dBox(0.03,h,0.012,0,h/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,w3dHt(x,z),z).multiply(new T.Matrix4().makeRotationY(-a)).multiply(q.m); br.push(q); exPier.push([x,z]); }
+    /* Ways on and off along the way: every few blocks a ramp lane leaves the deck on each side and comes down beside the
+       street's outer lane in the same direction (one side down, the other up), with hatched guide lines where the lanes
+       part and join. A ramp is only placed where no cross street meets the road under it. */
+    const tot=pc.reduce((a,q,k)=>k?a+Math.hypot(q[0]-pc[k-1][0],q[1]-pc[k-1][1]):0,0), cumC=[0]; for(let k=1;k<pc.length;k++) cumC.push(cumC[k-1]+Math.hypot(pc[k][0]-pc[k-1][0],pc[k][1]-pc[k-1][1]));
+    const atC=u=>{ let k=1; while(k<pc.length-1&&cumC[k]<u) k++; const f=clamp((u-cumC[k-1])/((cumC[k]-cumC[k-1])||1),0,1); return [lerp(pc[k-1][0],pc[k][0],f),lerp(pc[k-1][1],pc[k][1],f),lerp(pc[k-1][2],pc[k][2],f)]; }, RL=1.3, gW=ROAD_W[4]/2;
+    for(let u0=1.2;u0+RL<tot-1.0;u0+=3.4){ let ok=true; for(let u=u0-0.15;u<=u0+RL+0.15&&ok;u+=0.1){ const q=atC(u); if(q[2]<W3D_EXH-0.001) ok=false; for(const f of (()=>{ const h=rnNearEdge(Rn,q[0],q[1],0.35); return h?[h]:[]; })()) if(Rn.ec[f.e]<4&&f.d<ROAD_W[Rn.ec[f.e]]/2+gW) ok=false; } if(!ok) continue;
+      for(const sd of [1,-1]){ const R3=[]; for(let k=0;k<=13;k++){ const t=k/13, u=sd>0?u0+RL*t:u0+RL*(1-t), q=atC(u), q2=atC(Math.min(tot,u+0.05)), hx=q2[0]-q[0], hz=q2[1]-q[1], hl=Math.hypot(hx,hz)||1, nx=-hz/hl, nz=hx/hl, side=lerp(DW+RW/2+0.004,gW-RW/2,smooth(t,0,0.4)), y=W3D_EXH*(1-smooth(t,0.1,1)); R3.push([q[0]+nx*side*sd,q[1]+nz*side*sd,TRK+y+w3dHt(q[0],q[1])]); }
+        br.push({g:w3dRibbon(R3,RW/2+0.003,-0.0004,0.007),c:BRC},{g:w3dRibbon(R3,RW/2-0.002,0.0002,0.0006),c:0x4a4d53}); for(const e of [1,-1]) br.push({g:w3dRibbon(offs(R3,e*(RW/2+0.002)),0.0015,0.007,0.008),c:0xcfcbc3});
+        for(let k=2;k<R3.length-2;k++) if(R3[k][2]-TRK>0.03){ const q=R3[k], qq=w3dBox(0.012,q[2]-TRK,0.012,q[0],(q[2]-TRK)/2,q[1],0xaeaaa2); br.push(qq); }
+        // under the ramp the street's outer lane is closed: a hatched area with a solid edge, the lane narrowing into it
+        for(let k=1;k<R3.length;k++){ const p0=R3[k-1], p1=R3[k]; if(Math.min(p0[2],p1[2])-TRK<0.004) continue; const g0=w3dHt(p0[0],p0[1]); quad(2,p0[0],p0[1],p1[0],p1[1],RW/2,0x5a5d63,0,0.0008,0.0008);
+          for(const e of [1,-1]) quad(2,p0[0],p0[1],p1[0],p1[1],0.0012,WHT,e*RW/2,0.0009,0.0009);
+          const mx=(p0[0]+p1[0])/2, mz=(p0[1]+p1[1])/2, dx=p1[0]-p0[0], dz=p1[1]-p0[1], dl=Math.hypot(dx,dz)||1; if(k%2===0) quad(2,mx-dx/dl*0.012-dz/dl*RW*0.45,mz-dz/dl*0.012+dx/dl*RW*0.45,mx+dx/dl*0.012+dz/dl*RW*0.45,mz+dz/dl*0.012-dx/dl*RW*0.45,0.0014,WHT,0,0.0009,0.0009); }
+        // the guide lines: hatching where the ramp lane leaves the deck, and where it meets the street's outer lane
+        (w3d.exRamps||(w3d.exRamps=[])).push([R3[R3.length-1][0],R3[R3.length-1][1],R3[0][0],R3[0][1]]);
+        const foot=R3[R3.length-1], top=R3[0], fq=atC(sd>0?u0+RL:u0), fq2=atC(sd>0?u0+RL+0.05:u0+0.05), hx=fq2[0]-fq[0], hz=fq2[1]-fq[1], hl=Math.hypot(hx,hz)||1;
+        for(let k=0;k<6;k++){ const along=(sd>0?1:-1)*(0.02+k*0.03), x=foot[0]+hx/hl*along, z=foot[1]+hz/hl*along; quad(2,x-hx/hl*0.012+(-hz/hl)*0.012*sd,z-hz/hl*0.012+(hx/hl)*0.012*sd,x+hx/hl*0.012-(-hz/hl)*0.012*sd,z+hz/hl*0.012-(hx/hl)*0.012*sd,0.0016,WHT,0,0.0009,0.0009); }
+        { const g0=atC(sd>0?u0+RL+0.2:u0-0.2); quad(2,foot[0],foot[1],g0[0]+(-hz/hl)*sd*(gW-RW),g0[1]+(hx/hl)*sd*(gW-RW),0.0012,WHT,0,0.0009,0.0009); }
+        for(let k=0;k<4;k++){ const t=0.04+k*0.04, a1=R3[Math.round(t*13)]; br.push({g:w3dRibbon([[a1[0],a1[1],a1[2]+0.001],[lerp(a1[0],top[0],0.3),lerp(a1[1],top[1],0.3),a1[2]+0.001]],0.001,0,0.0002),c:WHT}); } } } }
+  // a junction of three or more elevated runs: a round deck to join them
+  for(const [n,h] of exH){ if(!h||exN(n).length<3) continue; const x=Rn.x[n], z=Rn.y[n], y=h+w3dHt(x,z); br.push({g:new T.CylinderGeometry(DW*1.2,DW*1.2,0.008,24),m:new T.Matrix4().makeTranslation(x,TRK-TRK+y-0.0044,z),c:BRC},{g:new T.CylinderGeometry(DW*1.2-0.006,DW*1.2-0.006,0.0006,24),m:new T.Matrix4().makeTranslation(x,y+0.0005,z),c:0x4a4d53}); }
+  // the median strip on the ground under the deck
+  for(const e of exUp){ const a=Rn.ea[e], b=Rn.eb[e]; quad(2,Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],0.016,0xbdb9b1,0,0.0007,0.0007); }
   const out=[m]; if(br.length){ const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; out.unshift(bm); }
   if(lamps.length){ const pg=w3dMerge([w3dBox(0.0012,0.032,0.0012,0,0.016,0,0x5a6068),w3dBox(0.012,0.0012,0.0012,0.006,0.0315,0,0x5a6068)]), hg=new T.BoxGeometry(0.006,0.0016,0.003); hg.translate(0.011,0.0305,0);
     const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
