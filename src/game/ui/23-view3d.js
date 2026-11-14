@@ -459,7 +459,7 @@ function w3dBuild(){
   // stations: platforms beside the outermost tracks, a canopy over all of them with the line colours on its edge,
   // columns, name boards, benches and a concourse under the viaduct; lines running side by side share one station.
   // Underground the same platforms stand in a lit hall, with an entrance pavilion on the street above.
-  { const stB=w3dBoxes(), parts=[], uparts=[], hall=[], hallX=[], spots=[], plats=[], signs=[], hubOf=k=>(w3d.hubs||[]).some(q=>q.cx===k); w3d.plats=plats; w3dLandmarks(parts,spots,signs); const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
+  { const stB=w3dBoxes(), passQ=[], parts=[], uparts=[], hall=[], hallX=[], spots=[], plats=[], signs=[], hubOf=k=>(w3d.hubs||[]).some(q=>q.cx===k); w3d.plats=plats; w3dLandmarks(parts,spots,signs); const pl=0xbdbab3, cano=0xeeeeea, col=0xa9b0b9, glass=0x9fb4c2, wall=0xd9d5cc; w3d.stY=new Map();
     // an interchange with platforms above ground is entered there: its platforms below ground reach the elevated station by passage
     for(const st of stations){ const cxI=w3d.stCx&&w3d.stCx.get(st.id); if(!cxI||cxI.n<2||hubOf(cxI.k)) continue; for(const L of lines){ const P=L._p3; if(L.stops.length<2||!P||!P.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const u=P.sU[k]; if(w3dHAt(P,u)>0.02){ const q=polyAt(P.pts,P.cum,u); (w3d.hubs||(w3d.hubs=[])).push({x:q[0],y:q[1],r:3,cx:cxI.k,elev:1}); break; } } }
     for(const st of stations){ const here=[]; for(const L of lines){ if(L.stops.length<2||!L._p3||!L._p3.sU) continue; const k=L.stops.indexOf(st.id); if(k<0) continue; const u=L._p3.sU[k], p=polyAt(L._p3.pts,L._p3.cum,u), h=polyHead(L._p3.pts,L._p3.cum,u,0.2); here.push({L,p,h,y:w3dHAt(L._p3,u)}); }
@@ -506,7 +506,7 @@ function w3dBuild(){
                 const h=rnNearEdge(G.rn,cx+nx*mid,cy+ny*mid,1.2); if(h){ const R=G.rn, e=h.e, ra=Math.atan2(R.y[R.eb[e]]-R.y[R.ea[e]],R.x[R.eb[e]]-R.x[R.ea[e]]), ux=Math.cos(ra), uy=Math.sin(ra), rw=ROAD_W[R.ec[e]]/2+0.025, WW=Math.min(0.3,BW*0.75);
                   for(const t of [0,0.18,-0.18,0.36,-0.36]){ const px=h.px+ux*t, py=h.py+uy*t, wings=[1,-1].map(s2=>[px-uy*s2*(rw+0.055),py+ux*s2*(rw+0.055)]); if(wings.every(w=>clearW(w[0],w[1],ux,uy,WW/2,0.05)&&freeOfW(w[0],w[1],0.03))){ bridge={px,py,a:ra,ux,uy,rw,WW,wings}; break; } } } } } }          { const sx=cx+nx*mid, sy=cy+ny*mid, ci=clamp(Math.round(sy),0,H-1)*W+clamp(Math.round(sx),0,W-1); let hub=null, bd=1e9;
             for(const q of (w3d.hubs||[])){ const d=dist(q.x,q.y,sx,sy); if((q.air?(G.air&&G.air[ci]&&d<16):d<q.r)&&(q.cx==null||q.cx===cxKey)&&d<bd){ bd=d; hub=q; } }
-            if(hub){ if(bd>0.3) w3dPassage(hall,hallX,sx,sy,g[0].y,hub.x,hub.y,hub.elev?TRK:0,lc);
+            if(hub){ if(bd>0.3){ const sg=((hub.x-sx)*nx+(hub.y-sy)*ny)>=0?1:-1, so=mid+sg*(span/2+0.04); passQ.push({hub,x:cx+nx*so,z:cy+ny*so,y:g[0].y,top:hub.elev?TRK:0,lc}); }
               plats.push({x:sx,y:sy,hx,hy,len:Lp,half:span/2,lv:g[0].y}); continue; } }
           if(bridge){ const {px,py,a:ra,ux,uy,rw,WW,wings}=bridge, Fm=new T.Matrix4().makeTranslation(px,0,py).multiply(new T.Matrix4().makeRotationY(-ra)), Bw=(w,h,d,lx,y,lz,c)=>{ const q=w3dBox(w,h,d,lx,y,lz,c); q.m=Fm.clone().multiply(q.m); parts.push(q); }, hb=0.07+0.012*Math.min(3,nLx);
               wings.forEach((w,k)=>{ const s2=k?-1:1; stB.mall({x:w[0]-WW/2,y:w[1]-0.045,w:WW,d:0.09,h:hb/BZ3,a:ra},((st.id*2654435761)>>>0)+k); Bw(WW+0.02,0.003,0.11,0,0.0015,s2*(rw+0.055),0xc9c7c1); spots.push({x:w[0],y:w[1],hx:ux,hy:uy,len:WW+0.02,half:0.055,h:hb+0.02,g:1}); });
@@ -540,6 +540,7 @@ function w3dBuild(){
         let side=1; { const m=polyAt(P.pts,P.cum,(u0+u1)/2); if(w3dOnRoad(m[0]+nx*off,m[1]+ny*off,0)&&!w3dOnRoad(m[0]-nx*off,m[1]-ny*off,0)) side=-1; }
         const ax=a[0]+nx*off*side, az=a[1]+ny*off*side, bx=b[0]+nx*off*side, bz=b[1]+ny*off*side, d=dist(ax,az,bx,bz); if(d<0.15) continue; const ang=Math.atan2(bz-az,bx-ax), Fm=new T.Matrix4().makeTranslation((ax+bx)/2,0,(az+bz)/2).multiply(new T.Matrix4().makeRotationY(-ang)), yb=y+TRK+0.002;
         const Bq=(w,hh,d2,x,yy,z,c)=>{ const o=w3dBox(w,hh,d2,x,yy,z,c); o.m=Fm.clone().multiply(o.m); parts.push(o); }; Bq(d,0.003,0.03,0,yb,0,0xc9c6bf); for(const e of [-1,1]) Bq(d,0.016,0.0015,0,yb+0.0095,e*0.0145,0x9fb4c2); Bq(d,0.002,0.034,0,yb+0.0185,0,0xeeeeea); Bq(d,0.0012,0.0342,0,yb+0.0015,0,lineColor(L)); } }
+    w3dPassages(hall,hallX,passQ);
     // every name board in one mesh: the names are written onto one sheet, each board takes its strip of it
     if(signs.length){ const n=signs.length, rows=Math.ceil(n/2), cv=document.createElement('canvas'); cv.width=1024; cv.height=Math.min(4096,rows*64); const g=cv.getContext('2d'), pos=[], uv=[], V=new T.Vector3();
       signs.forEach((q,i)=>{ const cxp=(i%2)*512, cyp=Math.floor(i/2)*64; if(cyp+64>cv.height) return; g.fillStyle='#f7f7f4'; g.fillRect(cxp,cyp,512,64); g.fillStyle=q.c; g.fillRect(cxp,cyp,512,9); g.fillRect(cxp,cyp+55,512,9); g.fillRect(cxp+10,cyp+16,34,32); g.fillStyle='#fff'; g.font='700 24px '+FONT(); g.textAlign='center'; g.textBaseline='middle'; g.fillText('M',cxp+27,cyp+33);
@@ -595,6 +596,27 @@ function w3dPassage(hall,hallX,ax,az,ay,bx,bz,by,lc){ const T=w3d.T, d=dist(ax,a
     for(let x=-L/2+0.1;x<L/2-0.08;x+=0.24) for(const sd of [-1,1]) cb(hall,0.05,0.016,0.0006,x,yP+0.016,sd*(W/2-0.0012),[0xd9534f,0x3f7fbf,0xe0a030,0x4f9e62][Math.round((x+sd)*7)&3]);      // posters along the walls
     // the shafts: lift and escalator wells at both ends
     for(const [sx,top] of [[-d/2,ay+0.04],[d/2,by]]){ const h=top-yP; cb(hall,0.06,0.002,0.06,sx,yP,0,0xd8d5ce); for(const e of [-1,1]){ cb(hallX,0.002,h,0.06,sx+e*0.03,yP+h/2,0,0xcbc8c0); cb(hallX,0.06,h,0.002,sx,yP+h/2,e*0.03,0xcbc8c0); } cb(hall,0.012,h*0.96,0.02,sx,yP+h/2,0,0x8f98a3); } } }
+/* Passages between platforms underground and the building they are entered from. Each platform group has a shaft just
+   outside its hall, on the side facing the building; the passage runs deep below every tunnel and comes up a shaft
+   under the building. Several platform groups going to the same building share one passage: a trunk out from the
+   building, each group joining it by a branch at right angles, so the way turns corners instead of cutting across. */
+function w3dShaftClear(x,z,y0,y1){ for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; for(let v=1;v<P.pts.length;v++){ const p0=P.pts[v-1], p1=P.pts[v]; if(Math.max(p0[0],p1[0])<x-0.2||Math.min(p0[0],p1[0])>x+0.2||Math.max(p0[1],p1[1])<z-0.2||Math.min(p0[1],p1[1])>z+0.2) continue; const dx=p1[0]-p0[0], dz=p1[1]-p0[1], u=clamp(((x-p0[0])*dx+(z-p0[1])*dz)/(dx*dx+dz*dz||1),0,1), y=lerp(P.Y[v-1],P.Y[v],u); if(Math.hypot(x-p0[0]-dx*u,z-p0[1]-dz*u)<TUN_W+0.035&&y+TUN_H>y0&&y<y1) return false; } } return true; }
+// the nearest spot to (x,z) where a shaft can go down without cutting a tunnel: a little along, or a little further out
+function w3dShaftAt(x,z,y0,y1,ax,az){ if(w3dShaftClear(x,z,y0,y1)) return [x,z]; for(let r=0.04;r<=0.5;r+=0.04) for(let k=0;k<12;k++){ const a=k*0.5236, px=x+Math.cos(a)*r, pz=z+Math.sin(a)*r; if(w3dShaftClear(px,pz,y0,y1)) return [px,pz]; } return [x,z]; }
+function w3dPassages(hall,hallX,Q){ const T=w3d.T, byHub=new Map(); for(const q of Q){ let a=byHub.get(q.hub); if(!a) byHub.set(q.hub,a=[]); a.push(q); } let hi=0; w3d.passShafts=[];
+  for(const [hub,qs] of byHub){ const yD=-0.255-0.034*(hi++%3); for(const q of qs){ const c=w3dShaftAt(q.x,q.z,yD,q.y+0.04); q.x=c[0]; q.z=c[1]; } const H=w3dShaftAt(hub.x,hub.y,yD,qs[0].top); let mx=0, mz=0; for(const q of qs){ mx+=q.x; mz+=q.z; } mx/=qs.length; mz/=qs.length;
+    let ux=mx-H[0], uz=mz-H[1]; const ul=Math.hypot(ux,uz); if(ul<1e-4){ ux=1; uz=0; } else { ux/=ul; uz/=ul; }
+    let far=0; const lc=qs[0].lc;
+    for(const q of qs){ const t=Math.max(0,(q.x-H[0])*ux+(q.z-H[1])*uz), cx=H[0]+ux*t, cz=H[1]+uz*t; far=Math.max(far,t); if(dist(cx,cz,q.x,q.z)>0.05) w3dDeepSeg(hall,hallX,cx,cz,q.x,q.z,yD,q.lc); w3dShaft(hall,hallX,q.x,q.z,yD,q.y+0.04); w3d.passShafts.push([q.x,q.z,yD,q.y+0.04]); }
+    if(far>0.05) w3dDeepSeg(hall,hallX,H[0],H[1],H[0]+ux*far,H[1]+uz*far,yD,lc);
+    w3dShaft(hall,hallX,H[0],H[1],yD,qs[0].top); w3d.passShafts.push([H[0],H[1],yD,qs[0].top]); } }
+function w3dDeepSeg(hall,hallX,ax,az,bx,bz,y,lc){ const T=w3d.T, d=dist(ax,az,bx,bz), ang=Math.atan2(bz-az,bx-ax), W=0.05, Hh=0.032, L=d+W;
+  const Cm=new T.Matrix4().makeTranslation((ax+bx)/2,0,(az+bz)/2).multiply(new T.Matrix4().makeRotationY(-ang)), cb=(list,w,h,dd,x,yy,z,c)=>{ const q=w3dBox(w,h,dd,x,yy,z,c); q.m=Cm.clone().multiply(q.m); list.push(q); };
+  cb(hall,L,0.002,W,0,y,0,0xd8d5ce); cb(hall,L,0.0006,0.004,0,y+0.0014,0,lc); for(const sd of [-1,1]) cb(hallX,L,Hh,0.002,0,y+Hh/2,sd*(W/2),0xcbc8c0); cb(hallX,L,0.002,W+0.004,0,y+Hh,0,0xd6d3cc); cb(hall,L*0.96,0.0006,0.006,0,y+Hh-0.0015,0,0xffffff);
+  if(d>0.35){ for(const sd of [-1,1]){ cb(hall,d-0.06,0.0016,0.012,0,y+0.0018,sd*0.012,0x3a3d43); for(const e of [-1,1]) cb(hall,d-0.06,0.0008,0.0008,0,y+0.0028,sd*0.012+e*0.006,0xf2c200); }
+    for(let x=-d/2+0.1;x<d/2-0.08;x+=0.24) for(const sd of [-1,1]) cb(hall,0.05,0.016,0.0006,x,y+0.016,sd*(W/2-0.0012),[0xd9534f,0x3f7fbf,0xe0a030,0x4f9e62][Math.round((x+sd)*7)&3]); } }
+function w3dShaft(hall,hallX,x,z,y0,y1){ const T=w3d.T, h=y1-y0; if(h<=0.01) return; const cb=(list,w,hh,d,dx,yy,dz,c)=>list.push(w3dBox(w,hh,d,x+dx,yy,z+dz,c));
+  cb(hall,0.06,0.002,0.06,0,y0,0,0xd8d5ce); for(const e of [-1,1]){ cb(hallX,0.002,h,0.06,e*0.03,y0+h/2,0,0xcbc8c0); cb(hallX,0.06,h,0.002,0,y0+h/2,e*0.03,0xcbc8c0); } cb(hall,0.012,h*0.96,0.02,0,y0+h/2,0,0x8f98a3); }
 function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042; w3d.stShift=new Map();      /* at a station the lines of one direction stand further apart: there is an island platform between each pair */
   // stations of different lines that stand right next to each other are one complex: laid out together, so their platforms cannot overlap
   const used=stations.filter(st=>lines.some(L=>L.stops.length>=2&&L._p3&&L._p3.sU&&L.stops.includes(st.id))), par=used.map((_,i)=>i), find=i=>{ while(par[i]!==i) i=par[i]=par[par[i]]; return i; };
@@ -954,16 +976,19 @@ function w3dRoadMesh(cx,cy,R){
   /* Flyovers. Where an expressway meets lesser streets at a junction, it does not stop at lights: it is carried over on a
      deck, coming down again on a ramp either side, and the streets below cross under it at ground level. */
   const {hi:exH,up:exUp}=w3dElevSet(es), {flyN,flyI}=w3dFlySet(es,exH), FLY=0.036, FR=0.95;
-  const own=(e,sd)=>{ let v=0; const w=wetI.get(e); if(w){ const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; v=W3D_BR*(1-smooth(d,0,RAMP)); } const f=flyI.get(e); if(f){ const l=geo(e)[4]; for(const k of f){ const d=Math.abs(sd-k*l); v=Math.max(v,FLY*(1-smooth(d,0.14,0.14+FR))); } } return v; };
+  /* a street crossing the railway where the railway is on a bridge goes over it, well clear of the trains */
+  const railX=new Map(); if(w3d.railP&&w3d.railP.lift){ const RP=w3d.railP; for(const e of es){ const [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; for(let k=1;k<RP.pts.length;k++){ const p0=RP.pts[k-1], p1=RP.pts[k]; if(Math.max(p0[0],p1[0])<Math.min(ax,bx)-0.1||Math.min(p0[0],p1[0])>Math.max(ax,bx)+0.1||Math.max(p0[1],p1[1])<Math.min(az,bz)-0.1||Math.min(p0[1],p1[1])>Math.max(az,bz)+0.1) continue;
+        const rx=bx-ax, rz=bz-az, sx=p1[0]-p0[0], sz=p1[1]-p0[1], den=rx*sz-rz*sx; if(Math.abs(den)<1e-9) continue; const t=((p0[0]-ax)*sz-(p0[1]-az)*sx)/den, u=((p0[0]-ax)*rz-(p0[1]-az)*rx)/den; if(t<0||t>1||u<0||u>1) continue; const lift=lerp(RP.lift[k-1],RP.lift[k],u); if(lift>0.002){ let a=railX.get(e); if(!a) railX.set(e,a=[]); a.push([t*l,lift]); } } } }
+  const own=(e,sd)=>{ let v=0; { const rx=railX.get(e); if(rx) for(const [sc,lift] of rx) v=Math.max(v,(lift+0.075)*(1-smooth(Math.abs(sd-sc),0.12,0.12+RAMP))); } const w=wetI.get(e); if(w){ const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; v=W3D_BR*(1-smooth(d,0,RAMP)); } const f=flyI.get(e); if(f){ const l=geo(e)[4]; for(const k of f){ const d=Math.abs(sd-k*l); v=Math.max(v,FLY*(1-smooth(d,0.14,0.14+FR))); } } return v; };
   const DK=airDecks().filter(q=>Math.max(q[0],q[3])>cx-R-1&&Math.min(q[0],q[3])<cx+R+1&&Math.max(q[1],q[4])>cy-R-1&&Math.min(q[1],q[4])<cy+R+1), deckY=(x,z)=>{ let y=-1; for(const q of DK){ const dx=q[3]-q[0], dz=q[4]-q[1], t=clamp(((x-q[0])*dx+(z-q[1])*dz)/(dx*dx+dz*dz||1),0,1); if(Math.hypot(x-q[0]-dx*t,z-q[1]-dz*t)<0.03) y=Math.max(y,lerp(q[2],q[5],t)); } return y; };
   for(const [n,o] of nodes) o.y=0; for(const [n,o] of nodes){ const dy=deckY(Rn.x[n],Rn.y[n]); if(dy>0) o.y=dy; o.deck=dy>=0; }
   const deckE=new Set(); for(const e of es) if(nodes.get(Rn.ea[e]).deck&&nodes.get(Rn.eb[e]).deck) deckE.add(e);
-  for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); if(!flyN.has(Rn.ea[e])) na.y=Math.max(na.y,own(e,0)); if(!flyN.has(Rn.eb[e])) nb.y=Math.max(nb.y,own(e,l)); }
+  for(const e of es){ if(!wetI.has(e)&&!railX.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); if(!flyN.has(Rn.ea[e])) na.y=Math.max(na.y,own(e,0)); if(!flyN.has(Rn.eb[e])) nb.y=Math.max(nb.y,own(e,l)); }
   // at a flyover junction the ground disc is the size of the streets below, not of the expressway passing over it
   for(const n of flyN){ const o=nodes.get(n); if(!o) continue; let p=0, q=0, c=0; for(const f of Rn.adj[n]) if(Rn.ec[f]<4){ p=Math.max(p,hwP(Rn.ec[f])); q=Math.max(q,hwA(Rn.ec[f])); c=Math.max(c,Rn.ec[f]); } o.p=p; o.a=q; o.c=c; }
   const lifts=w3d.rLift=new Map(), pierL=w3d.pierPts2=[];
   w3d.flyN=flyN;
-  for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ex=exUp.has(e), ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e)||flyI.has(e)||deckE.has(e); if(up) lifts.set(e,lf);
+  for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ex=exUp.has(e), ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e)||flyI.has(e)||deckE.has(e)||railX.has(e); if(up) lifts.set(e,lf);
     quad(0,ax,az,bx,bz,hwP(c),PAVE,0,0,0,up&&fn); quad(1,ax,az,bx,bz,hwA(c),ASPH[c],0,0,0,up&&fn);
     if(up){ const w=hwP(c), P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const sd=l*k/n, x=ax+dx*sd, z=az+dz*sd, y=lf(sd); P2.push([x,z,TRK+y+w3dHt(x,z)]); }
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
