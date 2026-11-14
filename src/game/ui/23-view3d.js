@@ -527,7 +527,13 @@ function w3dBuild(){
           for(const sd of use) for(const ex of [-0.12,0.12]){ const z=mid+sd*(cw/2+0.012); B(0.05,0.003,0.014,ex,0.0225,z,0xc9c6bf); B(0.05,0.003,0.014,ex+Math.sign(ex)*0.045,0.0075,z,0xc9c6bf); B(0.0025,TRK-0.045,0.0025,ex-Math.sign(ex)*0.02,(TRK-0.045)/2,z,col); B(0.06,0.0012,0.016,ex,TRK-0.047,z,lc); } }
         spots.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp+0.1,half:span/2+0.05,h:g[0].y+0.055}); plats.push({x:cx+nx*mid,y:cy+ny*mid,hx,hy,len:Lp,half:span/2,lv:g[0].y}); }
       // an interchange where lines meet at an angle: one concourse building joining their platforms
-      const up=groups.filter(g=>g[0].y>=0); if(up.length>=2){ const cx=up.reduce((a,g)=>a+g[0].p[0],0)/up.length, cy=up.reduce((a,g)=>a+g[0].p[1],0)/up.length; parts.push(w3dBox(0.2,TRK-0.055,0.2,cx,0.035+(TRK-0.055)/2,cy,0xdcd8cf),w3dBox(0.21,0.004,0.21,cx,TRK-0.018,cy,0xeeeeea),w3dBox(0.17,0.018,0.202,cx,0.05,cy,0x9fb4c2),w3dBox(0.202,0.018,0.17,cx,0.05,cy,0x9fb4c2)); for(const [ax,az] of [[-0.09,-0.09],[0.09,-0.09],[0.09,0.09],[-0.09,0.09]]) parts.push(w3dBox(0.008,0.035,0.008,cx+ax,0.0175,cy+az,0xa9b0b9)); spots.push({x:cx,y:cy,hx:1,hy:0,len:0.3,half:0.15}); } }
+      // groups of one interchange above ground (this station and its neighbours in the complex) are joined by a covered bridge at the upper platforms' level, clear of every track
+      if(w3d.stShift) for(const L of lines){ const sh=w3d.stShift.get(L.id+'|'+st.id); if(!sh||!L._p3) continue; const P=L._p3, k=L.stops.indexOf(st.id), u=P.sU[k], y=w3dHAt(P,u), cxI=w3d.stCx&&w3d.stCx.get(st.id); if(!cxI||y<0.02) continue;
+        // the bridge runs beside this line's viaduct (never over its tracks), from the end of its platforms back to the crossing, at platform level
+        const u0=u-Math.sign(sh)*(W3D_PLAT/2-0.04), u1=u-sh, h=polyHead(P.pts,P.cum,u,0.3), nx=-h[1], ny=h[0], off=DECK+0.032, a=polyAt(P.pts,P.cum,u0), b=polyAt(P.pts,P.cum,u1);
+        let side=1; { const m=polyAt(P.pts,P.cum,(u0+u1)/2); if(w3dOnRoad(m[0]+nx*off,m[1]+ny*off,0)&&!w3dOnRoad(m[0]-nx*off,m[1]-ny*off,0)) side=-1; }
+        const ax=a[0]+nx*off*side, az=a[1]+ny*off*side, bx=b[0]+nx*off*side, bz=b[1]+ny*off*side, d=dist(ax,az,bx,bz); if(d<0.15) continue; const ang=Math.atan2(bz-az,bx-ax), Fm=new T.Matrix4().makeTranslation((ax+bx)/2,0,(az+bz)/2).multiply(new T.Matrix4().makeRotationY(-ang)), yb=y+TRK+0.002;
+        const Bq=(w,hh,d2,x,yy,z,c)=>{ const o=w3dBox(w,hh,d2,x,yy,z,c); o.m=Fm.clone().multiply(o.m); parts.push(o); }; Bq(d,0.003,0.03,0,yb,0,0xc9c6bf); for(const e of [-1,1]) Bq(d,0.016,0.0015,0,yb+0.0095,e*0.0145,0x9fb4c2); Bq(d,0.002,0.034,0,yb+0.0185,0,0xeeeeea); Bq(d,0.0012,0.0342,0,yb+0.0015,0,lineColor(L)); } }
     // every name board in one mesh: the names are written onto one sheet, each board takes its strip of it
     if(signs.length){ const n=signs.length, rows=Math.ceil(n/2), cv=document.createElement('canvas'); cv.width=1024; cv.height=Math.min(4096,rows*64); const g=cv.getContext('2d'), pos=[], uv=[], V=new T.Vector3();
       signs.forEach((q,i)=>{ const cxp=(i%2)*512, cyp=Math.floor(i/2)*64; if(cyp+64>cv.height) return; g.fillStyle='#f7f7f4'; g.fillRect(cxp,cyp,512,64); g.fillStyle=q.c; g.fillRect(cxp,cyp,512,9); g.fillRect(cxp,cyp+55,512,9); g.fillRect(cxp+10,cyp+16,34,32); g.fillStyle='#fff'; g.font='700 24px '+FONT(); g.textAlign='center'; g.textBaseline='middle'; g.fillText('M',cxp+27,cyp+33);
@@ -572,7 +578,7 @@ function w3dTube(pc,hw,h,faces){ const T=w3d.T, n=pc.length, pos=[], uv=[], col=
    are drawn together into parallel tracks side by side, each pair with its own platforms; lines that cross it in
    another direction get a level of their own, a deck higher on viaduct or a storey deeper underground, with ramps
    either side. So an interchange is a set of stacked, parallel platform groups, not tracks crossing in a star. */
-function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042;      /* at a station the lines of one direction stand further apart: there is an island platform between each pair */
+function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042; w3d.stShift=new Map();      /* at a station the lines of one direction stand further apart: there is an island platform between each pair */
   // stations of different lines that stand right next to each other are one complex: laid out together, so their platforms cannot overlap
   const used=stations.filter(st=>lines.some(L=>L.stops.length>=2&&L._p3&&L._p3.sU&&L.stops.includes(st.id))), par=used.map((_,i)=>i), find=i=>{ while(par[i]!==i) i=par[i]=par[par[i]]; return i; };
   const shares=(a,b)=>lines.some(L=>L.stops.includes(a.id)&&L.stops.includes(b.id));
@@ -584,12 +590,18 @@ function w3dStationPlan(){ const gap=DECK*2+0.012, gapS=gap+0.042;      /* at a 
     if(!here.length) continue; const cl=[];
     for(const o of here){ const c=cl.find(c=>Math.abs(c.ax[0]*o.h[0]+c.ax[1]*o.h[1])>0.72); if(c) c.m.push(o); else cl.push({ax:o.h.slice(),m:[o]}); }
     cl.sort((a,b)=>b.m.length-a.m.length); const under=w3dHAt(here[0].P,here[0].u)<0;
-    cl.forEach((c,ci)=>{ const ax=c.ax, n=[-ax[1],ax[0]], dY=ci*(under?-0.066:0.07);
+    /* Lines that cross here in another direction are a level apart, and above ground their platforms do not stand over one
+       another either: the second group stops just past the crossing, clear of the first group's platforms, and a covered
+       bridge joins the two (as at a big Japanese interchange, where one line's platforms lie beside the other's). */
+    const halfMain=cl.length?(cl[0].m.length*gapS)/2+0.12:0.2;
+    cl.forEach((c,ci)=>{ const ax=c.ax, n=[-ax[1],ax[0]], dY=ci*(under?-0.066:0.07), sh=ci&&!under?W3D_PLAT/2+halfMain+0.1+(ci-1)*0.3:0;
       c.m.forEach(o=>{ o.lat=(o.p[0]-cx)*n[0]+(o.p[1]-cy)*n[1]; }); c.m.sort((a,b)=>a.lat-b.lat);
-      c.m.forEach((o,i)=>{ const want=c.m.length>1?(i-(c.m.length-1)/2)*gapS:o.lat, P=o.P;
-        for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-o.u); if(du>3.6) continue;
+      c.m.forEach((o,i)=>{ const want=c.m.length>1?(i-(c.m.length-1)/2)*gapS:o.lat, P=o.P, len=P.cum[P.cum.length-1];
+        let du0=0; if(sh){ const sg=o.u+sh<len-0.6?1:-1; du0=sg*sh; if(o.u+du0<0.6||o.u+du0>len-0.6) du0=0; if(du0){ const L=lines.find(l=>l._p3===P), st=sts.find(q=>L&&L.stops.includes(q.id)); if(L&&st) w3d.stShift.set(L.id+'|'+st.id,du0); } }
+        const uc=o.u+du0;
+        for(let v=0;v<P.pts.length;v++){ const du=Math.abs(P.cum[v]-o.u), dc=Math.abs(P.cum[v]-uc); if(du>3.6&&dc>3.6) continue;
           if(du<1.9){ const w=1-smooth(du,0.75,1.9), q=P.pts[v], t=(q[0]-cx)*ax[0]+(q[1]-cy)*ax[1]; P.pts[v]=[q[0]+(cx+ax[0]*t+n[0]*want-q[0])*w,q[1]+(cy+ax[1]*t+n[1]*want-q[1])*w]; }
-          if(dY) P.Y[v]+=dY*(1-smooth(du,1.0,3.6)); } }); }); }
+          if(dY) P.Y[v]+=dY*(1-smooth(Math.min(du,dc),1.0,3.6)); } }); }); }
   for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; for(let i=1;i<P.pts.length;i++) P.cum[i]=P.cum[i-1]+dist(P.pts[i-1][0],P.pts[i-1][1],P.pts[i][0],P.pts[i][1]); } }
 /* No line passes through another, and none runs at the level of the water.
    Where the paths of two lines cross at the same height (other than two tracks of one corridor weaving), one of them
@@ -760,7 +772,7 @@ function w3dRailTick(dt){ const P=w3d.railP, Tn=w3d.railT; if(!P||!Tn) return; c
 const W3D_PLAT=0.8;                       // platform length in cells (120 m: a six-car train)
 function w3dStopsOn(L){ const P=L._p3, len=P.cum[P.cum.length-1], sc=stopCum(L), tot=sc[sc.length-1]||1, out=[];
   L.stops.forEach((id,k)=>{ const s=stById(id), e=sc[k]/tot*len; let bd=1e9, bu=e; for(let i=1;i<P.pts.length;i++){ if(P.cum[i]<e-2||P.cum[i-1]>e+2) continue; const a=P.pts[i-1], b=P.pts[i], dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy||1e-9, q=clamp(((s.x-a[0])*dx+(s.y-a[1])*dy)/l2,0,1), d=(a[0]+dx*q-s.x)**2+(a[1]+dy*q-s.y)**2; if(d<bd){ bd=d; bu=P.cum[i-1]+q*(P.cum[i]-P.cum[i-1]); } }
-    out.push(k&&bu<out[k-1]?out[k-1]:bu); });
+    { const sh=w3d.stShift&&w3d.stShift.get(L.id+'|'+id); if(sh) bu=clamp(bu+sh,0,len); } out.push(k&&bu<out[k-1]?out[k-1]:bu); });
   if(L.loop) out.push(len); P.sU=out; P.sched=null; return out; }
 // the parts of a polyline outside some intervals of its length
 function w3dSubPolys(pts,cum,cuts){ const out=[], len=cum[cum.length-1], keep=[]; let u=0; for(const [a,b] of cuts.slice().sort((p,q)=>p[0]-q[0])){ if(a>u) keep.push([u,a]); u=Math.max(u,b); } if(u<len) keep.push([u,len]);
