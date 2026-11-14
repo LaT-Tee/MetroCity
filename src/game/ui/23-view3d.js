@@ -8,22 +8,27 @@
 const w3d={ready:false,loading:false,T:null,active:false,sig:'',bc:null,labels:[],objs:[],local:[],gnd:[],trash:[],lj:null,gj:null};
 const TRK=0.08, BZ3=1.2, DECK=0.03, UGY=-0.075, TUN_W=0.036, TUN_H=0.046;   // deck ~12 m up, half-width ~4.5 m; tunnels ~11 m down
 const W3D_CAR=0.12, W3D_GAP=0.006, W3D_CARS=5, W3D_TO=0.0125;      // W3D_TO: each line is double track, one track this far either side of its centre
+/* The veil: while the 3D city is being built (on opening it, and when the view moves to someone else far away) a soft
+   card covers it, so nothing is seen half made and no frame seems to hang. It is painted before the heavy work starts
+   (w3d.hold frames are skipped) and fades once everything near the viewer is in place. */
+function w3dVeil(on){ const box=$('#cv3d'); let v=box.querySelector('.w3d-veil'); if(!v){ v=document.createElement('div'); v.className='w3d-veil'; v.innerHTML='<div class="w3d-spin"></div><span></span>'; box.appendChild(v); }
+  v.querySelector('span').textContent=t('w3dLoading'); if(on){ v.classList.add('on'); w3d.veil=true; w3d.hold=2; } else { v.classList.remove('on'); w3d.veil=false; } }
 async function w3dStart(){
   w3d.active=true; const box=$('#cv3d'); box.hidden=false;
-  if(w3d.ready){ w3dBuild(); return; } if(w3d.loading) return; w3d.loading=true;
-  box.innerHTML=`<div class="note">${t('w3dLoading')}</div>`;
+  if(w3d.ready){ w3dVeil(true); w3d.forceCut=true; return; } if(w3d.loading) return; w3d.loading=true;
+  box.innerHTML=''; w3dVeil(true);
   try{ w3d.T=await import('three'); }catch(e){ w3d.loading=false; box.hidden=true; box.innerHTML=''; watch.view='2d'; toast(t('w3dFail')); renderWatchBar(); return; }
   w3d.loading=false; if(!w3d.active){ box.hidden=true; return; }
   const T=w3d.T, R=new T.WebGLRenderer({antialias:true,stencil:true,powerPreference:'high-performance'}); w3d.prMax=Math.min(dpr,1.5); w3d.pr=w3d.prMax; R.setPixelRatio(w3d.pr); R.outputColorSpace=T.SRGBColorSpace;
   R.toneMapping=T.ACESFilmicToneMapping; R.toneMappingExposure=0.95; R.shadowMap.enabled=true; R.shadowMap.type=T.PCFSoftShadowMap;
-  box.innerHTML=''; box.appendChild(R.domElement);
+  box.insertBefore(R.domElement,box.firstChild);
   const S=new T.Scene(), cam3=new T.PerspectiveCamera(60,1,0.02,70);
   const hemi=new T.HemisphereLight(0xd6e6ff,0x8e8d88,0.9), sun=new T.DirectionalLight(0xfff0dc,2.6); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
   Object.assign(sun.shadow.camera,{left:-W3D_SH,right:W3D_SH,top:W3D_SH,bottom:-W3D_SH,near:0.5,far:50}); sun.shadow.bias=-0.00025; sun.shadow.normalBias=0.0035; sun.shadow.radius=1.6; S.add(hemi,sun,sun.target); hemi.layers.enable(1); sun.layers.enable(1);
   Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null}); 
   R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; });
   R.domElement.addEventListener('pointerup',e=>{ if(!w3d.down||Math.hypot(e.clientX-w3d.down[0],e.clientY-w3d.down[1])>6) return; w3dTap(e.clientX,e.clientY); });
-  w3dBuild(); }
+  w3d.hold=2; w3d.forceCut=true; }
 function w3dStop(){ w3d.active=false; bldFreeze=false; const box=$('#cv3d'); box.hidden=true; box.classList.remove('seat'); }
 const W3D_SH=4.5;                    // the sun's shadows reach this many cells either side of the viewer
 const w3dDark=()=>false;              // the 3D city is always seen by day, whatever the page theme
@@ -801,7 +806,7 @@ function w3dLocal(cx,cy){
   if(j){ // a rebuild is under way: keep at it, unless the viewer has jumped far from where it started
     if(dist(j.c[0],j.c[1],cx,cy)<20){ if(w3dRun(j,4)) w3d.lj=null; return; }
     j.it.return(); w3dClear([j.grp]); w3d.lj=null; }
-  const far=!w3d.bc||!w3d.local.length||dist(w3d.bc[0],w3d.bc[1],cx,cy)>20;
+  const far=!w3d.bc||!w3d.local.length||dist(w3d.bc[0],w3d.bc[1],cx,cy)>20||w3d.forceCut; w3d.forceCut=false;
   if(!far&&!w3d.bcStale&&dist(w3d.bc[0],w3d.bc[1],cx,cy)<6) return;
   w3d.bc=[cx,cy]; w3d.bcStale=false; const grp=new w3d.T.Group(); grp.visible=false; w3d.S.add(grp);
   w3d.parked=[];
@@ -1195,7 +1200,8 @@ function w3dTod(dt){ w3d.tod=w3d.todFix!=null?w3d.todFix:((w3d.tod==null?0.12:w3
     const gold=smooth(td,0.45,0.6)*(1-smooth(td,0.62,0.7)); w3d.sun.intensity=2.9*(1-n*0.92); w3d.sun.color.setRGB(1,0.94-gold*0.25,0.85-gold*0.45); w3d.hemi.intensity=0.42*(1-n*0.8); w3d.hemi.color.setRGB(0.87-n*0.6,0.91-n*0.55,0.96-n*0.35);
     w3d.R.toneMappingExposure=0.95*(1-n*0.62); if(w3d.S.fog) w3d.S.fog.color.setRGB(0.87-n*0.8+gold*0.08,0.91-n*0.83-gold*0.05,0.93-n*0.78-gold*0.12); if(w3d.lampM) w3d.lampM.emissiveIntensity=n*3; if(w3d.watM) w3d.watM.envMapIntensity=1.5*(1-n*0.8); }
 function w3dFrame(dt){
-  if(!w3d.active||!w3d.ready) return; bldFreeze=true; w3d.seeDt=dt; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
+  if(!w3d.active||!w3d.ready) return; if(w3d.hold>0){ w3d.hold--; return; }      /* let the veil be painted first */
+  bldFreeze=true; w3d.seeDt=dt; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
   const st=watch.st, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
   // the other trains glide along at the same calm pace as yours
@@ -1266,6 +1272,7 @@ function w3dFrame(dt){
   // how strongly the underground shows through (see w3dRender): on while the watched train is below ground and seen from outside, fading in and out
   { w3d.seeOn=!seat&&!!P3&&(inHill||(yT<0?true:yT>0.03?false:!!w3d.seeOn)); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1); w3d.seeAt=P3?[x,yT,z,u3,sg,P3,len3]:null; }
   w3dTod(dt);
+  if(w3d.veil&&!w3d.lj&&!w3d.gj&&w3d.local.length) w3dVeil(false);
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;

@@ -8,7 +8,7 @@ function frame(ts){
   // if frames keep arriving late the map is drawn a little less sharp: on a dense screen that is most of the work
   if(raw>0&&raw<250&&!(watch.on&&watch.view==='3d')){ frameEMA+=(raw-frameEMA)*0.04; if(frameEMA>22) slowN++; else slowN=Math.max(0,slowN-2);
     if(slowN>110&&dpr>1){ dprCap=Math.max(1,dpr-0.25); slowN=0; frameEMA=16; resize(); clampCam(); } }
-  if(!paused){ trainT+=dt*5*speedMul; growthAcc+=dt*speedMul; if(growthAcc>=3){ growthAcc=0; doGrowth(); } }
+  if(!paused){ trainT+=dt*5*speedMul; if(!(watch.on&&watch.view==='3d')){ growthAcc+=dt*speedMul; if(growthAcc>=3){ growthAcc=0; doGrowth(); } } }      /* while watching in 3D the city holds still: it grows again on the way out */
   if(jobs.length) runJobs(6);
   if(stroke&&stroke.drawing){ strokeFrame(dt,ts); updateLiveEst(ts); }
   if(watch.on) watchTick(dt,ts); else assistTick();

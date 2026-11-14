@@ -70,7 +70,7 @@ function nextSubject(force){
   if(!lines.some(l=>l.stops.length>=2)){ watch.subj=null; renderWatchBar(); return; }
   const last=watch.subj; let s=null;
   if(force==='train'||(last&&last.k==='rider'&&Math.random()<0.25)) s=pickTrain(); else s=pickRider()||pickTrain();
-  watch.subj=s; watch.scroll=0; renderWatchBar(); }
+  watch.subj=s; watch.scroll=0; renderWatchBar(); if(watch.view==='3d'&&w3d.ready&&w3d.active&&last){ w3dVeil(true); w3d.forceCut=true; w3d.camPos=null; } }
 // ---- decorative trains: the same motion the map draws, as a function
 function trainGeom(L){ if(L._tgV!==netVersion||!L._tg){ const pts=linePathPts(L), cum=new Float64Array(pts.length); for(let i=1;i<pts.length;i++) cum[i]=cum[i-1]+dist(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); L._tg={pts,cum}; L._tgV=netVersion; } return L._tg; }
 function trainAt(L,k){ const {pts,cum}=trainGeom(L), len=cum[cum.length-1], n=Math.max(2,Math.round(len/16)), per=L.loop?len:len*2, v=lineV(L)*0.85;
