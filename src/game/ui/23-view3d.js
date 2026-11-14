@@ -650,7 +650,7 @@ function w3dLevelPlan(){ const room=(P,u)=>{ let m=9; for(const s of (P.sU||[]))
   // the height it had in the middle of them, or just clear of street level if that was neither above nor below it), and
   // takes up its slope again beyond their ends.
   for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2||!P.sU) continue; const flat=W3D_PLAT/2+0.12, fix=[];
-    for(const u of P.sU){ let ys=w3dHAt(P,u); const band=ys>-0.055&&ys<0.03; if(!band&&Math.abs(w3dHAt(P,u-0.4)-ys)<0.003&&Math.abs(w3dHAt(P,u+0.4)-ys)<0.003) continue; if(band) ys=ys<-0.012?-0.068:0.034; fix.push([u,ys]); }
+    for(const u of P.sU){ let ys=w3dHAt(P,u); const band=ys>-0.055&&ys<0.03; if(!band&&Math.abs(w3dHAt(P,u-0.4)-ys)<0.003&&Math.abs(w3dHAt(P,u+0.4)-ys)<0.003) continue; if(band) ys=ys<-0.012?-0.068:TRK;      /* a station half way up is put on the full viaduct, clear over any street beneath, or underground */ fix.push([u,ys]); }
     // each point answers to the station nearest it only, so two stations close together cannot pull each other's platforms out of level
     if(fix.length) for(let v=0;v<P.pts.length;v++){ let bd=1e9, by=0, near=1e9; for(const u of P.sU) near=Math.min(near,Math.abs(P.cum[v]-u)); for(const [u,ys] of fix){ const du=Math.abs(P.cum[v]-u); if(du<bd){ bd=du; by=ys; } } if(bd<flat+1.3&&bd<=near+1e-6) P.Y[v]=lerp(P.Y[v],by,1-smooth(bd,flat,flat+1.3)); } }
   sep();      /* and once more, for crossings those two rules brought back together */ }

@@ -3,7 +3,7 @@
    Each rule is enforced where the thing is made; this is the proof, run on several cities before a change goes out.
    __mc.dbg.audit() in the console; every count should be 0. (The 3D counts need the 3D view to have been opened.) */
 function auditWorld(fresh){ const fz=bldFreeze; if(fresh){ bldFreeze=false; bldBump(); } try{ return auditWorld_(); } finally { bldFreeze=fz; } }
-function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,roadKeep:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,carClash:0,stNoRoad:0,stMany:0,pierRoad:0,stSlope:0,stAirfield:0}, ex={};
+function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,bldAir:0,bldRoad:0,featWet:0,roadAir:0,roadKeep:0,spotWet:0,spotRoad:0,spotClash:0,platClash:0,lineClash:0,lineWet:0,cutRoad:0,carClash:0,stNoRoad:0,stMany:0,pierRoad:0,stSlope:0,stAirfield:0}, ex={};
   const bad=(k,o)=>{ r[k]++; const e=ex[k]||(ex[k]=[]); if(e.length<4) e.push(o.map(v=>typeof v==='number'?+v.toFixed(2):v)); };
   for(const st of stations) if(waterSD(st.x,st.y)<0.2) bad('stWet',[st.x,st.y]);
   for(const f of [G.fac.station,G.fac.coach,...(G.fac2||[]).filter(f=>f.t!=='air')]) if(waterSD(f.x,f.y)<0) bad('facWet',[f.t||'main',f.x,f.y]);
@@ -28,6 +28,10 @@ function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,
     { const C=w3d.parked||[], hit=(a,b)=>{ const dx=b[0]-a[0], dy=b[1]-a[1]; if(Math.abs(dx)>0.04||Math.abs(dy)>0.04) return false; for(const [p,q] of [[a,b],[b,a]]){ const ca=Math.cos(p[2]), sa=Math.sin(p[2]); let sep=false; for(const [ux,uy,h] of [[ca,sa,0.014],[-sa,ca,0.006]]){ const qa=Math.cos(q[2]), qs=Math.sin(q[2]), rq=Math.abs((qa*ux+qs*uy)*0.014)+Math.abs((-qs*ux+qa*uy)*0.006), d=Math.abs((q[0]-p[0])*ux+(q[1]-p[1])*uy); if(d>h+rq-0.0005){ sep=true; break; } } if(sep) return false; } return true; };
       const g=new Map(); C.forEach((c,i)=>{ const k=Math.floor(c[0]*20)+','+Math.floor(c[1]*20); (g.get(k)||g.set(k,[]).get(k)).push(i); });
       C.forEach((c,i)=>{ const gx=Math.floor(c[0]*20), gy=Math.floor(c[1]*20); for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++) for(const j of (g.get((gx+ox)+','+(gy+oy))||[])) if(j>i&&hit(c,C[j])) bad('carClash',[c[0],c[1]]); }); }
+    // an open cutting (where a line goes down into the ground or comes up out of it) never lies under a street or the railway
+    for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; let run=false; for(let v=0;v<P.pts.length;v++){ const y=P.Y[v], q=P.pts[v]; if(!(y<0.045&&y>-0.05)||(P.hill&&P.hill[v])){ run=false; continue; }      /* where the track is too low for a street to pass beneath it, and not yet covered over */      /* the whole ramp, not only the open cutting: the trough, the portal and the low end of the viaduct */
+        let hitR=w3dOnRoad(q[0],q[1],0.03); if(!hitR) for(let i=0;i<G.rail.length;i+=2) if(Math.abs(G.rail[i][0]-q[0])<0.6&&Math.abs(G.rail[i][1]-q[1])<0.6&&dist(G.rail[i][0],G.rail[i][1],q[0],q[1])<0.11){ hitR=true; break; }
+        if(hitR&&!run) bad('cutRoad',[q[0],q[1],y]); run=hitR; } }
     { const per=new Map(); for(const st of stations){ const c=w3d.stCx&&w3d.stCx.get(st.id); if(!c) continue; per.set(c.k,(w3d.hubs||[]).filter(h=>h.cx===c.k).length); } for(const [k,n] of per) if(n>1) bad('stMany',[k,n]); }
     for(const q of (w3d.pierPts||[])) if(q[2]&&w3dOnRoad(q[0],q[1],0.006)) bad('pierRoad',[q[0],q[1]]);
     for(const st of stations){ if(G.air&&(G.air[Math.round(st.y)*W+Math.round(st.x)]&1)&&w3d.stY&&w3d.stY.get(st.id)>-0.03) bad('stAirfield',[st.x,st.y]); } }
