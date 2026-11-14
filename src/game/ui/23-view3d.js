@@ -94,7 +94,7 @@ const W3D_NIGHT={value:0};
 function w3dVehMat(opt){ const T=w3d.T, m=new T.MeshStandardMaterial({vertexColors:true,...opt}); m.userData.keep=true;
   m.onBeforeCompile=sh=>{ sh.uniforms.uNight=W3D_NIGHT; sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uNight;').replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
     #ifdef USE_COLOR
-    { vec3 c=vColor.rgb; float win=step(c.r+0.012,c.b)*step(dot(c,vec3(0.33)),0.09), lamp=step(0.85,c.r)*step(0.8,c.g)*step(c.b,0.75); totalEmissiveRadiance+=(vec3(1.0,0.86,0.6)*win*2.6+vec3(1.0,0.95,0.8)*lamp*4.0)*smoothstep(0.35,0.9,uNight); }
+    { vec3 c=vColor.rgb; float win=step(c.r+0.012,c.b)*step(dot(c,vec3(0.33)),0.09), lamp=step(0.85,c.r)*step(0.8,c.g)*step(c.b,0.75); totalEmissiveRadiance+=(vec3(1.0,0.86,0.6)*win*2.8+vec3(1.0,0.95,0.8)*lamp*5.0)*smoothstep(0.35,0.9,uNight); }
     #endif`); };
   m.customProgramCacheKey=()=>'veh1'; return m; }
 function w3dFacadeMat(map,opt){ const T=w3d.T, m=new T.MeshStandardMaterial({map,normalMap:w3dNormalOf(map,2.2),normalScale:new T.Vector2(0.7,0.7),...opt});
@@ -546,7 +546,7 @@ function w3dBuild(){
     if(hall.length) w3dAdd(new T.Mesh(w3dMerge(hall),new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide}))).layers.enable(1);
     if(hallX.length){ const hm=new T.MeshBasicMaterial({vertexColors:true,fog:false,side:T.DoubleSide}); w3d.shellM.push(hm); w3dAdd(new T.Mesh(w3dMerge(hallX),hm)).layers.enable(2); } }
   // the rider's own train (seen from outside in the chase view)
-  w3d.myTrain=null; const L0=lines.find(l=>l.stops.length>=2); if(L0){ const tr=w3d.trains[0]; w3d.myTrain=w3dAdd(new T.InstancedMesh(tr.geo,new T.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.35}),W3D_CARS)); w3d.myTrain.castShadow=true; w3d.myTrain.layers.enable(1); w3d.myTrain.frustumCulled=false; }
+  w3d.myTrain=null; const L0=lines.find(l=>l.stops.length>=2); if(L0){ const tr=w3d.trains[0]; w3d.myTrain=w3dAdd(new T.InstancedMesh(tr.geo,w3dVehMat({roughness:0.3,metalness:0.35}),W3D_CARS));      /* the train being ridden: lit at night like every other */ w3d.myTrain.castShadow=true; w3d.myTrain.layers.enable(1); w3d.myTrain.frustumCulled=false; }
   w3d.bcStale=true; w3d.labels.forEach(l=>l.el.remove()); w3d.labels=[]; }
 function w3dNear(L,x,y){ const P=L._p3?L._p3.pts:null; if(!P) return [x,y,0]; const C=L._p3.cum; let bd=1e9, bx=x, by=y, bu=0; for(let i=1;i<P.length;i++){ const a=P[i-1], b=P[i], dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy||1e-9, q=clamp(((x-a[0])*dx+(y-a[1])*dy)/l2,0,1), xx=a[0]+dx*q, yy=a[1]+dy*q, d=(xx-x)**2+(yy-y)**2; if(d<bd){ bd=d; bx=xx; by=yy; bu=C[i-1]+(C[i]-C[i-1])*q; } } return [bx,by,bu]; }
 // the track's height at distance u along a line's 3D path
