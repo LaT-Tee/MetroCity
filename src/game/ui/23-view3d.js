@@ -916,9 +916,9 @@ function w3dRoadMesh(cx,cy,R){
   const quad=(L,ax0,az0,bx0,bz0,hw,c,lat,ya,yb,fn)=>{ let dx=bx0-ax0, dz=bz0-az0; const l=Math.hypot(dx,dz); if(l<1e-5) return; dx/=l; dz/=l; const nx=-dz, nz=dx, o=lat||0, n=Math.max(1,Math.ceil(l/(fn?0.12:0.5))); col.set(c);
     for(let q=0;q<n;q++){ const t0=q/n, t1=(q+1)/n, cax=ax0+(bx0-ax0)*t0, caz=az0+(bz0-az0)*t0, cbx=ax0+(bx0-ax0)*t1, cbz=az0+(bz0-az0)*t1, Ya=Y+(fn?fn(t0):lerp(ya||0,yb||0,t0))+w3dHt(cax,caz), Yb=Y+(fn?fn(t1):lerp(ya||0,yb||0,t1))+w3dHt(cbx,cbz), ax=cax+nx*o, az=caz+nz*o, bx=cbx+nx*o, bz=cbz+nz*o;
       Ls[L].push(ax+nx*hw,Ya,az+nz*hw, bx+nx*hw,Yb,bz+nz*hw, bx-nx*hw,Yb,bz-nz*hw, ax+nx*hw,Ya,az+nz*hw, bx-nx*hw,Yb,bz-nz*hw, ax-nx*hw,Ya,az-nz*hw); for(let k=0;k<6;k++) Cs[L].push(col.r,col.g,col.b); } };
-  const disc=(L,x,z,r,c,yn)=>{ const Yn=Y+(yn||0)+w3dHt(x,z); col.set(c); for(let k=0;k<8;k++){ const a0=k*Math.PI/4, a1=(k+1)*Math.PI/4; Ls[L].push(x,Yn,z, x+Math.cos(a1)*r,Yn,z+Math.sin(a1)*r, x+Math.cos(a0)*r,Yn,z+Math.sin(a0)*r); for(let q=0;q<3;q++) Cs[L].push(col.r,col.g,col.b); } };
+  const disc=(L,x,z,r,c,yn)=>{ const Yn=Y+(yn||0)+w3dHt(x,z); col.set(c); for(let k=0;k<24;k++){ const a0=k*Math.PI/12, a1=(k+1)*Math.PI/12; Ls[L].push(x,Yn,z, x+Math.cos(a1)*r,Yn,z+Math.sin(a1)*r, x+Math.cos(a0)*r,Yn,z+Math.sin(a0)*r); for(let q=0;q<3;q++) Cs[L].push(col.r,col.g,col.b); } };
   const es=[], seen=new Set(), nodes=new Map(); for(let gy=Math.floor((cy-R)/RN_G);gy<=Math.floor((cy+R)/RN_G);gy++) for(let gx=Math.floor((cx-R)/RN_G);gx<=Math.floor((cx+R)/RN_G);gx++){ const l=Rn.eg.get(rnKey(gx,gy)); if(l) for(const e of l) if(!seen.has(e)){ seen.add(e); es.push(e); } }
-  if(!es.length) return null; const PAVE=0xcbc8c0, ASPH=[0x5d6066,0x55585e,0x4f5258,0x4a4d53,0x45484e], hwP=c=>ROAD_W[c]/2, hwA=c=>c===4?ROAD_W[c]/2-0.004:ROAD_W[c]/2-0.014;
+  if(!es.length) return null; const PAVE=0xcbc8c0, ASPH=[0x4f5258,0x4f5258,0x4f5258,0x4f5258,0x4f5258], hwP=c=>ROAD_W[c]/2, hwA=c=>c===4?ROAD_W[c]/2-0.004:ROAD_W[c]/2-0.014;
   for(const e of es){ const c=Rn.ec[e]; for(const n of [Rn.ea[e],Rn.eb[e]]){ const o=nodes.get(n); if(!o) nodes.set(n,{p:hwP(c),a:hwA(c),c,y:0}); else { o.p=Math.max(o.p,hwP(c)); o.a=Math.max(o.a,hwA(c)); o.c=Math.max(o.c,c); } } }
   /* Bridges. A street that crosses water (whether or not one of its junctions stands in it) rises to a deck clear of the
      water, on a ramp either side, with piers standing in the bed. The rise is worked out along each street: the stretch
@@ -939,17 +939,21 @@ function w3dRoadMesh(cx,cy,R){
   const lifts=w3d.rLift=new Map(), pierL=w3d.pierPts2=[];
   w3d.flyN=flyN;
   for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e)||flyI.has(e)||deckE.has(e); if(up) lifts.set(e,lf);
-    if(c<4) quad(0,ax,az,bx,bz,hwP(c),PAVE,0,0,0,up&&fn); else quad(0,ax,az,bx,bz,hwP(c),0x8d9096,0,0,0,up&&fn); quad(1,ax,az,bx,bz,hwA(c),ASPH[c],0,0,0,up&&fn);
+    quad(0,ax,az,bx,bz,hwP(c),PAVE,0,0,0,up&&fn); quad(1,ax,az,bx,bz,hwA(c),ASPH[c],0,0,0,up&&fn);
     if(up){ const w=hwP(c), P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const sd=l*k/n, x=ax+dx*sd, z=az+dz*sd, y=lf(sd); P2.push([x,z,TRK+y+w3dHt(x,z)]); }
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
       // piers in the water, abutments where the deck leaves the bank
       for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; { let blocked=false; for(const o of [-w*0.7,0,w*0.7]){ const h=rnNearEdge(Rn,x-dz*o,z+dx*o,0.3); if(h&&h.e!==e&&h.d<ROAD_W[Rn.ec[h.e]]/2+0.01&&!wetI.has(h.e)){ blocked=true; break; } } if(blocked) continue; } pierL.push([x,z,0]); const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
     if(c>=2&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7) for(let sd=0.15;sd<l-0.1;sd+=0.32){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=Math.round(sd/0.32)&1?1:-1; lamps.push([x-dz*o*k,z+dx*o*k,Math.atan2(dz,dx)+(k>0?Math.PI/2:-Math.PI/2)]); }
-    if(c<1) continue; const da=flyN.has(a)&&c>=4?2:Rn.adj[a].length, db=flyN.has(b)&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4, ta=da>=3?nodes.get(a).a+(zeb?0.026:0.006):0, tb=db>=3?nodes.get(b).a+(zeb?0.026:0.006):0; if(l-ta-tb<0.03) continue;
+    if(c<1) continue; const da=flyN.has(a)&&c>=4?2:Rn.adj[a].length, db=flyN.has(b)&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4,
+      // how far back from a junction this street's markings stop: past the widest of the other streets there (and its pavement)
+      cross=n=>{ let w=0; for(const f of Rn.adj[n]) if(f!==e) w=Math.max(w,hwP(Rn.ec[f])); return w+0.004; }, ta=da>=3?cross(a)+(zeb?0.022:0.004):0, tb=db>=3?cross(b)+(zeb?0.022:0.004):0; if(l-ta-tb<0.03) continue;
     const seg=(s0,s1,hw,cc,lat)=>quad(2,ax+dx*s0,az+dz*s0,ax+dx*s1,az+dz*s1,hw,cc,lat,0,0,up&&(t=>lf(s0+(s1-s0)*t))), dash=(lat,cc)=>{ for(let q=ta;q<l-tb-0.02;q+=0.07) seg(q,Math.min(q+0.03,l-tb),0.0011,cc,lat); };
     if(c===1) seg(ta,l-tb,0.0009,0xbfc1c4,0); else if(c===2) dash(0,0xe6e6e6); else { seg(ta,l-tb,0.001,0xe3c04a,0.0018); seg(ta,l-tb,0.001,0xe3c04a,-0.0018); dash(hwA(c)*0.5,0xe6e6e6); dash(-hwA(c)*0.5,0xe6e6e6); if(c===4){ seg(ta,l-tb,0.001,0xe6e6e6,hwA(c)-0.004); seg(ta,l-tb,0.001,0xe6e6e6,-hwA(c)+0.004); } }
-    if(zeb) for(const [dg,s0] of [[da,nodes.get(a).a+0.004],[db,l-nodes.get(b).a-0.02]]){ if(dg<3) continue; for(let o=-hwA(c)+0.005;o<hwA(c)-0.003;o+=0.008) seg(s0,s0+0.016,0.002,0xe9e9e9,o); } }
-  for(const [n,o] of nodes){ const x=Rn.x[n], z=Rn.y[n], head=Rn.adj[n].length===1&&o.c<=2&&waterSD(x,z)>0.3?1.75:1;      /* a cul-de-sac ends in a turning head */
+    if(c>=1&&c<4) for(const [dg,n,s0,sg] of [[da,a,0,1],[db,b,l,-1]]){ if(dg<3) continue; const at=s0+sg*cross(n);
+        if(zeb) for(let o=-hwA(c)+0.005;o<hwA(c)-0.003;o+=0.008) seg(Math.min(at,at+sg*0.016),Math.max(at,at+sg*0.016),0.0018,0xe9e9e9,o);      // the crosswalk, just outside the street it crosses
+        const sl=at+sg*(zeb?0.02:0.003); seg(Math.min(sl,sl+sg*0.002),Math.max(sl,sl+sg*0.002),hwA(c)/2,0xf2f2f2,sg*hwA(c)/2); } }      // the stop line, on the approaching half
+  for(const [n,o] of nodes){ o.c=Math.min(o.c,3); const x=Rn.x[n], z=Rn.y[n], head=Rn.adj[n].length===1&&o.c<=2&&waterSD(x,z)>0.3?1.75:1;      /* a cul-de-sac ends in a turning head */
     if(o.c<4) disc(0,x,z,o.p*head,PAVE,o.y); disc(1,x,z,o.a*head,ASPH[o.c],o.y); }
   const pos=[].concat(Ls[0],Ls[1],Ls[2]), cl=[].concat(Cs[0],Cs[1],Cs[2]), nor=new Float32Array(pos.length); for(let i=1;i<nor.length;i+=3) nor[i]=1;
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('normal',new T.Float32BufferAttribute(nor,3)); g.setAttribute('color',new T.Float32BufferAttribute(cl,3));
