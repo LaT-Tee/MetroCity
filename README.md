@@ -73,6 +73,10 @@ A procedural city where you draw the metro — and the city grows around it.
 
 手机和平板上用触摸操作：单指拖动画线，停顿片刻落站，双指缩放。
 
+## 隐私
+
+不需要账号，不收集个人信息，存档只在你自己的浏览器里。广告由 Google AdSense 提供，详见[隐私政策](https://metrocitygame.pages.dev/privacy.html)。问题和建议请提 [GitHub Issue](https://github.com/lat-tee/metrocity/issues)。
+
 ## 本地运行
 
 ```bash

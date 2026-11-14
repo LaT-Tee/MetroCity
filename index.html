@@ -67,7 +67,7 @@
         <div class="lines" id="lineList"></div>
       </div>
     </div>
-    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button></div>
+    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button><div class="fine"><a href="#" id="aboutLink" data-i18n="aboutL"></a><span>·</span><a href="privacy.html" target="_blank" rel="noopener" data-i18n="privacyL"></a><span>·</span><a href="https://github.com/lat-tee/metrocity/issues" target="_blank" rel="noopener" data-i18n="contactL"></a></div></div>
   </aside>
 
   <nav class="toolbar">
@@ -118,6 +118,14 @@
       <div class="rep-head"><div><h2 id="ulTitle"></h2><div class="sub" id="ulBody"></div></div></div>
       <div class="ul-stage" id="ulStage" hidden><div class="ul-tag" id="ulTag"></div><div class="ul-tip" id="ulTip"></div><div class="ul-bar"><i id="ulBar"></i></div><div class="ul-left" id="ulLeft"></div></div>
       <div class="row" id="ulRow"><span></span><button class="btn" id="ulNo" type="button"></button><button class="btn primary" id="ulGo" type="button"></button></div>
+    </div>
+  </div>
+  <div class="modal" id="aboutModal" hidden>
+    <div class="report ul-card about-card" role="dialog" aria-labelledby="abTitle">
+      <div class="rep-head"><div><h2 id="abTitle">地铁织城 · Metro City</h2><div class="sub" data-i18n="aboutSub"></div></div></div>
+      <p class="about-p" data-i18n="aboutP1"></p>
+      <p class="about-p" data-i18n="aboutP2"></p>
+      <div class="row"><a class="btn" href="privacy.html" target="_blank" rel="noopener" data-i18n="privacyL"></a><a class="btn" href="https://github.com/lat-tee/metrocity/issues" target="_blank" rel="noopener" data-i18n="contactL"></a><button class="btn primary" id="abClose" type="button" data-i18n="close"></button></div>
     </div>
   </div>
   <div class="modal" id="exportModal" hidden>

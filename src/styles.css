@@ -407,3 +407,9 @@ body.watching .panel, body.watching .ach-pop, body.watching .sign, body.watching
 .w3d-veil.on{opacity:1;pointer-events:auto;transition:none}
 .w3d-spin{width:28px;height:28px;border-radius:50%;border:3px solid rgba(29,35,48,.15);border-top-color:#1d2330;animation:w3dspin .9s linear infinite}
 @keyframes w3dspin{to{transform:rotate(360deg)}}
+
+/* about, privacy, contact: one quiet line under the panel's buttons */
+.panel-foot .fine{grid-column:1/-1;display:flex;justify-content:center;gap:6px;font-size:11px;color:var(--ink-3);margin-top:-2px}
+.panel-foot .fine a{color:var(--ink-3);text-decoration:none}.panel-foot .fine a:hover{color:var(--ink);text-decoration:underline}
+.about-card{max-width:420px}.about-p{font-size:13px;line-height:1.6;color:var(--ink-2);margin:10px 0 0;padding:0 22px}
+.about-card .row{margin-top:16px;display:flex;gap:8px;justify-content:flex-end}
