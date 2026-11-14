@@ -69,8 +69,8 @@ function lineLevels(L){
   /* A ramp (from the viaduct down into the tunnel or up out of it) runs UG_RAMP either side of where the line changes level.
      It never lies across a street or the railway: the change is moved along the line, a little at a time either way, to
      the nearest place where the whole ramp is clear of both, and not into a station's platforms. */
-  if(bd.length&&G.rn){ const onRail=(x,y)=>{ for(let i=0;i<G.rail.length;i+=2) if(Math.abs(G.rail[i][0]-x)<0.7&&Math.abs(G.rail[i][1]-y)<0.7&&dist(G.rail[i][0],G.rail[i][1],x,y)<0.12) return true; return false; },
-      blocked=b=>{ for(let u=b-UG_RAMP;u<=b+UG_RAMP;u+=0.12){ if(u<0||u>cum[n-1]) continue; const i=Math.min(n-1,at(u)), q=pts[i]; const h=rnNearEdge(G.rn,q[0],q[1],0.3); if(h&&h.d<ROAD_W[G.rn.ec[h.e]]/2+0.045) return true; if(onRail(q[0],q[1])) return true; } return false; }, nearSt=b=>sU.some(u=>Math.abs(u-b)<UG_RAMP+0.55);
+  if(bd.length&&G.rn){ const onRail=(x,y)=>railDist(x,y)<0.16,
+      blocked=b=>{ for(let u=b-UG_RAMP*0.55;u<=b+UG_RAMP*0.55;u+=0.08){      /* only where the track is too low for a street beneath and not yet covered: the middle of the ramp */ if(u<0||u>cum[n-1]) continue; const i=Math.min(n-1,at(u)), q=pts[i]; const h=rnNearEdge(G.rn,q[0],q[1],0.3); if(h&&h.d<ROAD_W[G.rn.ec[h.e]]/2+0.045) return true; if(onRail(q[0],q[1])) return true; } return false; }, nearSt=b=>sU.some(u=>Math.abs(u-b)<UG_RAMP+0.55);
     for(let k=0;k<bd.length;k++){ if(!blocked(bd[k])) continue; let best=null; for(let s=0.25;s<=9;s+=0.25){ for(const sg of [1,-1]){ const b=bd[k]+sg*s; if(b<UG_RAMP||b>cum[n-1]-UG_RAMP||nearSt(b)||bd.some((o,j)=>j!==k&&Math.abs(o-b)<2*UG_RAMP)) continue; if(!blocked(b)){ best=b; break; } } if(best!=null) break; }
       if(best==null) continue; const a0=Math.min(bd[k],best), a1=Math.max(bd[k],best), v=ug[Math.min(n-1,at(bd[k]+(best>bd[k]?-0.2:0.2)))]; for(let i=at(a0);i<n&&cum[i]<=a1;i++) ug[i]=v; bd[k]=best; } }
   const dep=new Float32Array(n); for(let i=0;i<n;i++){ let m=1e9; for(const b of bd) m=Math.min(m,Math.abs(cum[i]-b)); dep[i]=bd.length?smooth(ug[i]?m:-m,-UG_RAMP,UG_RAMP):ug[i]; }

@@ -33,7 +33,7 @@ function auditWorld_(){ const B=G.bounds, r={stWet:0,facWet:0,airWet:0,bldWet:0,
       C.forEach((c,i)=>{ const gx=Math.floor(c[0]*20), gy=Math.floor(c[1]*20); for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++) for(const j of (g.get((gx+ox)+','+(gy+oy))||[])) if(j>i&&hit(c,C[j])) bad('carClash',[c[0],c[1]]); }); }
     // an open cutting (where a line goes down into the ground or comes up out of it) never lies under a street or the railway
     for(const L of lines){ const P=L._p3; if(!P||L.stops.length<2) continue; let run=false; for(let v=0;v<P.pts.length;v++){ const y=P.Y[v], q=P.pts[v]; if(!(y<0.045&&y>-0.05)||(P.hill&&P.hill[v])){ run=false; continue; }      /* where the track is too low for a street to pass beneath it, and not yet covered over */      /* the whole ramp, not only the open cutting: the trough, the portal and the low end of the viaduct */
-        let hitR=w3dOnRoad(q[0],q[1],0.03); if(!hitR) for(let i=0;i<G.rail.length;i+=2) if(Math.abs(G.rail[i][0]-q[0])<0.6&&Math.abs(G.rail[i][1]-q[1])<0.6&&dist(G.rail[i][0],G.rail[i][1],q[0],q[1])<0.11){ hitR=true; break; }
+        let hitR=w3dOnRoad(q[0],q[1],0.03); if(!hitR&&railDist(q[0],q[1])<0.13) hitR=true;
         if(hitR&&!run) bad('cutRoad',[q[0],q[1],y]); run=hitR; } }
     // a raised street (bridge, flyover, elevated expressway) never passes through a metro viaduct, and its piers stand clear
     if(w3d.rLift&&G.rn){ const R=G.rn; for(const [e,lf] of w3d.rLift){ const a=R.ea[e], b=R.eb[e]; if(a==null) continue; const l=Math.hypot(R.x[b]-R.x[a],R.y[b]-R.y[a]); for(let sd=0;sd<=l;sd+=0.08){ const x=lerp(R.x[a],R.x[b],sd/l), z=lerp(R.y[a],R.y[b],sd/l), y=lf(sd); if(y<0.01) continue;

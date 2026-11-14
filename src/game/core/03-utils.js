@@ -55,6 +55,9 @@ function wetAt(x,y,m){ m=m||0; if(x<0||y<0||x>W-1||y>H-1) return true; if(biline
 // Chance in the simulation is drawn from the city's seed and the month, not from the clock: the same city in the same month
 // goes the same way however often the page is reloaded, so what the assistant advises does not change from one visit to the next.
 function simRand(salt){ return mulberry32((Math.imul((G&&G.seed)|0,0x9E3779B1)^Math.imul(((typeof months==='number'?months:0)+1)|0,40503)^Math.imul(salt|0,0x85EBCA6B))>>>0); }
+// distance from a point to the main-line railway (its centre line), measured to the segments, not to sample points
+function railDist(x,y){ const rl=G&&G.rail; if(!rl||rl.length<2) return 1e9; let B=G._railBins; if(!B||B.n!==rl.length){ B=G._railBins=new Map(); B.n=rl.length; for(let k=1;k<rl.length;k++){ const a=rl[k-1], b=rl[k]; for(let gy=Math.floor(Math.min(a[1],b[1])/4);gy<=Math.floor(Math.max(a[1],b[1])/4);gy++) for(let gx=Math.floor(Math.min(a[0],b[0])/4);gx<=Math.floor(Math.max(a[0],b[0])/4);gx++){ const kk=gy*1000+gx; let l=B.get(kk); if(!l) B.set(kk,l=[]); l.push(k); } } }
+  let best=1e9; const gx=Math.floor(x/4), gy=Math.floor(y/4); for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){ const l=B.get((gy+oy)*1000+gx+ox); if(!l) continue; for(const k of l){ const a=rl[k-1], b=rl[k], dx=b[0]-a[0], dy=b[1]-a[1], t=clamp(((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1e-9),0,1), d=Math.hypot(x-a[0]-dx*t,y-a[1]-dy*t); if(d<best) best=d; } } return best; }
 // how far a point is from the water's edge, in cells: negative in the sea, a lake or a river, positive on land
 function waterSD(x,y){ if(x<0||y<0||x>W-1||y>H-1) return -1; let d=(bilinear(G.h,x,y)-G.sea-0.004)/0.012; if(G.rivSD){ const r=bilinear(G.rivSD,x,y); if(r<d) d=r; } return d; }
 // is the ground an airport at (x,y), runways along a, would pave all dry? wsd(x,y) is the distance from water. Returns bit 1 for the

@@ -14,7 +14,7 @@ const AD=Object.assign({enabled:true,provider:'house',client:'',seconds:30,unloc
 Object.assign(T.zh,{adTitle:'解锁规划助手',adBody:'看一段约 30 秒的广告，规划助手可以用 {m} 分钟。',adWatch:'看广告解锁',adCancel:'以后再说',adWait:'还有 {s} 秒',adDone:'规划助手已解锁 {m} 分钟',adNone:'暂时没有广告，这次直接解锁',adEarly:'广告没有看完，助手没有解锁',adExpired:'规划助手的解锁时间到了',adHouse:'广告位（示例）',adTips:['按住拖动就能画线，途中按空格放站。','新线穿过旧线的地方会自动变成换乘站。','切到"出行需求"热力图，看看谁最需要地铁。','城市委托按期完成，那一带会更繁荣。','按 V 进入观景模式，坐在窗边看你修的城。','两条线首尾相接、方向一致时，列车会直通运转。']});
 Object.assign(T.en,{adTitle:'Unlock the planning assistant',adBody:'Watch an advertisement of about 30 seconds and the assistant is yours for {m} minutes.',adWatch:'Watch to unlock',adCancel:'Not now',adWait:'{s} s to go',adDone:'Assistant unlocked for {m} minutes',adNone:'No advertisement available: unlocked anyway',adEarly:'The advertisement was not watched to the end',adExpired:'The assistant’s time is up',adHouse:'Advertisement (placeholder)',adTips:['Drag to draw a line; press Space on the way to drop a station.','Where a new line crosses an old one, an interchange appears by itself.','Switch to the demand map to see who needs a metro most.','Answer a commission in time and that part of town does better.','Press V to ride along and watch the city you built from a window seat.','Two lines that meet end to end in the same direction run through trains.']});
 Object.assign(T.ja,{adTitle:'計画アシスタントを解放',adBody:'約30秒の広告を見ると、アシスタントを {m} 分間使えます。',adWatch:'広告を見て解放',adCancel:'あとで',adWait:'あと {s} 秒',adDone:'アシスタントを {m} 分間解放しました',adNone:'広告がないため、今回はそのまま解放します',adEarly:'広告が最後まで再生されませんでした',adExpired:'アシスタントの利用時間が終わりました',adHouse:'広告枠（サンプル）',adTips:['ドラッグで線路を描き、途中でスペースを押すと駅になります。','新しい路線が既存の路線と交わる所は自動で乗換駅になります。','「移動需要」のヒートマップで、地下鉄を必要としている人を確認。','市からの依頼を期限内に達成すると、その地区が発展します。','V キーで眺めるモード。窓際の席から街を見られます。','端と端が同じ向きでつながる2路線は直通運転します。']});
-let adUntil=0, adBusy=false; try{ adUntil=+localStorage.getItem('mc-assist-until')||0; }catch(e){}
+let adUntil=0, adBusy=false, adHeld=0; try{ adUntil=+localStorage.getItem('mc-assist-until')||0; }catch(e){}
 const adUnlocked=()=>!AD.enabled||Date.now()<adUntil;
 function adGrant(){ adUntil=Date.now()+AD.unlockMinutes*60000; try{ localStorage.setItem('mc-assist-until',String(adUntil)); }catch(e){} }
 // ---- Google's Ad Placement API, loaded only when it is the chosen provider
@@ -27,8 +27,8 @@ function adGoogleInit(){ if(adGoogle!==null||AD.provider!=='adsense'||!AD.client
 if(AD.enabled) (window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>adGoogleInit());
 // ---- the gate
 function adGate(done){ const m=$('#unlockModal'); if(adBusy&&m&&!m.hidden) return; adBusy=false; if(!m){ adGrant(); done(); return; } adGoogleInit();
-  const wasPaused=paused, hold=()=>{ if(!paused) togglePlay(); if(typeof musicStop==='function') musicStop(); }, release=()=>{ if(!wasPaused&&paused) togglePlay(); if(typeof musicOn!=='undefined'&&musicOn&&typeof musicStart==='function') musicStart(); };
-  const close=()=>{ m.hidden=true; adBusy=false; clearInterval(tick); }, win=free=>{ adGrant(); close(); release(); toast(t(free?'adNone':'adDone',{m:AD.unlockMinutes})); done(); }; let tick=0;
+  const wasPaused=paused, hold=()=>{ if(!paused){ togglePlay(); adHeld=performance.now(); } if(typeof musicStop==='function') musicStop(); }, release=()=>{ if(adHeld&&paused) togglePlay(); adHeld=0; if(typeof musicOn!=='undefined'&&musicOn&&typeof musicStart==='function') musicStart(); };
+  const close=()=>{ m.hidden=true; adBusy=false; clearInterval(tick); release(); }, win=free=>{ adGrant(); close(); release(); toast(t(free?'adNone':'adDone',{m:AD.unlockMinutes})); done(); }; let tick=0;
   $('#ulGo').disabled=false;
   $('#ulTitle').textContent=t('ulTitle'); $('#ulBody').textContent=t('ulBody',{m:AD.unlockMinutes}); $('#ulGo').textContent=t('adWatch'); $('#ulNo').textContent=t('adCancel'); $('#ulStage').hidden=true; $('#ulRow').hidden=false; m.hidden=false;
   $('#ulNo').onclick=()=>{ close(); };
@@ -49,3 +49,5 @@ function adGate(done){ const m=$('#unlockModal'); if(adBusy&&m&&!m.hidden) retur
     else house(); }; }
 // the assistant closes again when its time is up
 setInterval(()=>{ if(typeof assistOn!=='undefined'&&assistOn&&!adUnlocked()){ setAssist(false,true); toast(t('adExpired')); } },15000);
+// a safety net: the game is never left paused by an advertisement that did not report back
+setInterval(()=>{ if(adHeld&&performance.now()-adHeld>90000){ adHeld=0; if(paused) togglePlay(); const m=$('#unlockModal'); if(m) m.hidden=true; adBusy=false; } },5000);
