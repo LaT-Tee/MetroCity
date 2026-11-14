@@ -870,6 +870,7 @@ function* w3dLocalGen(cx,cy,grp,far){
   yield;
   // streets as real surfaces near the viewer, the grounds and furniture of parks, squares and the rest, parked cars
   { const rm=w3dRoadMesh(cx,cy,27); if(rm) for(const q of rm) add(q); }
+  for(const q of (w3d.exDeck||[])){ const l=Math.hypot(q[3]-q[0],q[4]-q[1]); for(let sd=0;sd<=l;sd+=0.1){ const t=sd/(l||1), x=lerp(q[0],q[3],t), z=lerp(q[1],q[4],t), y=lerp(q[2],q[5],t)+0.025, i=Math.floor((x-hg.x0)*hg.res), j=Math.floor((z-hg.y0)*hg.res); if(i>=0&&j>=0&&i<hg.n&&j<hg.n&&hg.a[j*hg.n+i]<y) hg.a[j*hg.n+i]=y; } }
   if(w3d.rLift){ const Rn=G.rn; for(const [e,lf] of w3d.rLift){ const a=Rn.ea[e], b=Rn.eb[e], l=Math.hypot(Rn.x[b]-Rn.x[a],Rn.y[b]-Rn.y[a]); for(let sd=0;sd<=l;sd+=0.1){ const x=lerp(Rn.x[a],Rn.x[b],sd/l), z=lerp(Rn.y[a],Rn.y[b],sd/l), y=lf(sd)+0.02, i=Math.floor((x-hg.x0)*hg.res), j=Math.floor((z-hg.y0)*hg.res); if(i>=0&&j>=0&&i<hg.n&&j<hg.n&&hg.a[j*hg.n+i]<y) hg.a[j*hg.n+i]=y; } } }
   yield;
   { const fp=w3dFeatures(cx,cy,28,(x,y,sc,h)=>{ if(!near.has(Math.floor(x*8)*100000+Math.floor(y*8))) trees.push([x,y,sc,h]); },spires); for(const m of fp) add(m); } yield;
@@ -913,8 +914,8 @@ function* w3dLocalGen(cx,cy,grp,far){
 // a street's height at one of its junctions: on the ground, or up on the bridge deck where the junction is over water
 const W3D_BR=0.03;      // a road bridge's deck above street level
 // which junctions are flyovers (an expressway over lesser streets) and which expressway pieces climb over them
-function w3dFlySet(es){ const Rn=G.rn, flyN=new Set(), flyI=new Map(), seenN=new Set();
-  for(const e of es) for(const n of [Rn.ea[e],Rn.eb[e]]){ if(seenN.has(n)) continue; seenN.add(n); const ad=Rn.adj[n]; if(ad.length<3) continue; let hw=0, lo=0; for(const f of ad){ if(Rn.ec[f]>=4) hw++; else lo++; } if(hw>=1&&hw<=2&&lo>=1&&waterSD(Rn.x[n],Rn.y[n])>0.5&&!keepAt(Rn.x[n],Rn.y[n],0.3)) flyN.add(n); }
+function w3dFlySet(es,exH){ const Rn=G.rn, flyN=new Set(), flyI=new Map(), seenN=new Set(); exH=exH||w3dElevSet(es).hi;
+  for(const e of es) for(const n of [Rn.ea[e],Rn.eb[e]]){ if(seenN.has(n)) continue; seenN.add(n); const ad=Rn.adj[n]; if(ad.length<3) continue; let hw=0, lo=0; for(const f of ad){ if(Rn.ec[f]>=4) hw++; else lo++; } if(hw>=1&&hw<=2&&lo>=1&&waterSD(Rn.x[n],Rn.y[n])>0.5&&!keepAt(Rn.x[n],Rn.y[n],0.3)&&!exH.get(n)&&!Rn.adj[n].some(f=>{ const o=Rn.ea[f]===n?Rn.eb[f]:Rn.ea[f]; return Rn.ec[f]>=4&&exH.get(o); })) flyN.add(n); }
   for(const e of es){ if(Rn.ec[e]<4) continue; const ends=[]; if(flyN.has(Rn.ea[e])) ends.push(0); if(flyN.has(Rn.eb[e])) ends.push(1); if(ends.length) flyI.set(e,ends); }
   return {flyN,flyI}; }
 /* Elevated expressways. Through the dense centre an expressway runs on a viaduct high enough to clear the metro's
@@ -952,38 +953,52 @@ function w3dRoadMesh(cx,cy,R){
   for(const e of es){ const [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; let s0=-1, s1=-1; const n=Math.max(2,Math.ceil(l/0.08)); for(let k=0;k<=n;k++){ const t=k/n; if(waterSD(ax+(bx-ax)*t,az+(bz-az)*t)<0.03){ if(s0<0) s0=t*l; s1=t*l; } } if(s0>=0) wetI.set(e,[s0,s1]); }
   /* Flyovers. Where an expressway meets lesser streets at a junction, it does not stop at lights: it is carried over on a
      deck, coming down again on a ramp either side, and the streets below cross under it at ground level. */
-  const {flyN,flyI}=w3dFlySet(es), {hi:exH,up:exUp}=w3dElevSet(es), FLY=0.036, FR=0.95;
+  const {hi:exH,up:exUp}=w3dElevSet(es), {flyN,flyI}=w3dFlySet(es,exH), FLY=0.036, FR=0.95;
   const own=(e,sd)=>{ let v=0; const w=wetI.get(e); if(w){ const d=sd<w[0]?w[0]-sd:sd>w[1]?sd-w[1]:0; v=W3D_BR*(1-smooth(d,0,RAMP)); } const f=flyI.get(e); if(f){ const l=geo(e)[4]; for(const k of f){ const d=Math.abs(sd-k*l); v=Math.max(v,FLY*(1-smooth(d,0.14,0.14+FR))); } } return v; };
   const DK=airDecks().filter(q=>Math.max(q[0],q[3])>cx-R-1&&Math.min(q[0],q[3])<cx+R+1&&Math.max(q[1],q[4])>cy-R-1&&Math.min(q[1],q[4])<cy+R+1), deckY=(x,z)=>{ let y=-1; for(const q of DK){ const dx=q[3]-q[0], dz=q[4]-q[1], t=clamp(((x-q[0])*dx+(z-q[1])*dz)/(dx*dx+dz*dz||1),0,1); if(Math.hypot(x-q[0]-dx*t,z-q[1]-dz*t)<0.03) y=Math.max(y,lerp(q[2],q[5],t)); } return y; };
   for(const [n,o] of nodes) o.y=0; for(const [n,o] of nodes){ const dy=deckY(Rn.x[n],Rn.y[n]); if(dy>0) o.y=dy; o.deck=dy>=0; }
   const deckE=new Set(); for(const e of es) if(nodes.get(Rn.ea[e]).deck&&nodes.get(Rn.eb[e]).deck) deckE.add(e);
   for(const e of es){ if(!wetI.has(e)) continue; const l=geo(e)[4], na=nodes.get(Rn.ea[e]), nb=nodes.get(Rn.eb[e]); if(!flyN.has(Rn.ea[e])) na.y=Math.max(na.y,own(e,0)); if(!flyN.has(Rn.eb[e])) nb.y=Math.max(nb.y,own(e,l)); }
   // at a flyover junction the ground disc is the size of the streets below, not of the expressway passing over it
-  for(const n of [...flyN,...[...exH].filter(([n,h])=>h&&Rn.adj[n].some(f=>Rn.ec[f]<4)).map(([n])=>n)]){ const o=nodes.get(n); if(!o) continue; let p=0, q=0, c=0; for(const f of Rn.adj[n]) if(Rn.ec[f]<4){ p=Math.max(p,hwP(Rn.ec[f])); q=Math.max(q,hwA(Rn.ec[f])); c=Math.max(c,Rn.ec[f]); } o.p=p; o.a=q; o.c=c; }
+  for(const n of flyN){ const o=nodes.get(n); if(!o) continue; let p=0, q=0, c=0; for(const f of Rn.adj[n]) if(Rn.ec[f]<4){ p=Math.max(p,hwP(Rn.ec[f])); q=Math.max(q,hwA(Rn.ec[f])); c=Math.max(c,Rn.ec[f]); } o.p=p; o.a=q; o.c=c; }
   const lifts=w3d.rLift=new Map(), pierL=w3d.pierPts2=[];
   w3d.flyN=flyN;
-  for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ex=exUp.has(e), ya=ex?Math.max(nodes.get(a).y,exH.get(a)||0):nodes.get(a).y, yb=ex?Math.max(nodes.get(b).y,exH.get(b)||0):nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e)||flyI.has(e)||deckE.has(e)||ex; if(up) lifts.set(e,lf);
+  for(const e of es){ const c=Rn.ec[e], a=Rn.ea[e], b=Rn.eb[e], [ax,az,bx,bz,l]=geo(e); if(l<1e-4) continue; const dx=(bx-ax)/l, dz=(bz-az)/l, ex=exUp.has(e), ya=nodes.get(a).y, yb=nodes.get(b).y, lf=sd=>Math.max(own(e,sd),ya+(yb-ya)*sd/l), fn=t=>lf(t*l), up=ya>0||yb>0||wetI.has(e)||flyI.has(e)||deckE.has(e); if(up) lifts.set(e,lf);
     quad(0,ax,az,bx,bz,hwP(c),PAVE,0,0,0,up&&fn); quad(1,ax,az,bx,bz,hwA(c),ASPH[c],0,0,0,up&&fn);
     if(up){ const w=hwP(c), P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const sd=l*k/n, x=ax+dx*sd, z=az+dz*sd, y=lf(sd); P2.push([x,z,TRK+y+w3dHt(x,z)]); }
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
       // piers in the water, abutments where the deck leaves the bank
       for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; { let blocked=false; for(const o of [-w*0.7,0,w*0.7]){ const h=rnNearEdge(Rn,x-dz*o,z+dx*o,0.3); if(h&&h.e!==e&&h.d<ROAD_W[Rn.ec[h.e]]/2+0.01&&!wetI.has(h.e)){ blocked=true; break; } } if(blocked) continue; if(w3dPierClash(x,z,w)) continue; } pierL.push([x,z,0]); const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
-    if(c>=2&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7) for(let sd=0.15;sd<l-0.1;sd+=0.32){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=Math.round(sd/0.32)&1?1:-1; lamps.push([x-dz*o*k,z+dx*o*k,Math.atan2(dz,dx)+(k>0?Math.PI/2:-Math.PI/2)]); }
-    if(c<1) continue; const da=(flyN.has(a)||exH.get(a))&&c>=4?2:Rn.adj[a].length, db=(flyN.has(b)||exH.get(b))&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4,
+    if(c>=2&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7) for(let sd=0.15;sd<l-0.1;sd+=0.32){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=Math.round(sd/0.32)&1?1:-1; { const lx=x-dz*o*k, lz=z+dx*o*k, h=rnNearEdge(Rn,lx,lz,0.25); if(!h||h.e===e||h.d>ROAD_W[Rn.ec[h.e]]/2+0.006) lamps.push([lx,lz,Math.atan2(dz,dx)+(k>0?Math.PI/2:-Math.PI/2)]); } }
+    if(c<1) continue; const da=flyN.has(a)&&c>=4?2:Rn.adj[a].length, db=flyN.has(b)&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4,
       // how far back from a junction this street's markings stop: past the widest of the other streets there (and its pavement)
-      cross=n=>{ let w=0; for(const f of Rn.adj[n]) if(f!==e) w=Math.max(w,hwP(Rn.ec[f])); return w+0.004; }, ta=da>=3?cross(a)+(zeb?0.022:0.004):0, tb=db>=3?cross(b)+(zeb?0.022:0.004):0; if(l-ta-tb<0.03) continue;
+      cross=n=>{ // far enough back that this street's full width is clear of every other street at the junction, however sharp the angle between them
+        const ux=(n===a?bx-ax:ax-bx)/l, uz=(n===a?bz-az:az-bz)/l; let w=0; for(const f of Rn.adj[n]){ if(f===e) continue; const o=Rn.ea[f]===n?Rn.eb[f]:Rn.ea[f], fl=Math.hypot(Rn.x[o]-Rn.x[n],Rn.y[o]-Rn.y[n])||1, vx=(Rn.x[o]-Rn.x[n])/fl, vz=(Rn.y[o]-Rn.y[n])/fl, cs=ux*vx+uz*vz, sn=Math.max(0.2,Math.sqrt(Math.max(0,1-cs*cs))); w=Math.max(w,cs>0.2?(hwP(Rn.ec[f])+hwP(c)*Math.abs(cs))/sn:hwP(Rn.ec[f])); } return w+0.004; }, ta=da>=3?cross(a)+(zeb?0.022:0.004):0, tb=db>=3?cross(b)+(zeb?0.022:0.004):0; if(l-ta-tb<0.03) continue;
     const seg=(s0,s1,hw,cc,lat)=>quad(2,ax+dx*s0,az+dz*s0,ax+dx*s1,az+dz*s1,hw,cc,lat,0,0,up&&(t=>lf(s0+(s1-s0)*t))), dash=(lat,cc)=>{ for(let q=ta;q<l-tb-0.02;q+=0.07) seg(q,Math.min(q+0.03,l-tb),0.0011,cc,lat); };
     if(c===1) seg(ta,l-tb,0.0009,0xbfc1c4,0); else if(c===2) dash(0,0xe6e6e6); else { seg(ta,l-tb,0.001,0xe3c04a,0.0018); seg(ta,l-tb,0.001,0xe3c04a,-0.0018); dash(hwA(c)*0.5,0xe6e6e6); dash(-hwA(c)*0.5,0xe6e6e6); if(c===4){ seg(ta,l-tb,0.001,0xe6e6e6,hwA(c)-0.004); seg(ta,l-tb,0.001,0xe6e6e6,-hwA(c)+0.004); } }
-    if(c>=1&&c<4) for(const [dg,n,s0,sg] of [[da,a,0,1],[db,b,l,-1]]){ if(dg<3) continue; const at=s0+sg*cross(n);
+    if(c>=1&&c<4) for(const [dg,n,s0,sg] of [[da,a,0,1],[db,b,l,-1]]){ if(dg<3) continue; const cr=cross(n); if(cr>Math.min(0.6,l*0.45)) continue; const at=s0+sg*cr;
         if(zeb) for(let o=-hwA(c)+0.005;o<hwA(c)-0.003;o+=0.008) seg(Math.min(at,at+sg*0.016),Math.max(at,at+sg*0.016),0.0018,0xe9e9e9,o);      // the crosswalk, just outside the street it crosses
         const sl=at+sg*(zeb?0.02:0.003); seg(Math.min(sl,sl+sg*0.002),Math.max(sl,sl+sg*0.002),hwA(c)/2,0xf2f2f2,sg*hwA(c)/2); } }      // the stop line, on the approaching half
-  for(const [n,h] of exH){ if(!h) continue; let k=0; for(const f of Rn.adj[n]) if(exUp.has(f)) k++; if(k>=2){ const x=Rn.x[n], z=Rn.y[n]; disc(1,x,z,hwA(4),ASPH[3],h); } }      /* the raised expressway's own joint, up on the deck */
-  for(const [n,o] of nodes){ if(exH.get(n)&&!Rn.adj[n].some(f=>Rn.ec[f]<4)) continue;      /* nothing on the ground under a raised expressway's joint */
+    for(const [n,o] of nodes){
     o.c=Math.min(o.c,3); const x=Rn.x[n], z=Rn.y[n], head=Rn.adj[n].length===1&&o.c<=2&&waterSD(x,z)>0.3?1.75:1;      /* a cul-de-sac ends in a turning head */
     if(o.c<4) disc(0,x,z,o.p*head,PAVE,o.y); disc(1,x,z,o.a*head,ASPH[o.c],o.y); }
   const pos=[].concat(Ls[0],Ls[1],Ls[2]), cl=[].concat(Cs[0],Cs[1],Cs[2]), nor=new Float32Array(pos.length); for(let i=1;i<nor.length;i+=3) nor[i]=1;
   const g=new T.BufferGeometry(); g.setAttribute('position',new T.Float32BufferAttribute(pos,3)); g.setAttribute('normal',new T.Float32BufferAttribute(nor,3)); g.setAttribute('color',new T.Float32BufferAttribute(cl,3));
   const m=new T.Mesh(g,w3dSee(new T.MeshStandardMaterial({vertexColors:true,roughness:0.93,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,...w3dCut()}))); m.renderOrder=-3; m.receiveShadow=true;
+  /* The elevated expressway: its own deck above the ground road (which keeps its junctions), piers standing in a median
+     strip down the middle of the road below, and where it ends a ramp in the middle lanes that climbs from the street. */
+  const exDeck=w3d.exDeck=[], exPier=w3d.exPier=[], DW=0.064;
+  for(const e of exUp){ const a=Rn.ea[e], b=Rn.eb[e], ax=Rn.x[a], az=Rn.y[a], bx=Rn.x[b], bz=Rn.y[b], l=Math.hypot(bx-ax,bz-az); if(l<1e-4) continue; const ha=exH.get(a)||0, hb=exH.get(b)||0, dx=(bx-ax)/l, dz=(bz-az)/l;
+    const P2=[], n=Math.max(1,Math.ceil(l/0.2)); for(let k=0;k<=n;k++){ const t=k/n, x=ax+(bx-ax)*t, z=az+(bz-az)*t; P2.push([x,z,TRK+lerp(ha,hb,t)+w3dHt(x,z)]); }
+    exDeck.push([ax,az,ha,bx,bz,hb]);
+    br.push({g:w3dRibbon(P2,DW,-0.0004,0.008),c:BRC},{g:w3dRibbon(P2,DW-0.006,0.0002,0.0006),c:0x4a4d53}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(DW-0.002)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.002,0.008,0.009),c:0xcfcbc3});
+    for(let k=0.06;k<l-0.06;k+=0.09){ const t0=k/l, t1=Math.min(1,(k+0.04)/l); br.push({g:w3dRibbon([[ax+(bx-ax)*t0,az+(bz-az)*t0,TRK+lerp(ha,hb,t0)+0.0009],[ax+(bx-ax)*t1,az+(bz-az)*t1,TRK+lerp(ha,hb,t1)+0.0009]],0.001,0,0.0002),c:0xe6e6e6}); }
+    // the median strip below, the length of the deck and its ramp
+    quad(2,ax,az,bx,bz,0.016,0xbdb9b1,0,0.0007,0.0007);
+    for(let k=0.25;k<l;k+=0.5){ const t=k/l, h=lerp(ha,hb,t); if(h<0.03) continue; const x=ax+(bx-ax)*t, z=az+(bz-az)*t; if(w3dPierClash(x,z,0.01)) continue; const q=w3dBox(0.03,h,0.012,0,h/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,w3dHt(x,z),z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); exPier.push([x,z]); } }
+  // round joints where the deck bends, so its edge runs on without a notch
+  for(const [n,h] of exH){ if(!h) continue; let k=0; for(const f of Rn.adj[n]) if(exUp.has(f)) k++; if(k<2) continue; const x=Rn.x[n], z=Rn.y[n], y=h+w3dHt(x,z);
+    br.push({g:new T.CylinderGeometry(DW,DW,0.008,20),m:new T.Matrix4().makeTranslation(x,y-0.0044,z),c:BRC},{g:new T.CylinderGeometry(DW-0.006,DW-0.006,0.0006,20),m:new T.Matrix4().makeTranslation(x,y+0.0005,z),c:0x4a4d53}); }
   const out=[m]; if(br.length){ const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; out.unshift(bm); }
   if(lamps.length){ const pg=w3dMerge([w3dBox(0.0012,0.032,0.0012,0,0.016,0,0x5a6068),w3dBox(0.012,0.0012,0.0012,0.006,0.0315,0,0x5a6068)]), hg=new T.BoxGeometry(0.006,0.0016,0.003); hg.translate(0.011,0.0305,0);
     const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
@@ -1135,7 +1150,7 @@ function* w3dLocalGround(cx,cy,add){
   const dark=w3dDark(), GK=6, gc=w3d.groundCanvas; if(!gc) return;
   // texture: grain in grass and paving
   if(!w3d.noise){ const n=document.createElement('canvas'); n.width=n.height=128; const ng=n.getContext('2d'), id=ng.createImageData(128,128); for(let i=0;i<id.data.length;i+=4){ const v=128+((hashInt(i)&255)-128)*0.5; id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255; } ng.putImageData(id,0,0); w3d.noise=n; }
-  const Rg=G.rn, dryC=new Map(), esL=Rg?w3dEdgesIn(x0-1,y0-1,x0+sw+1,y0+sh+1):[], flyE=new Set(Rg?[...w3dFlySet(esL).flyI.keys(),...w3dElevSet(esL).up]:[]), dryEdge=e=>{ let v=dryC.get(e); if(v==null){ const a=Rg.ea[e], b=Rg.eb[e], l=Math.hypot(Rg.x[b]-Rg.x[a],Rg.y[b]-Rg.y[a]), n=Math.max(2,Math.ceil(l/0.1)); v=!flyE.has(e); if(v){ for(const q of airDecks()){ const mx=(Rg.x[a]+Rg.x[b])/2, my=(Rg.y[a]+Rg.y[b])/2, dx=q[3]-q[0], dz=q[4]-q[1], t=clamp(((mx-q[0])*dx+(my-q[1])*dz)/(dx*dx+dz*dz||1),0,1); if(Math.hypot(mx-q[0]-dx*t,my-q[1]-dz*t)<0.03&&lerp(q[2],q[5],t)>0.004){ v=false; break; } } } for(let k=0;k<=n&&v;k++) if(waterSD(lerp(Rg.x[a],Rg.x[b],k/n),lerp(Rg.y[a],Rg.y[b],k/n))<0.32) v=false; dryC.set(e,v); } return v; };
+  const Rg=G.rn, dryC=new Map(), esL=Rg?w3dEdgesIn(x0-1,y0-1,x0+sw+1,y0+sh+1):[], flyE=new Set(Rg?[...w3dFlySet(esL).flyI.keys()]:[]), dryEdge=e=>{ let v=dryC.get(e); if(v==null){ const a=Rg.ea[e], b=Rg.eb[e], l=Math.hypot(Rg.x[b]-Rg.x[a],Rg.y[b]-Rg.y[a]), n=Math.max(2,Math.ceil(l/0.1)); v=!flyE.has(e); if(v){ for(const q of airDecks()){ const mx=(Rg.x[a]+Rg.x[b])/2, my=(Rg.y[a]+Rg.y[b])/2, dx=q[3]-q[0], dz=q[4]-q[1], t=clamp(((mx-q[0])*dx+(my-q[1])*dz)/(dx*dx+dz*dz||1),0,1); if(Math.hypot(mx-q[0]-dx*t,my-q[1]-dz*t)<0.03&&lerp(q[2],q[5],t)>0.004){ v=false; break; } } } for(let k=0;k<=n&&v;k++) if(waterSD(lerp(Rg.x[a],Rg.x[b],k/n),lerp(Rg.y[a],Rg.y[b],k/n))<0.32) v=false; dryC.set(e,v); } return v; };
   const E=w3dEdgesIn(x0,y0,x0+sw,y0+sh), wc=dark?'#1c3550':'#3f7aa8', wd=ROAD_W.map(w=>w-0.03), pave=dark?'#5d5f66':'#d6d3cb', asph=dark?'#2a2c31':'#55585f'; yield;
   yield* w3dTiles(x0,y0,sw,sh,0.0004,3,K,(g,tx0,ty0,tw,th,k)=>{ const cv=g.canvas;
       g.drawImage(gc,(tx0-(B[0]-0.5))*GK,(ty0-(B[1]-0.5))*GK,tw*GK,th*GK,0,0,cv.width,cv.height);
@@ -1201,6 +1216,7 @@ function w3dTod(dt){ w3d.tod=w3d.todFix!=null?w3d.todFix:((w3d.tod==null?0.12:w3
     w3d.R.toneMappingExposure=0.95*(1-n*0.62); if(w3d.S.fog) w3d.S.fog.color.setRGB(0.87-n*0.8+gold*0.08,0.91-n*0.83-gold*0.05,0.93-n*0.78-gold*0.12); if(w3d.lampM) w3d.lampM.emissiveIntensity=n*3; if(w3d.watM) w3d.watM.envMapIntensity=1.5*(1-n*0.8); }
 function w3dFrame(dt){
   if(!w3d.active||!w3d.ready) return; if(w3d.hold>0){ w3d.hold--; return; }      /* let the veil be painted first */
+  if(w3d.veil&&!w3d.lj&&!w3d.gj&&w3d.local.length&&!w3d.forceCut) w3dVeil(false);      /* the city round the viewer is ready */
   bldFreeze=true; w3d.seeDt=dt; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
   const st=watch.st, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
@@ -1272,7 +1288,6 @@ function w3dFrame(dt){
   // how strongly the underground shows through (see w3dRender): on while the watched train is below ground and seen from outside, fading in and out
   { w3d.seeOn=!seat&&!!P3&&(inHill||(yT<0?true:yT>0.03?false:!!w3d.seeOn)); w3d.seeW=clamp((w3d.seeW||0)+(w3d.seeOn?1:-1)*dt*2.5,0,1); w3d.seeAt=P3?[x,yT,z,u3,sg,P3,len3]:null; }
   w3dTod(dt);
-  if(w3d.veil&&!w3d.lj&&!w3d.gj&&w3d.local.length) w3dVeil(false);
   // the sun: its shadow map follows the viewer in whole-texel steps, so shadow edges stay still instead of crawling
   { const sx=x+nx*0.6, sz=z+nz*0.6, D=[-8,14,10], ts=2*W3D_SH/w3d.sun.shadow.mapSize.x, r=[D[2],0,-D[0]], rl=Math.hypot(r[0],r[2]), rx=r[0]/rl, rz=r[2]/rl, dl=Math.hypot(...D), ux=-rz*D[1]/dl, uy=(rz*D[0]-rx*D[2])/dl, uz=rx*D[1]/dl;
     const pa=sx*rx+sz*rz, pb=sx*ux+sz*uz, da=Math.round(pa/ts)*ts-pa, db=Math.round(pb/ts)*ts-pb, tx=sx+da*rx+db*ux, ty=db*uy, tz=sz+da*rz+db*uz;
