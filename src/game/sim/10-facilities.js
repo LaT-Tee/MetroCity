@@ -55,6 +55,23 @@ function facAccess(){ const R=G.rn; if(!R) return 0; let n=0;
         let ok=true; const m=Math.max(2,Math.ceil(d/0.2)); for(let k=1;k<m&&ok;k++){ const px=lerp(fx,R.x[j],k/m), py=lerp(fy,R.y[j],k/m); if(waterSD(px,py)<0.1||keepAt(px,py,0.01)) ok=false; } if(ok&&d<bd){ bd=d; best=j; } } }
     if(best<0) continue; const a0=rnAddNode(R,fx,fy); rnLink(R,a0,R.x[best],R.y[best],2,0.3); if(R.adj[a0].length) n++; }
   return n; }
+/* The airport's own roads, as part of the street web. Departures is a road in the air: a deck along the front of the
+   terminal at the first floor, reached by a ramp at each end. Arrivals runs at ground level between the deck and the
+   doors. Both join a loop round the car parks that meets the road from the city at the gate. Streets can have height:
+   G.rdDeck lists the raised stretches (world x,y,height at each end), and the 3D view builds them as bridges. */
+const AIR_DY=0.046;
+function airRoads(ap){ const f=airFrame(ap), at=(lx,lz)=>[ap.x+f.ca*lx-f.sa*f.ts*(f.tz+lz),ap.y+f.sa*lx+f.ca*f.ts*(f.tz+lz)];
+  return {dep:[[-4.45,0.95],[-2.95,0.95],[2.95,0.95],[4.45,0.95]],depZ:[0,AIR_DY,AIR_DY,0],arr:[[-4.95,0.6],[4.95,0.6]],links:[[[-4.45,0.95],[-4.45,1.5]],[[4.45,0.95],[4.45,1.5]],[[-4.95,0.6],[-4.95,1.5]],[[4.95,0.6],[4.95,1.5]],[[-4.95,1.5],[4.95,1.5]],[[0,1.5],[0,1.72]]],at}; }
+function airDecks(){ const out=[]; for(const ap of [G.fac.airport,...(G.fac2||[]).filter(f=>f.t==='air')]){ if(!ap||ap.x==null) continue; const r=airRoads(ap); for(let k=1;k<r.dep.length;k++){ const a=r.at(...r.dep[k-1]), b=r.at(...r.dep[k]); out.push([a[0],a[1],r.depZ[k-1],b[0],b[1],r.depZ[k]]); } } return out; }
+let rnAirOK=false;
+function airAccess(){ const R=G.rn; if(!R) return 0; let n=0; rnAirOK=true;
+  try{ for(const ap of [G.fac.airport,...(G.fac2||[]).filter(f=>f.t==='air')]){ if(!ap||ap.x==null) continue; const r=airRoads(ap), d0=r.at(...r.dep[1]), h=rnNearNode(R,d0[0],d0[1],0.03); if(h>=0&&R.adj[h].length) continue;      // already there
+      // laid node by node: the street web's usual snapping would merge the two levels, which lie close together in plan
+      const own=new Map(), node=q=>{ const k=q[0].toFixed(2)+','+q[1].toFixed(2); let i=own.get(k); if(i==null){ const w=r.at(...q); i=rnAddNode(R,w[0],w[1]); own.set(k,i); } return i; },
+        lay=(pts,c)=>{ for(let k=1;k<pts.length;k++){ const a=pts[k-1], b=pts[k], m=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/1.5)); let pv=node(a); for(let q=1;q<=m;q++){ const nx=node([lerp(a[0],b[0],q/m),lerp(a[1],b[1],q/m)]); rnAddEdge(R,pv,nx,c); pv=nx; } } };
+      lay(r.dep,3); lay(r.arr,2); for(const l of r.links.slice(0,4)) lay(l,2);
+      lay([[-4.95,1.5],[-4.45,1.5],[0,1.5],[4.45,1.5],[4.95,1.5]],3); const g=r.at(0,1.72), c0=node([0,1.5]); rnLink(R,c0,g[0],g[1],3,0.3); n++; } }
+  finally{ rnAirOK=false; } if(n) R.ver++; return n; }
 function keepRects(){ const key=(G.fac2||[]).length+'|'+(G.projects||[]).length+'|'+G.rail.length+'|'+(G.rn?1:0); if(G._keepK===key) return G._keep; const out=[];
   for(const st of [G.fac.station,...(G.fac2||[]).filter(f=>f.t==='rail')]){ const q=railSite(st), ca=Math.cos(q.a), sa=Math.sin(q.a); out.push({x:q.x-sa*q.sd*0.07,y:q.y+ca*q.sd*0.07,hx:ca,hy:sa,hl:0.86,hw:0.27}); }
   if(G.rn) for(const co of [G.fac.coach,...(G.fac2||[]).filter(f=>f.t==='coach')]){ const q=coachSite(co); out.push({x:q.x,y:q.y,hx:Math.cos(q.a),hy:Math.sin(q.a),hl:0.3,hw:0.18}); }
