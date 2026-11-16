@@ -31,6 +31,12 @@ $('#achBtn').addEventListener('click',openAch);
 $('#expandBtn').addEventListener('click',doExpand);
 $('#aboutLink').addEventListener('click',e=>{ e.preventDefault(); $('#aboutModal').hidden=false; });
 $('#abClose').addEventListener('click',()=>{ $('#aboutModal').hidden=true; });
+// the privacy policy opens over the game, in the game's language; /#privacy opens it directly (for links from elsewhere)
+function openPrivacy(){ $('#pvBody').innerHTML=t('pvBody'); $('#aboutModal').hidden=true; $('#privacyModal').hidden=false; }
+document.querySelectorAll('.privacy-open').forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); openPrivacy(); }));
+$('#pvClose').addEventListener('click',()=>{ $('#privacyModal').hidden=true; if(location.hash==='#privacy') history.replaceState(null,'',location.pathname+location.search); });
+$('#privacyModal').addEventListener('click',e=>{ if(e.target.id==='privacyModal') $('#pvClose').click(); });
+if(location.hash==='#privacy') setTimeout(openPrivacy,300); addEventListener('hashchange',()=>{ if(location.hash==='#privacy') openPrivacy(); });
 $('#aboutModal').addEventListener('click',e=>{ if(e.target.id==='aboutModal') $('#aboutModal').hidden=true; });
 $('#petCard').querySelector('.pet-btn').addEventListener('click',()=>petShow());
 $('#achClose').addEventListener('click',()=>$('#achModal').hidden=true);

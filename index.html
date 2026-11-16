@@ -67,7 +67,7 @@
         <div class="lines" id="lineList"></div>
       </div>
     </div>
-    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button><div class="fine"><a href="#" id="aboutLink" data-i18n="aboutL"></a><span>·</span><a href="privacy.html" target="_blank" rel="noopener" data-i18n="privacyL"></a><span>·</span><a href="https://github.com/lat-tee/metrocity/issues" target="_blank" rel="noopener" data-i18n="contactL"></a></div></div>
+    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button><div class="fine"><a href="#" id="aboutLink" data-i18n="aboutL"></a><span>·</span><a href="#privacy" class="privacy-open" data-i18n="privacyL"></a><span>·</span><a href="mailto:test2g@icloud.com" data-i18n="contactL"></a></div></div>
   </aside>
 
   <nav class="toolbar">
@@ -125,7 +125,13 @@
       <div class="rep-head"><div><h2 id="abTitle">地铁织城 · Metro City</h2><div class="sub" data-i18n="aboutSub"></div></div></div>
       <p class="about-p" data-i18n="aboutP1"></p>
       <p class="about-p" data-i18n="aboutP2"></p>
-      <div class="row"><a class="btn" href="privacy.html" target="_blank" rel="noopener" data-i18n="privacyL"></a><a class="btn" href="https://github.com/lat-tee/metrocity/issues" target="_blank" rel="noopener" data-i18n="contactL"></a><button class="btn primary" id="abClose" type="button" data-i18n="close"></button></div>
+      <div class="row"><a class="btn privacy-open" href="#privacy" data-i18n="privacyL"></a><a class="btn" href="mailto:test2g@icloud.com" data-i18n="contactL"></a><button class="btn primary" id="abClose" type="button" data-i18n="close"></button></div>
+    </div>
+  </div>
+  <div class="modal" id="privacyModal" hidden>
+    <div class="report privacy-card" role="dialog" aria-labelledby="pvTitle">
+      <div class="rep-head"><div><h2 id="pvTitle" data-i18n="pvTitle"></h2><div class="sub" data-i18n="pvDate"></div></div><button class="btn" id="pvClose" type="button" data-i18n="close"></button></div>
+      <div class="pv-body" id="pvBody"></div>
     </div>
   </div>
   <div class="modal" id="exportModal" hidden>

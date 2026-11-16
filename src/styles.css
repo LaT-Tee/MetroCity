@@ -413,3 +413,8 @@ body.watching .panel, body.watching .ach-pop, body.watching .sign, body.watching
 .panel-foot .fine a{color:var(--ink-3);text-decoration:none}.panel-foot .fine a:hover{color:var(--ink);text-decoration:underline}
 .about-card{max-width:420px}.about-p{font-size:13px;line-height:1.6;color:var(--ink-2);margin:10px 0 0;padding:0 22px}
 .about-card .row{margin-top:16px;display:flex;gap:8px;justify-content:flex-end}
+
+.privacy-card{max-width:560px;max-height:80vh;display:flex;flex-direction:column}
+.privacy-card .rep-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.pv-body{overflow:auto;padding:0 22px 18px;font-size:13px;line-height:1.65;color:var(--ink-2)}
+.pv-body h3{font-size:14px;color:var(--ink);margin:16px 0 4px}.pv-body p{margin:0}.pv-body a{color:inherit}

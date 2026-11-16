@@ -75,7 +75,7 @@ A procedural city where you draw the metro — and the city grows around it.
 
 ## 隐私
 
-不需要账号，不收集个人信息，存档只在你自己的浏览器里。广告由 Google AdSense 提供，详见[隐私政策](https://metrocitygame.pages.dev/privacy.html)。问题和建议请提 [GitHub Issue](https://github.com/lat-tee/metrocity/issues)。
+不需要账号，不收集个人信息，存档只在你自己的浏览器里。广告由 Google AdSense 提供，详见[隐私政策](https://metrocitygame.pages.dev/#privacy)。问题和建议请发邮件至 test2g@icloud.com。
 
 ## 本地运行
 
