@@ -418,3 +418,4 @@ body.watching .panel, body.watching .ach-pop, body.watching .sign, body.watching
 .privacy-card .rep-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .pv-body{overflow:auto;padding:0 22px 18px;font-size:13px;line-height:1.65;color:var(--ink-2)}
 .pv-body h3{font-size:14px;color:var(--ink);margin:16px 0 4px}.pv-body p{margin:0}.pv-body a{color:inherit}
+.pv-foot{padding:10px 22px 16px;border-top:1px solid var(--rule);font-size:12px}.pv-foot a{color:var(--ink-3)}.pv-foot a:hover{color:var(--ink)}
