@@ -409,7 +409,7 @@ body.watching .panel, body.watching .ach-pop, body.watching .sign, body.watching
 @keyframes w3dspin{to{transform:rotate(360deg)}}
 
 /* about, privacy, contact: one quiet line under the panel's buttons */
-.panel-foot .fine{grid-column:1/-1;display:flex;justify-content:center;gap:6px;font-size:11px;color:var(--ink-3);margin-top:-2px}
+.panel-foot .fine{grid-column:1/-1;display:flex;flex-wrap:wrap;justify-content:center;gap:2px 6px;font-size:11px;color:var(--ink-3);margin-top:-2px}
 .panel-foot .fine a{color:var(--ink-3);text-decoration:none}.panel-foot .fine a:hover{color:var(--ink);text-decoration:underline}
 .about-card{max-width:420px}.about-p{font-size:13px;line-height:1.6;color:var(--ink-2);margin:10px 0 0;padding:0 22px}
 .about-card .row{margin-top:16px;display:flex;gap:8px;justify-content:flex-end}

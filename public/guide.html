@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>玩法指南 · How to play | 地铁织城 Metro City</title>
+<meta name="description" content="地铁织城玩法指南：如何画线、设站、换乘，怎样读热力图，城市如何生长，规划助手、观景模式和 3D 视角的用法。">
+<link rel="canonical" href="https://metrocitygame.pages.dev/guide.html">
+<meta name="google-adsense-account" content="ca-pub-5781197986680790">
+<style>
+:root{--ink:#1d2330;--ink2:#4a5263;--ink3:#7a8090;--rule:#e2e0da;--bg:#f7f6f2;--card:#fff;--acc:#2f5fb5}
+@media (prefers-color-scheme:dark){:root{--ink:#e8e6e1;--ink2:#b9b6ae;--ink3:#8d8a84;--rule:#34373e;--bg:#15171c;--card:#1d2026;--acc:#7fa6e8}}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans","Noto Sans CJK SC",sans-serif}
+a{color:var(--acc)} header{border-bottom:1px solid var(--rule);background:var(--card)} .bar{max-width:860px;margin:0 auto;padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}
+.brand{font-weight:800;color:var(--ink);text-decoration:none;margin-right:auto;font-size:17px} nav a{color:var(--ink2);text-decoration:none;font-size:14px} nav a[aria-current]{color:var(--ink);font-weight:700}
+.play{background:var(--ink);color:var(--bg)!important;padding:5px 12px;border-radius:8px;font-weight:600}
+main{max-width:860px;margin:0 auto;padding:32px 16px 56px} h1{font-size:28px;line-height:1.3;margin:0 0 6px} .lead{color:var(--ink2);font-size:17px;margin:0 0 28px}
+h2{font-size:20px;margin:36px 0 8px} h3{font-size:16px;margin:22px 0 4px} p,li{color:var(--ink2)} ul,ol{padding-left:22px} .muted{color:var(--ink3);font-size:14px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:16px 18px;margin:14px 0} kbd{font:13px ui-monospace,monospace;border:1px solid var(--rule);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--card);color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:15px} td,th{border-bottom:1px solid var(--rule);padding:8px 6px;text-align:left;vertical-align:top} th{color:var(--ink)} td{color:var(--ink2)}
+hr{border:0;border-top:1px solid var(--rule);margin:48px 0} footer{border-top:1px solid var(--rule);background:var(--card)} footer .bar{font-size:13px;color:var(--ink3)} footer a{color:var(--ink2);text-decoration:none}
+.lang{font-size:13px;margin:-4px 0 18px}
+</style></head><body>
+<header><div class="bar"><a class="brand" href="./">地铁织城 · Metro City</a><nav><a href="./" class="play">开始游戏</a> <a href="guide.html" aria-current="page">玩法指南</a> <a href="faq.html">常见问题</a> <a href="changelog.html">更新日志</a> <a href="about.html">关于</a> <a href="contact.html">联系</a> <a href="privacy.html">隐私政策</a></nav></div></header>
+<main>
+<p class="lang"><a href="#en">English below ↓</a></p>
+
+<h1>玩法指南</h1><p class="lead">一座城市，几百万要上下班的人，和一张还没画出来的地铁网。这一页讲清楚怎么开始，以及怎样把网修好。</p>
+<h2>一、游戏的目标</h2>
+<p>每个城市种子都会生成一座独一无二的城市：海岸线、河流、缓坡与山、老城中心和周围的卫星镇。一开始没有地铁，所有人都开车或坐公交上班，主要道路堵成一片，早高峰平均通勤动辄五十分钟以上。</p>
+<p>你的任务是修地铁，把<strong>早高峰平均通勤时间</strong>降下来。右上角的大数字就是它。线修得好，通勤缩短、地铁分担率上升，人们会搬到车站附近，街道向外延伸，农田变成街区，城市升级后地图还会解锁更大的范围。</p>
+<h2>二、画第一条线</h2>
+<ol><li>按 <kbd>2</kbd> 或点底部工具栏的「建线」，进入画线模式。</li>
+<li>在地图上<strong>按住并拖动</strong>，像用笔一样画出线路的走向。</li>
+<li>拖动途中按 <kbd>空格</kbd> 在当前位置放一个车站；触屏上停顿片刻也会放站。</li>
+<li>松手时，终点自动成为终点站。拖到已有车站上松手，就和那条线换乘。</li></ol>
+<p>也可以逐站点击：在建线模式下点一下放一个站，再点下一个，线会自动连起来。画错了按 <kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销。</p>
+<div class="card"><strong>站距的经验：</strong>市中心大约每 1 公里一站，郊区可以拉到 1.5～2 公里。站太密列车跑不快，站太疏走路去车站的人就少。</div>
+<h2>三、换乘：让网络比单线强得多</h2>
+<p>一条线只能服务沿线的人；两条线相交并设换乘站，乘客就能在两条走廊之间转车。新线穿过旧线时，如果附近已有车站，线路会自动拐过去停靠；附近没有，就在交叉点新建一个换乘站。</p>
+<p>几条线在同一个地方交汇，会合成一个大站：同方向的线路并排停在相邻的站台，不同方向的线路分在上下两层，用通道相连。</p>
+<h2>四、读懂三种热力图</h2>
+<table><tr><th>热力图</th><th>看什么</th><th>用来决定什么</th></tr>
+<tr><td>人口</td><td>哪里住的人多</td><td>车站应该放在哪里，覆盖的人越多越好</td></tr>
+<tr><td>通勤时间</td><td>哪里的人上班最辛苦</td><td>最需要地铁的地区</td></tr>
+<tr><td>出行需求</td><td>人们从哪里去哪里，箭头越粗人越多，颜色越红地铁承担得越少</td><td>下一条线该连接哪两个地方</td></tr></table>
+<p>右侧的「改善建议」会列出当前最值得解决的几条通勤走廊，点一条就能在地图上看到它。</p>
+<h2>五、城市怎样生长</h2>
+<ul><li><strong>每月结算一次。</strong>人口向车站周边集中，街道慢慢生长，繁忙的道路会拓宽，两岸都建成后会架桥。</li>
+<li><strong>增长会放缓。</strong>城市越大，增长越慢；通勤太久的人会搬家，所以光等待是不会自己变好的。</li>
+<li><strong>城市升级。</strong>日客流达到门槛后城市升级，地图向外扩展，之后还会出现第二座火车站、客运站和机场。</li>
+<li><strong>城市委托。</strong>新项目动工（体育场、科技园、度假区……）或者火车站、机场还没通地铁时，市里会委托你把站修到它旁边。按期完成，那一带会更繁荣。</li></ul>
+<h2>六、快线、直通与自动运营</h2>
+<p>市郊快线站少车快，适合把远处的卫星镇快速连进市中心。两条线首尾相接且方向一致时，列车会自动直通运转，乘客不用下车换乘。班次和快车由运营方自动安排：某条线客流涨到值得的程度，就会自动开行快车、特快，只升不降。你只管修网。</p>
+<h2>七、规划助手</h2>
+<p>按 <kbd>A</kbd> 打开规划助手，它会根据当前客流给出新线、延伸和环线的建议，并估算每个方案能省下多少通勤时间。按 <kbd>Tab</kbd> 在建议之间切换，<kbd>Enter</kbd> 一键采纳。建议是稳定的：同一座城的同一个月，刷新多少次都一样；它还会照顾将来，优先考虑城市委托、在建项目和还没通地铁的交通枢纽。</p>
+<h2>八、观景模式与 3D 视角</h2>
+<p>按 <kbd>V</kbd> 坐上一位通勤者的座位，跟着 TA 上车、换乘、到站。电脑上可以切换到 3D 视角：</p>
+<ul><li><strong>窗边座位：</strong>第一人称看窗外的城市掠过，进了隧道就是隧道。</li>
+<li><strong>跟随镜头：</strong>像无人机一样跟在列车后上方，提前绕开高楼和山；列车进入地下时，镜头和列车之间的地面会变成半透明。</li>
+<li><strong>一天的光影：</strong>约六分钟过完一天，傍晚是金色的，夜里窗户和路灯亮起。</li></ul>
+<p>观景时城市不会发展，退出后继续。</p>
+<h2>九、快捷键</h2>
+<table><tr><th>按键</th><th>作用</th></tr><tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>浏览 / 画线 / 拆除</td></tr><tr><td><kbd>空格</kbd></td><td>画线时放站；选中线路时在线上加站</td></tr><tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>切换选中的线路</td></tr><tr><td><kbd>A</kbd></td><td>规划助手</td></tr><tr><td><kbd>V</kbd></td><td>观景模式（<kbd>N</kbd> 换一位乘客）</td></tr><tr><td><kbd>P</kbd></td><td>暂停 / 继续</td></tr><tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>撤销 / 重做</td></tr></table>
+<h2>十、几条进阶建议</h2>
+<ol><li>先修一条穿过市中心、连接两个最大居住区的主干线，比修三条短线有效得多。</li>
+<li>环线适合在已有三四条放射线之后再修，它让乘客不必都挤到市中心换乘。</li>
+<li>火车站、机场、客运站是天然的大客流点，尽早接上。</li>
+<li>线路数量有上限，能延伸旧线就别开新线。</li>
+<li>看「出行需求」里又粗又红的箭头：那是还没被地铁接住的大客流。</li></ol>
+
+<hr id="en">
+
+<h1>How to play</h1><p class="lead">A city, millions of commuters, and a metro that has not been drawn yet. Here is how to start and how to build it well.</p>
+<h2>The goal</h2><p>Every seed generates a unique city: coast, rivers, hills, an old centre and satellite towns. At first there is no metro and everyone is stuck in traffic. Your job is to bring the <strong>average rush-hour commute</strong> (the big number at the top right) down. Good lines shorten commutes, people move near stations, streets grow outward, and the city levels up and unlocks more of the map.</p>
+<h2>Drawing a line</h2><ol><li>Press <kbd>2</kbd> or choose Draw in the toolbar.</li><li>Press and drag across the map to sketch the route.</li><li>Press <kbd>Space</kbd> while dragging to drop a station (on touch screens, pause briefly).</li><li>Release to end the line; release on an existing station to make an interchange.</li></ol><p>You can also click station by station. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.</p>
+<h2>Interchanges</h2><p>Where a new line crosses an old one, it bends to call at a nearby station or a new interchange is built at the crossing. Lines meeting at one place form a single big station, with parallel platforms for lines in the same direction and separate levels for crossing ones.</p>
+<h2>The three heat maps</h2><p><strong>Population</strong> shows where people live; <strong>commute time</strong> shows who suffers most; <strong>demand</strong> shows flows from home to work (thick red arrows are big flows the metro does not carry yet).</p>
+<h2>How the city grows</h2><p>Every month people move toward stations, streets grow, busy roads widen and bridges appear. Growth slows as the city gets bigger, and people with unbearable commutes move away. Hitting ridership thresholds levels the city up; the city also commissions you to connect new developments and transport hubs.</p>
+<h2>Rapid lines, through-running, automatic operations</h2><p>Rapid lines stop less and run faster. Two lines meeting end to end in the same direction run through trains. Express and limited-express services are added automatically when ridership justifies them.</p>
+<h2>The planning assistant</h2><p>Press <kbd>A</kbd> for suggested new lines, extensions and loops with estimated time saved; <kbd>Tab</kbd> switches, <kbd>Enter</kbd> builds. Advice is stable and looks ahead to commissions, developments and unconnected hubs.</p>
+<h2>Watch mode and 3D</h2><p>Press <kbd>V</kbd> to ride with a commuter. On desktop, switch to 3D for a window seat or a drone camera; a day passes in about six minutes, with lit windows at night. The city pauses while you watch.</p>
+<h2>Tips</h2><ol><li>One trunk line through the centre beats three short ones.</li><li>Add a loop after three or four radial lines.</li><li>Connect the railway station, airport and coach station early.</li><li>Lines are limited: extend before you add.</li></ol>
+
+</main>
+<footer><div class="bar"><span>© 2026 LaT-Tee · <a href="mailto:test2g@icloud.com">test2g@icloud.com</a></span><span style="margin-left:auto"><a href="guide.html">玩法指南 Guide</a> · <a href="faq.html">常见问题 FAQ</a> · <a href="changelog.html">更新日志 Changelog</a> · <a href="about.html">关于 About</a> · <a href="contact.html">联系 Contact</a> · <a href="privacy.html">隐私政策 Privacy</a></span></div></footer>
+</body></html>

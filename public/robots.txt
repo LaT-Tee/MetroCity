@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://metrocitygame.pages.dev/sitemap.xml

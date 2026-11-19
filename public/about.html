@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>关于 · About | 地铁织城 Metro City</title>
+<meta name="description" content="关于地铁织城：一款在浏览器里给程序生成的城市修地铁的模拟游戏。">
+<link rel="canonical" href="https://metrocitygame.pages.dev/about.html">
+<meta name="google-adsense-account" content="ca-pub-5781197986680790">
+<style>
+:root{--ink:#1d2330;--ink2:#4a5263;--ink3:#7a8090;--rule:#e2e0da;--bg:#f7f6f2;--card:#fff;--acc:#2f5fb5}
+@media (prefers-color-scheme:dark){:root{--ink:#e8e6e1;--ink2:#b9b6ae;--ink3:#8d8a84;--rule:#34373e;--bg:#15171c;--card:#1d2026;--acc:#7fa6e8}}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans","Noto Sans CJK SC",sans-serif}
+a{color:var(--acc)} header{border-bottom:1px solid var(--rule);background:var(--card)} .bar{max-width:860px;margin:0 auto;padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}
+.brand{font-weight:800;color:var(--ink);text-decoration:none;margin-right:auto;font-size:17px} nav a{color:var(--ink2);text-decoration:none;font-size:14px} nav a[aria-current]{color:var(--ink);font-weight:700}
+.play{background:var(--ink);color:var(--bg)!important;padding:5px 12px;border-radius:8px;font-weight:600}
+main{max-width:860px;margin:0 auto;padding:32px 16px 56px} h1{font-size:28px;line-height:1.3;margin:0 0 6px} .lead{color:var(--ink2);font-size:17px;margin:0 0 28px}
+h2{font-size:20px;margin:36px 0 8px} h3{font-size:16px;margin:22px 0 4px} p,li{color:var(--ink2)} ul,ol{padding-left:22px} .muted{color:var(--ink3);font-size:14px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:16px 18px;margin:14px 0} kbd{font:13px ui-monospace,monospace;border:1px solid var(--rule);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--card);color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:15px} td,th{border-bottom:1px solid var(--rule);padding:8px 6px;text-align:left;vertical-align:top} th{color:var(--ink)} td{color:var(--ink2)}
+hr{border:0;border-top:1px solid var(--rule);margin:48px 0} footer{border-top:1px solid var(--rule);background:var(--card)} footer .bar{font-size:13px;color:var(--ink3)} footer a{color:var(--ink2);text-decoration:none}
+.lang{font-size:13px;margin:-4px 0 18px}
+</style></head><body>
+<header><div class="bar"><a class="brand" href="./">地铁织城 · Metro City</a><nav><a href="./" class="play">开始游戏</a> <a href="guide.html">玩法指南</a> <a href="faq.html">常见问题</a> <a href="changelog.html">更新日志</a> <a href="about.html" aria-current="page">关于</a> <a href="contact.html">联系</a> <a href="privacy.html">隐私政策</a></nav></div></header>
+<main>
+<p class="lang"><a href="#en">English below ↓</a></p>
+
+<h1>关于地铁织城</h1><p class="lead">画一条线，看一座城长出来。</p>
+<p>地铁织城是一款在浏览器里运行的城市交通模拟游戏。每一座城市都是程序根据一个种子编号生成的：先有地形、海岸和河流，再有老城中心、卫星镇、道路网和数百万居民，每个居民都有家和工作地点。你修的每一条地铁线，都会真实地改变他们的通勤路线和时间。</p>
+<h2>为什么做这个游戏</h2><p>地铁规划是一件既直观又复杂的事：一条线放在哪里、站设在哪里、和谁换乘，都会层层影响整座城市。我们希望把这种「画一笔，城市就跟着变」的感觉做成一个任何人打开网页就能玩的游戏，不需要下载，也不需要学习复杂的操作。</p>
+<h2>游戏里的城市是怎么运转的</h2>
+<ul><li><strong>通勤模拟：</strong>每位居民会比较开车、坐公交和坐地铁的时间，选择最快的方式。道路越拥堵，地铁越有吸引力。</li>
+<li><strong>人口迁移：</strong>车站周边更受欢迎，人口会向那里集中；通勤太久的人会搬走。</li>
+<li><strong>城市生长：</strong>街道会延伸、拓宽，新的街区、项目和交通枢纽会陆续出现。</li>
+<li><strong>3D 城市：</strong>建筑、道路、桥梁、高架、隧道都由同一套数据生成，遵循常识：建筑不压在路上，车站不建在水里，线路之间不会互相穿过。</li></ul>
+<h2>制作</h2><p>由 LaT-Tee 独立制作。3D 画面使用开源库 <a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a>（MIT 许可）。网站托管在 Cloudflare Pages。</p>
+<p>欢迎来信交流：<a href="mailto:test2g@icloud.com">test2g@icloud.com</a>。</p>
+
+<hr id="en">
+
+<h1>About Metro City</h1><p class="lead">Draw a line, watch a city grow.</p>
+<p>Metro City is a city transport simulation that runs in your browser. Every city is generated from a seed: terrain, coast and rivers first, then an old centre, satellite towns, a street network and millions of residents, each with a home and a workplace. Every line you build changes how they get to work.</p>
+<h2>How the city works</h2><ul><li><strong>Commutes:</strong> each resident compares driving, bus and metro and takes the fastest.</li><li><strong>Moving:</strong> people move toward stations and away from unbearable commutes.</li><li><strong>Growth:</strong> streets extend and widen; new districts, developments and hubs appear.</li><li><strong>3D:</strong> buildings, roads, bridges, viaducts and tunnels come from the same data and follow common sense.</li></ul>
+<h2>Credits</h2><p>Made by LaT-Tee. 3D by <a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a> (MIT). Hosted on Cloudflare Pages. Contact: <a href="mailto:test2g@icloud.com">test2g@icloud.com</a>.</p>
+
+</main>
+<footer><div class="bar"><span>© 2026 LaT-Tee · <a href="mailto:test2g@icloud.com">test2g@icloud.com</a></span><span style="margin-left:auto"><a href="guide.html">玩法指南 Guide</a> · <a href="faq.html">常见问题 FAQ</a> · <a href="changelog.html">更新日志 Changelog</a> · <a href="about.html">关于 About</a> · <a href="contact.html">联系 Contact</a> · <a href="privacy.html">隐私政策 Privacy</a></span></div></footer>
+</body></html>

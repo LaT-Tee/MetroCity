@@ -75,7 +75,7 @@ A procedural city where you draw the metro — and the city grows around it.
 
 ## 隐私
 
-不需要账号，不收集个人信息，存档只在你自己的浏览器里。广告由 Google AdSense 提供，详见[隐私政策](https://metrocitygame.pages.dev/#privacy)。问题和建议请发邮件至 test2g@icloud.com。
+不需要账号，不收集个人信息，存档只在你自己的浏览器里。广告由 Google AdSense 提供，详见[隐私政策](https://metrocitygame.pages.dev/privacy.html)。另有[玩法指南](https://metrocitygame.pages.dev/guide.html)、[常见问题](https://metrocitygame.pages.dev/faq.html)和[更新日志](https://metrocitygame.pages.dev/changelog.html)。问题和建议请发邮件至 test2g@icloud.com。
 
 ## 本地运行
 
@@ -90,7 +90,7 @@ npm run check    # 无浏览器的逻辑自检（城市生成、通勤模拟、�
 
 ## 规划助手与广告
 
-规划助手需要看一段约 30 秒的广告来解锁，一次解锁 30 分钟。设置在 `index.html` 里的 `window.MC_ADS`：
+规划助手可以设置为看一段约 30 秒的广告来解锁（目前关闭，助手免费使用，等 AdSense 审核通过后再打开）。设置在 `index.html` 里的 `window.MC_ADS`：
 
 | 字段 | 作用 |
 |---|---|

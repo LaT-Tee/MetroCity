@@ -5,14 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>地铁织城</title>
 <link rel="privacy-policy" href="privacy.html">
+<meta name="description" content="地铁织城 Metro City：在浏览器里给程序生成的城市修地铁。画线、设站、换乘，看通勤缩短、城市长大；还能坐上列车在 3D 城市里观景。免费，无需安装。">
+<meta name="google-adsense-account" content="ca-pub-5781197986680790">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
   <!-- The planning assistant is opened by watching an advertisement. Settings (see src/game/ui/27-ads.js):
        enabled: false to make the assistant free; provider: 'house' (built-in 30 s placeholder) or 'adsense'; client: 'ca-pub-…' -->
-  <script>window.MC_ADS={enabled:true,provider:'adsense',client:'ca-pub-5781197986680790',seconds:30,unlockMinutes:30,test:false};</script>
+  <script>window.MC_ADS={enabled:false,provider:'adsense',client:'ca-pub-5781197986680790',seconds:30,unlockMinutes:30,test:false};</script>
 </head>
 <body>
+<noscript><div style="max-width:760px;margin:40px auto;padding:0 16px;font:16px/1.7 sans-serif"><h1>地铁织城 · Metro City</h1><p>在浏览器里给程序生成的城市修地铁的模拟游戏。画线、设站、换乘，看通勤时间缩短、城市长大。需要开启 JavaScript 才能游玩。</p><p><a href="guide.html">玩法指南</a> · <a href="faq.html">常见问题</a> · <a href="changelog.html">更新日志</a> · <a href="about.html">关于</a> · <a href="contact.html">联系</a> · <a href="privacy.html">隐私政策</a></p></div></noscript>
 <div id="app">
   <canvas id="map" aria-label="map"></canvas>
 
@@ -68,7 +71,7 @@
         <div class="lines" id="lineList"></div>
       </div>
     </div>
-    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button><div class="fine"><a href="#" id="aboutLink" data-i18n="aboutL"></a><span>·</span><a href="#privacy" class="privacy-open" data-i18n="privacyL"></a><span>·</span><a href="mailto:test2g@icloud.com" data-i18n="contactL"></a></div></div>
+    <div class="panel-foot"><button class="btn ghost" id="achBtn" type="button"></button><button class="btn" id="exportBtn" type="button" data-i18n="exportBtn"></button><button class="btn primary" id="reportBtn" type="button" data-i18n="report"></button><div class="fine"><a href="guide.html" target="_blank" data-i18n="guideL"></a><span>·</span><a href="faq.html" target="_blank" data-i18n="faqL"></a><span>·</span><a href="about.html" target="_blank" data-i18n="aboutL"></a><span>·</span><a href="contact.html" target="_blank" data-i18n="contactL"></a><span>·</span><a href="privacy.html" target="_blank" data-i18n="privacyL"></a></div></div>
   </aside>
 
   <nav class="toolbar">
@@ -119,14 +122,6 @@
       <div class="rep-head"><div><h2 id="ulTitle"></h2><div class="sub" id="ulBody"></div></div></div>
       <div class="ul-stage" id="ulStage" hidden><div class="ul-tag" id="ulTag"></div><div class="ul-tip" id="ulTip"></div><div class="ul-bar"><i id="ulBar"></i></div><div class="ul-left" id="ulLeft"></div></div>
       <div class="row" id="ulRow"><span></span><button class="btn" id="ulNo" type="button"></button><button class="btn primary" id="ulGo" type="button"></button></div>
-    </div>
-  </div>
-  <div class="modal" id="aboutModal" hidden>
-    <div class="report ul-card about-card" role="dialog" aria-labelledby="abTitle">
-      <div class="rep-head"><div><h2 id="abTitle">地铁织城 · Metro City</h2><div class="sub" data-i18n="aboutSub"></div></div></div>
-      <p class="about-p" data-i18n="aboutP1"></p>
-      <p class="about-p" data-i18n="aboutP2"></p>
-      <div class="row"><a class="btn privacy-open" href="#privacy" data-i18n="privacyL"></a><a class="btn" href="mailto:test2g@icloud.com" data-i18n="contactL"></a><button class="btn primary" id="abClose" type="button" data-i18n="close"></button></div>
     </div>
   </div>
   <div class="modal" id="privacyModal" hidden>
