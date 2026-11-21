@@ -1006,7 +1006,11 @@ function w3dRoadMesh(cx,cy,R){
       br.push({g:w3dRibbon(P2,w+0.004,-0.0004,0.006),c:BRC}); for(const sd of [1,-1]) br.push({g:w3dRibbon(offsetPts(P2,sd*(w+0.0025)).map((q,i)=>[q[0],q[1],P2[i][2]]),0.0014,0.0075,0.008),c:0xcfcbc3});
       // piers in the water, abutments where the deck leaves the bank
       for(let sd=0.2;sd<l;sd+=0.42){ const x=ax+dx*sd, z=az+dz*sd, y=lf(sd), wsd=waterSD(x,z); if(y<0.012||(wsd>0.05&&y<W3D_BR*0.6)) continue; { let blocked=false; for(const o of [-w*0.7,0,w*0.7]){ const h=rnNearEdge(Rn,x-dz*o,z+dx*o,0.3); if(h&&h.e!==e&&h.d<ROAD_W[Rn.ec[h.e]]/2+0.01&&!wetI.has(h.e)){ blocked=true; break; } } if(blocked) continue; if(w3dPierClash(x,z,w)) continue; } pierL.push([x,z,0]); const bot=wsd<0?W3D_BED:0, q=w3dBox(0.014,y-bot,w*1.5,0,(y+bot)/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,0,z).multiply(new T.Matrix4().makeRotationY(-Math.atan2(dz,dx))).multiply(q.m); br.push(q); } }
-    if(c>=2&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7) for(let sd=0.15;sd<l-0.1;sd+=0.32){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=Math.round(sd/0.32)&1?1:-1; { const lx=x-dz*o*k, lz=z+dx*o*k, h=rnNearEdge(Rn,lx,lz,0.25); if(!h||h.e===e||h.d>ROAD_W[Rn.ec[h.e]]/2+0.006) lamps.push([lx,lz,Math.atan2(dz,dx)+(k>0?Math.PI/2:-Math.PI/2)]); } }
+    /* Street lamps stand at the kerb with their arms reaching out over the roadway (the arm points from the lamp towards the
+       middle of the street), staggered side to side on wider streets, close enough that the pools of light they throw
+       overlap and leave no dark stretch. */
+    if(c>=1&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7){ const SP=c>=3?0.2:c>=2?0.22:0.26, both=c>=2; for(let sd=SP*0.5;sd<l-0.06;sd+=SP){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=both?(Math.round(sd/SP)&1?1:-1):1, lx=x-dz*o*k, lz=z+dx*o*k, h=rnNearEdge(Rn,lx,lz,0.25);
+        if(!h||h.e===e||h.d>ROAD_W[Rn.ec[h.e]]/2+0.006) lamps.push([lx,lz,Math.atan2(dz,dx)+(k>0?-Math.PI/2:Math.PI/2),Math.min(0.012+hwA(c)*0.55,0.03),Math.max(ROAD_W[c]*1.25,(both?2*SP:SP)*1.45)]); } }      /* the last figure: how wide its pool of light is, enough to reach across the road and meet the next one */
     if(c<1) continue; const da=flyN.has(a)&&c>=4?2:Rn.adj[a].length, db=flyN.has(b)&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4,
       // how far back from a junction this street's markings stop: past the widest of the other streets there (and its pavement)
       cross=n=>{ // far enough back that this street's full width is clear of every other street at the junction, however sharp the angle between them
@@ -1073,9 +1077,18 @@ function w3dRoadMesh(cx,cy,R){
   // the median strip on the ground under the deck
   for(const e of exUp){ const a=Rn.ea[e], b=Rn.eb[e]; quad(2,Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],0.016,0xbdb9b1,0,0.0007,0.0007); }
   const out=[m]; if(br.length){ const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; out.unshift(bm); }
-  if(lamps.length){ const pg=w3dMerge([w3dBox(0.0012,0.032,0.0012,0,0.016,0,0x5a6068),w3dBox(0.012,0.0012,0.0012,0.006,0.0315,0,0x5a6068)]), hg=new T.BoxGeometry(0.006,0.0016,0.003); hg.translate(0.011,0.0305,0);
-    const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
-    lm.userData.keep=true; lamps.forEach((q,i)=>{ Q.setFromAxisAngle(up,-q[2]); M.compose(V.set(q[0],w3dHt(q[0],q[1]),q[1]),Q,one); pm.setMatrixAt(i,M); hm.setMatrixAt(i,M); }); pm.castShadow=true; out.push(pm,hm); }
+  if(lamps.length){ const pg=w3dMerge([w3dBox(0.0012,0.032,0.0012,0,0.016,0,0x5a6068)]), ag=w3dMerge([w3dBox(1,0.0012,0.0012,0.5,0.0315,0,0x5a6068)]), hg=new T.BoxGeometry(0.006,0.0016,0.003); hg.translate(-0.002,0.0305,0);
+    // the pool of light on the road: a soft warm disc under each head, added to whatever is beneath it, at night only
+    if(!w3d.poolTex){ const cv=document.createElement('canvas'); cv.width=cv.height=64; const g=cv.getContext('2d'), gr=g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.35,'rgba(255,255,255,.7)'); gr.addColorStop(0.7,'rgba(255,255,255,.28)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,64,64); w3d.poolTex=new T.CanvasTexture(cv); }
+    const pmL=w3d.poolM||(w3d.poolM=new T.MeshBasicMaterial({map:w3d.poolTex,color:0xffdcb0,transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6,fog:false})); pmL.userData.keep=true;
+    const plg=new T.PlaneGeometry(1,1); plg.rotateX(-Math.PI/2); const pool=new T.InstancedMesh(plg,pmL,lamps.length); pool.renderOrder=-1;
+    const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), am=new T.InstancedMesh(ag,pm.material,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
+    lm.userData.keep=true; const Sc=new T.Vector3(), M2=new T.Matrix4();
+    lamps.forEach((q,i)=>{ const arm=q[3]||0.012, ux=Math.cos(q[2]), uz=Math.sin(q[2]), gy=w3dHt(q[0],q[1]); Q.setFromAxisAngle(up,-q[2]);
+      M.compose(V.set(q[0],gy,q[1]),Q,one); pm.setMatrixAt(i,M); M2.makeScale(arm,1,1); M.multiply(M2); am.setMatrixAt(i,M);          // the pole, and its arm reaching out over the street
+      M.compose(V.set(q[0]+ux*arm,gy,q[1]+uz*arm),Q,one); hm.setMatrixAt(i,M);                                                   // the lamp head at its end
+      const r=q[4]||0.3; M.compose(V.set(q[0]+ux*arm,gy+0.0016,q[1]+uz*arm),new T.Quaternion(),Sc.set(r,1,r)); pool.setMatrixAt(i,M); });
+    for(const o of [pm,am,hm,pool]){ o.instanceMatrix.needsUpdate=true; o.computeBoundingSphere&&o.computeBoundingSphere(); } pm.castShadow=true; out.push(pm,am,hm,pool); }
   return out; }
 const w3dCarGeo=()=>w3dMerge([w3dBox(0.028,0.0052,0.012,0,0.0046,0,0xffffff),w3dBox(0.0155,0.004,0.0108,-0.0018,0.0092,0,0x26303a),w3dBox(0.014,0.0009,0.01,-0.0018,0.0116,0,0xffffff),w3dBox(0.0012,0.0016,0.0102,0.0138,0.0052,0,0xfff3c4),w3dBox(0.0012,0.0016,0.0102,-0.0138,0.0052,0,0xb3261e),...[-0.0088,0.0088].flatMap(x=>[-0.0054,0.0054].map(z=>w3dBox(0.005,0.0038,0.0018,x,0.0019,z,0x15171a)))]);
 // What stands in the parks, squares, playgrounds, pitches, car parks and churchyards near the viewer. Everything is
@@ -1286,7 +1299,7 @@ function w3dTap(cx,cy){ const r=w3d.R.domElement.getBoundingClientRect(), T=w3d.
   // the time of day: morning, noon, a long golden evening, night, dawn. Only the light changes, never what is there.
 function w3dTod(dt){ w3d.tod=w3d.todFix!=null?w3d.todFix:((w3d.tod==null?0.12:w3d.tod)+dt/360)%1; const td=w3d.tod, n=td<0.55?0:td<0.68?smooth(td,0.55,0.68):td<0.9?1:1-smooth(td,0.9,0.98); W3D_NIGHT.value=n;
     const gold=smooth(td,0.45,0.6)*(1-smooth(td,0.62,0.7)); w3d.sun.intensity=2.9*(1-n*0.92); w3d.sun.color.setRGB(1,0.94-gold*0.25,0.85-gold*0.45); w3d.hemi.intensity=0.42*(1-n*0.8); w3d.hemi.color.setRGB(0.87-n*0.6,0.91-n*0.55,0.96-n*0.35);
-    w3d.R.toneMappingExposure=0.95*(1-n*0.62); if(w3d.S.fog) w3d.S.fog.color.setRGB(0.87-n*0.8+gold*0.08,0.91-n*0.83-gold*0.05,0.93-n*0.78-gold*0.12); if(w3d.lampM) w3d.lampM.emissiveIntensity=n*3; if(w3d.watM) w3d.watM.envMapIntensity=1.5*(1-n*0.8); }
+    w3d.R.toneMappingExposure=0.95*(1-n*0.62); if(w3d.S.fog) w3d.S.fog.color.setRGB(0.87-n*0.8+gold*0.08,0.91-n*0.83-gold*0.05,0.93-n*0.78-gold*0.12); if(w3d.lampM) w3d.lampM.emissiveIntensity=n*3; if(w3d.poolM) w3d.poolM.opacity=smooth(n,0.35,0.9)*0.24; if(w3d.watM) w3d.watM.envMapIntensity=1.5*(1-n*0.8); }
 function w3dFrame(dt){
   if(!w3d.active||!w3d.ready) return; if(w3d.hold>0){ w3d.hold--; return; }      /* let the veil be painted first */
   if(w3d.veil&&!w3d.lj&&!w3d.gj&&w3d.local.length&&!w3d.forceCut) w3dVeil(false);      /* the city round the viewer is ready */
