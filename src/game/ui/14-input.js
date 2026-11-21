@@ -65,6 +65,7 @@ function showTip(mx,my){
 }
 window.addEventListener('keydown',e=>{
   if(e.target.closest&&e.target.closest('input,textarea')) return;
+  if(watch.on&&watch.view==='3d'&&!watch.win&&w3d.ready&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ const k=e.key.toLowerCase(); if('wasd'.includes(k)&&k.length===1){ e.preventDefault(); if(!w3d.uv) w3dUvReset(); w3d.uv.keys.add(k); return; } if(k==='r'){ w3dUvReset(); return; } }
   if(watch.on){ if(e.key==='Escape'||e.key==='v'||e.key==='V'){ setWatch(false); return; } if(e.key==='n'||e.key==='N'){ nextSubject(); return; } if(e.key===' '||e.code==='Space'){ e.preventDefault(); togglePlay(); } return; }
   if((e.key==='v'||e.key==='V')&&!e.ctrlKey&&!e.metaKey){ setWatch(true); return; }
   if(e.key===' '||e.code==='Space'){ e.preventDefault(); if(e.repeat) return; if(stroke&&stroke.drawing) strokePlace(stroke.pen[0],stroke.pen[1]); else if(tool!=='erase') spaceInsert(); return; }
@@ -78,3 +79,6 @@ window.addEventListener('keydown',e=>{
   else if(e.key==='p'||e.key==='P') togglePlay();
   else if(e.key==='Escape'){ if(!$('#achModal').hidden) $('#achModal').hidden=true; else if(!$('#exportModal').hidden) $('#exportModal').hidden=true; else if(!$('#report').hidden) $('#report').hidden=true; else if(activeLineId) finishLine(); else setTool('pan'); }
 });
+
+window.addEventListener('keyup',e=>{ if(typeof w3d!=='undefined'&&w3d.uv) w3d.uv.keys.delete(e.key.toLowerCase()); });
+window.addEventListener('blur',()=>{ if(typeof w3d!=='undefined'&&w3d.uv) w3d.uv.keys.clear(); });

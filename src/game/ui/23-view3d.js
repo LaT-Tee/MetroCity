@@ -13,6 +13,8 @@ const W3D_CAR=0.12, W3D_GAP=0.006, W3D_CARS=5, W3D_TO=0.0125;      // W3D_TO: ea
    (w3d.hold frames are skipped) and fades once everything near the viewer is in place. */
 function w3dVeil(on){ const box=$('#cv3d'); let v=box.querySelector('.w3d-veil'); if(!v){ v=document.createElement('div'); v.className='w3d-veil'; v.innerHTML='<div class="w3d-spin"></div><span></span>'; box.appendChild(v); }
   v.querySelector('span').textContent=t('w3dLoading'); if(on){ v.classList.add('on'); w3d.veil=true; w3d.hold=2; } else { v.classList.remove('on'); w3d.veil=false; } }
+const W3D_LEASH=1.4;      // how far WASD may take the drone from where it would be (cells, about 200 m)
+function w3dUvReset(){ const k=w3d.uv&&w3d.uv.keys||new Set(); w3d.uv={yaw:0,pitch:0,zoom:1,off:[0,0],keys:k,t:0}; }
 async function w3dStart(){
   w3d.active=true; const box=$('#cv3d'); box.hidden=false;
   if(w3d.ready){ w3dVeil(true); w3d.forceCut=true; return; } if(w3d.loading) return; w3d.loading=true;
@@ -26,7 +28,10 @@ async function w3dStart(){
   const hemi=new T.HemisphereLight(0xd6e6ff,0x8e8d88,0.9), sun=new T.DirectionalLight(0xfff0dc,2.6); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
   Object.assign(sun.shadow.camera,{left:-W3D_SH,right:W3D_SH,top:W3D_SH,bottom:-W3D_SH,near:0.5,far:50}); sun.shadow.bias=-0.00025; sun.shadow.normalBias=0.0035; sun.shadow.radius=1.6; S.add(hemi,sun,sun.target); hemi.layers.enable(1); sun.layers.enable(1);
   Object.assign(w3d,{R,S,cam3,sun,hemi,ready:true,camPos:null,camTgt:null}); 
-  R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; });
+  R.domElement.addEventListener('pointerdown',e=>{ w3d.down=[e.clientX,e.clientY]; w3d.drag=[e.clientX,e.clientY]; });
+  R.domElement.addEventListener('pointermove',e=>{ if(!w3d.drag||!(e.buttons&1)||watch.win) return; const dx=e.clientX-w3d.drag[0], dy=e.clientY-w3d.drag[1]; w3d.drag=[e.clientX,e.clientY]; if(!w3d.uv) w3dUvReset(); w3d.uv.yaw+=dx*0.006; w3d.uv.pitch=clamp(w3d.uv.pitch+dy*0.004,-1.2,1.2); w3d.uv.t=performance.now(); });
+  addEventListener('pointerup',()=>{ w3d.drag=null; });
+  R.domElement.addEventListener('wheel',e=>{ if(watch.win) return; e.preventDefault(); if(!w3d.uv) w3dUvReset(); w3d.uv.zoom=clamp(w3d.uv.zoom*Math.exp(e.deltaY*0.0012),0.45,2.4); w3d.uv.t=performance.now(); },{passive:false});
   R.domElement.addEventListener('pointerup',e=>{ if(!w3d.down||Math.hypot(e.clientX-w3d.down[0],e.clientY-w3d.down[1])>6) return; w3dTap(e.clientX,e.clientY); });
   w3d.hold=2; w3d.forceCut=true; }
 function w3dStop(){ w3d.active=false; bldFreeze=false; const box=$('#cv3d'); box.hidden=true; box.classList.remove('seat'); }
@@ -1009,8 +1014,8 @@ function w3dRoadMesh(cx,cy,R){
     /* Street lamps stand at the kerb with their arms reaching out over the roadway (the arm points from the lamp towards the
        middle of the street), staggered side to side on wider streets, close enough that the pools of light they throw
        overlap and leave no dark stretch. */
-    if(c>=1&&!up&&Math.hypot(ax-cx,az-cy)<R*0.7){ const SP=c>=3?0.2:c>=2?0.22:0.26, both=c>=2; for(let sd=SP*0.5;sd<l-0.06;sd+=SP){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=both?(Math.round(sd/SP)&1?1:-1):1, lx=x-dz*o*k, lz=z+dx*o*k, h=rnNearEdge(Rn,lx,lz,0.25);
-        if(!h||h.e===e||h.d>ROAD_W[Rn.ec[h.e]]/2+0.006) lamps.push([lx,lz,Math.atan2(dz,dx)+(k>0?-Math.PI/2:Math.PI/2),Math.min(0.012+hwA(c)*0.55,0.03),Math.max(ROAD_W[c]*1.25,(both?2*SP:SP)*1.45)]); } }      /* the last figure: how wide its pool of light is, enough to reach across the road and meet the next one */
+    if(!up&&Math.hypot(ax-cx,az-cy)<R*0.7){ const SP=c>=3?0.2:c>=2?0.22:c>=1?0.26:0.3, both=c>=2; for(let sd=SP*0.5;sd<l-0.06;sd+=SP){ const x=ax+dx*sd, z=az+dz*sd, o=hwP(c)-0.004, k=both?(Math.round(sd/SP)&1?1:-1):1, lx=x-dz*o*k, lz=z+dx*o*k, h=rnNearEdge(Rn,lx,lz,0.25);
+        if(!h||h.e===e||h.d>ROAD_W[Rn.ec[h.e]]/2+0.006) lamps.push([lx,lz,Math.atan2(dz,dx)+(k>0?-Math.PI/2:Math.PI/2),Math.min(0.008+hwA(c)*0.55,0.03),Math.max(ROAD_W[c]*1.25,(both?2*SP:SP)*1.45),0,c>=2?1:0.8]); } }      /* the last figure: how wide its pool of light is, enough to reach across the road and meet the next one */
     if(c<1) continue; const da=flyN.has(a)&&c>=4?2:Rn.adj[a].length, db=flyN.has(b)&&c>=4?2:Rn.adj[b].length, zeb=c>=2&&c<4,
       // how far back from a junction this street's markings stop: past the widest of the other streets there (and its pavement)
       cross=n=>{ // far enough back that this street's full width is clear of every other street at the junction, however sharp the angle between them
@@ -1043,6 +1048,8 @@ function w3dRoadMesh(cx,cy,R){
   for(const ch of chains){ if(ch.length<2) continue; const pc=dens(smoothC(ch)), P3=pc.map(q=>y3(q)); for(let k=1;k<pc.length;k++) exDeck.push([pc[k-1][0],pc[k-1][1],pc[k-1][2],pc[k][0],pc[k][1],pc[k][2]]);
     br.push({g:w3dRibbon(P3,DW,-0.0004,0.008),c:BRC},{g:w3dRibbon(P3,DW-0.006,0.0002,0.0006),c:0x4a4d53});
     for(const o of [0,-0.03,0.03]){ const L=offs(P3,o); for(let k=1;k<L.length;k+=2) if(o===0) br.push({g:w3dRibbon([L[k-1],L[k]].map(q=>[q[0],q[1],q[2]+0.0009]),0.0012,0,0.0002),c:0xe3c04a}); else if(k%4===1) br.push({g:w3dRibbon([L[k-1],L[k]].map(q=>[q[0],q[1],q[2]+0.0009]),0.0009,0,0.0002),c:WHT}); }
+    { let acc=0, k=0; for(let i=1;i<pc.length;i++){ acc+=Math.hypot(pc[i][0]-pc[i-1][0],pc[i][1]-pc[i-1][1]); if(acc<0.2) continue; acc=0; k++; const q=pc[i], hx=pc[i][0]-pc[i-1][0], hz=pc[i][1]-pc[i-1][1], hl=Math.hypot(hx,hz)||1, nx=-hz/hl, nz=hx/hl, sd=k&1?1:-1, o=DW-0.004;
+        lamps.push([q[0]+nx*o*sd,q[1]+nz*o*sd,Math.atan2(hz,hx)+(sd>0?-Math.PI/2:Math.PI/2),0.026,0.42,q[2]+0.0003,1]); } }      /* lamps on the deck's parapets, their light on the deck */
     // piers in the median strip of the street below, every half cell, clear of the railway, the metro and cross streets
     let acc=0.25; for(let k=1;k<pc.length;k++){ acc+=Math.hypot(pc[k][0]-pc[k-1][0],pc[k][1]-pc[k-1][1]); if(acc<0.5||pc[k][2]<0.03) continue; const x=pc[k][0], z=pc[k][1], h=pc[k][2]; if(w3dPierClash(x,z,0.01)) continue; const hh=rnNearEdge(Rn,x,z,0.2); if(hh&&Rn.ec[hh.e]<4&&hh.d<ROAD_W[Rn.ec[hh.e]]/2+0.02) continue; acc=0;
       const a=Math.atan2(pc[k][1]-pc[k-1][1],pc[k][0]-pc[k-1][0]), q=w3dBox(0.03,h,0.012,0,h/2-0.004,0,0xaeaaa2); q.m=new T.Matrix4().makeTranslation(x,w3dHt(x,z),z).multiply(new T.Matrix4().makeRotationY(-a)).multiply(q.m); br.push(q); exPier.push([x,z]); }
@@ -1077,18 +1084,18 @@ function w3dRoadMesh(cx,cy,R){
   // the median strip on the ground under the deck
   for(const e of exUp){ const a=Rn.ea[e], b=Rn.eb[e]; quad(2,Rn.x[a],Rn.y[a],Rn.x[b],Rn.y[b],0.016,0xbdb9b1,0,0.0007,0.0007); }
   const out=[m]; if(br.length){ const bm=new T.Mesh(w3dMerge(br),new T.MeshStandardMaterial({vertexColors:true,roughness:0.9})); bm.renderOrder=-3.5; bm.castShadow=true; bm.receiveShadow=true; out.unshift(bm); }
-  if(lamps.length){ const pg=w3dMerge([w3dBox(0.0012,0.032,0.0012,0,0.016,0,0x5a6068)]), ag=w3dMerge([w3dBox(1,0.0012,0.0012,0.5,0.0315,0,0x5a6068)]), hg=new T.BoxGeometry(0.006,0.0016,0.003); hg.translate(-0.002,0.0305,0);
+  if(lamps.length){ const pg=w3dMerge([{g:new T.CylinderGeometry(0.0005,0.0009,0.032,6),m:new T.Matrix4().makeTranslation(0,0.016,0),c:0x4f555d},w3dBox(0.0026,0.002,0.0026,0,0.001,0,0x6a7078)]), ag=w3dMerge([w3dBox(1,0.0009,0.0009,0.5,0.0318,0,0x4f555d)]), hg=w3dMerge([w3dBox(0.0075,0.0014,0.0034,-0.0025,0.0322,0,0x3a3f46)]), lgg=new T.BoxGeometry(0.0065,0.0005,0.0028); lgg.translate(-0.0025,0.0313,0);
     // the pool of light on the road: a soft warm disc under each head, added to whatever is beneath it, at night only
     if(!w3d.poolTex){ const cv=document.createElement('canvas'); cv.width=cv.height=64; const g=cv.getContext('2d'), gr=g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.35,'rgba(255,255,255,.7)'); gr.addColorStop(0.7,'rgba(255,255,255,.28)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,64,64); w3d.poolTex=new T.CanvasTexture(cv); }
     const pmL=w3d.poolM||(w3d.poolM=new T.MeshBasicMaterial({map:w3d.poolTex,color:0xffdcb0,transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6,fog:false})); pmL.userData.keep=true;
     const plg=new T.PlaneGeometry(1,1); plg.rotateX(-Math.PI/2); const pool=new T.InstancedMesh(plg,pmL,lamps.length); pool.renderOrder=-1; pool.userData.pool=true;      /* light adds up: two sets of these must never show at once */
-    const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), am=new T.InstancedMesh(ag,pm.material,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
+    const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.5}),lamps.length), hl2=new T.InstancedMesh(lgg,lm,lamps.length), am=new T.InstancedMesh(ag,pm.material,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
     lm.userData.keep=true; const Sc=new T.Vector3(), M2=new T.Matrix4();
-    lamps.forEach((q,i)=>{ const arm=q[3]||0.012, ux=Math.cos(q[2]), uz=Math.sin(q[2]), gy=w3dHt(q[0],q[1]); Q.setFromAxisAngle(up,-q[2]);
-      M.compose(V.set(q[0],gy,q[1]),Q,one); pm.setMatrixAt(i,M); M2.makeScale(arm,1,1); M.multiply(M2); am.setMatrixAt(i,M);          // the pole, and its arm reaching out over the street
-      M.compose(V.set(q[0]+ux*arm,gy,q[1]+uz*arm),Q,one); hm.setMatrixAt(i,M);                                                   // the lamp head at its end
-      const r=q[4]||0.3; M.compose(V.set(q[0]+ux*arm,gy+0.0016,q[1]+uz*arm),new T.Quaternion(),Sc.set(r,1,r)); pool.setMatrixAt(i,M); });
-    for(const o of [pm,am,hm,pool]){ o.instanceMatrix.needsUpdate=true; o.computeBoundingSphere&&o.computeBoundingSphere(); } pm.castShadow=true; out.push(pm,am,hm,pool); }
+    lamps.forEach((q,i)=>{ const arm=q[3]||0.012, ux=Math.cos(q[2]), uz=Math.sin(q[2]), gy=w3dHt(q[0],q[1])+(q[5]||0), sz=q[6]||1, Sz=new T.Vector3(sz,sz,sz); Q.setFromAxisAngle(up,-q[2]);
+      M.compose(V.set(q[0],gy,q[1]),Q,Sz); pm.setMatrixAt(i,M); M2.makeScale(arm/sz,1,1); M.multiply(M2); am.setMatrixAt(i,M);          // the pole, and its arm reaching out over the street
+      M.compose(V.set(q[0]+ux*arm,gy,q[1]+uz*arm),Q,Sz); hm.setMatrixAt(i,M); hl2.setMatrixAt(i,M);                                                   // the lamp head at its end
+      const r=q[4]||0.3; M.compose(V.set(q[0]+ux*arm,gy+0.0016+(q[5]?0.0006:0),q[1]+uz*arm),new T.Quaternion(),Sc.set(r,1,r)); pool.setMatrixAt(i,M); });
+    for(const o of [pm,am,hm,hl2,pool]){ o.instanceMatrix.needsUpdate=true; o.computeBoundingSphere&&o.computeBoundingSphere(); } pm.castShadow=true; out.push(pm,am,hm,hl2,pool); }
   return out; }
 const w3dCarGeo=()=>w3dMerge([w3dBox(0.028,0.0052,0.012,0,0.0046,0,0xffffff),w3dBox(0.0155,0.004,0.0108,-0.0018,0.0092,0,0x26303a),w3dBox(0.014,0.0009,0.01,-0.0018,0.0116,0,0xffffff),w3dBox(0.0012,0.0016,0.0102,0.0138,0.0052,0,0xfff3c4),w3dBox(0.0012,0.0016,0.0102,-0.0138,0.0052,0,0xb3261e),...[-0.0088,0.0088].flatMap(x=>[-0.0054,0.0054].map(z=>w3dBox(0.005,0.0038,0.0018,x,0.0019,z,0x15171a)))]);
 // What stands in the parks, squares, playgrounds, pitches, car parks and churchyards near the viewer. Everything is
@@ -1302,7 +1309,7 @@ function w3dTod(dt){ w3d.tod=w3d.todFix!=null?w3d.todFix:((w3d.tod==null?0.12:w3
     w3d.R.toneMappingExposure=0.95*(1-n*0.62); if(w3d.S.fog) w3d.S.fog.color.setRGB(0.87-n*0.8+gold*0.08,0.91-n*0.83-gold*0.05,0.93-n*0.78-gold*0.12); if(w3d.lampM) w3d.lampM.emissiveIntensity=n*3; if(w3d.poolM) w3d.poolM.opacity=smooth(n,0.35,0.9)*0.24; if(w3d.watM) w3d.watM.envMapIntensity=1.5*(1-n*0.8); }
 function w3dFrame(dt){
   if(!w3d.active||!w3d.ready) return; if(w3d.hold>0){ w3d.hold--; return; }      /* let the veil be painted first */
-  if(w3d.veil&&!w3d.lj&&!w3d.gj&&w3d.local.length&&!w3d.forceCut) w3dVeil(false);      /* the city round the viewer is ready */
+  if(w3d.veil&&!w3d.lj&&!w3d.gj&&w3d.local.length&&!w3d.forceCut){ w3dVeil(false); if(!w3d.ctlHint&&!watch.win){ w3d.ctlHint=true; toast(t('w3dCtl')); } }      /* the city round the viewer is ready */
   bldFreeze=true; w3d.seeDt=dt; w3dBuild(); const T=w3d.T, R=w3d.R, box=$('#cv3d'), bw=box.clientWidth, bh=box.clientHeight;
   if(R.domElement.width!==Math.round(bw*R.getPixelRatio())||R.domElement.height!==Math.round(bh*R.getPixelRatio())){ R.setSize(bw,bh,false); w3d.cam3.aspect=bw/bh; w3d.cam3.updateProjectionMatrix(); }
   const st=watch.st, M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
@@ -1364,6 +1371,20 @@ function w3dFrame(dt){
     // banking: it leans into a turn as far as the turn is tight and its speed is high, and into each move across the line
     { const hd=Math.atan2(sl[3],sl[2]); let dh=hd-(C.hd==null?hd:C.hd); dh=Math.atan2(Math.sin(dh),Math.cos(dh)); C.hd=hd; const rate=dt>0?dh/dt:0; C.yr=(C.yr||0)+(clamp(rate,-1.5,1.5)-(C.yr||0))*Math.min(1,dt*2.5);
       C.roll=(C.roll||0)+(clamp(C.yr*0.55+(C.sv||0)*1.6,-0.32,0.32)-(C.roll||0))*Math.min(1,dt*2.2); } }
+  /* The player's own hand on the drone: drag to look round the train, wheel to come in or stand off, WASD to fly the
+     drone aside within a short leash of where it would be. The drone keeps following the train underneath all that, and
+     never goes into a building, a hill or the ground. R puts it back. */
+  if(!seat&&w3d.uv){ const U=w3d.uv, idle=(performance.now()-(U.t||0))/1000;
+    // three seconds after the last touch the drone takes over again: the player's turn, zoom and offset ease away to nothing
+    if(idle>3&&!U.keys.size){ const k=1-Math.exp(-dt*1.6); U.yaw-=Math.atan2(Math.sin(U.yaw),Math.cos(U.yaw))*k; U.pitch-=U.pitch*k; U.zoom+=(1-U.zoom)*k; U.off[0]-=U.off[0]*k; U.off[1]-=U.off[1]*k; }
+    if(U.keys.size){ U.t=performance.now(); const fx=ct[0]-cp[0], fz=ct[2]-cp[2], fl=Math.hypot(fx,fz)||1, ux=fx/fl, uz=fz/fl, sp=0.9*dt; let mx=0, mz=0;
+      if(U.keys.has('w')){ mx+=ux; mz+=uz; } if(U.keys.has('s')){ mx-=ux; mz-=uz; } if(U.keys.has('d')){ mx-=uz; mz+=ux; } if(U.keys.has('a')){ mx+=uz; mz-=ux; }
+      U.off[0]+=mx*sp; U.off[1]+=mz*sp; const ol=Math.hypot(U.off[0],U.off[1]); if(ol>W3D_LEASH){ U.off[0]*=W3D_LEASH/ol; U.off[1]*=W3D_LEASH/ol; } U.idle=0; } else U.idle=(U.idle||0)+dt;
+    const vx=cp[0]-ct[0], vy=cp[1]-ct[1], vz=cp[2]-ct[2], r=Math.hypot(vx,vy,vz)||0.3; let az=Math.atan2(vz,vx)+U.yaw, el=clamp(Math.asin(clamp(vy/r,-1,1))+U.pitch,0.06,1.45); const rr=r*U.zoom;
+    cp=[ct[0]+Math.cos(az)*Math.cos(el)*rr+U.off[0],ct[1]+Math.sin(el)*rr,ct[2]+Math.sin(az)*Math.cos(el)*rr+U.off[1]]; ct=[ct[0]+U.off[0],ct[1],ct[2]+U.off[1]];
+    // while the player steers, the drone goes where it is sent (through a roof if need be, never below the ground); as control
+    // passes back it rises clear of buildings again, gently
+    const hand=1-smooth(idle,3,4.5), floorB=Math.max(w3dHgt(cp[0],cp[2]),w3dHt(cp[0],cp[2]))+0.03, floorG=w3dHt(cp[0],cp[2])+0.012, floor=lerp(floorB,floorG,hand); if(cp[1]<floor) cp[1]=floor; kp=Math.max(kp,8); }
   const snap=!w3d.camPos||dist(w3d.camPos[0],w3d.camPos[2],cp[0],cp[2])>1.8, a1=snap?1:1-Math.exp(-dt*kp), a2=snap?1:1-Math.exp(-dt*kt);
   w3d.camPos=w3d.camPos&&!snap?w3d.camPos.map((v,i)=>v+(cp[i]-v)*a1):cp; w3d.camTgt=w3d.camTgt&&!snap?w3d.camTgt.map((v,i)=>v+(ct[i]-v)*a2):ct;
   if(!seat){ const gr=w3dHt(w3d.camPos[0],w3d.camPos[2])+0.03; if(w3d.camPos[1]<gr) w3d.camPos[1]=gr; }
