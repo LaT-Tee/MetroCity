@@ -930,8 +930,8 @@ function* w3dLocalGen(cx,cy,grp,far){
   yield; const cars=far||!w3d.cars?w3dCars(cx,cy,m=>w3d.S.add(m)):w3d.cars;      /* the traffic carries on across rebuilds */
   // what was not here at the last look goes up over a quarter of a minute rather than appearing between two frames
   const G2=nBorn>0&&nBorn<700?{t:0,bx:{growTo:f=>{ bx.growTo(f); bxM.growTo(f); }},hgrow}:null; if(G2){ G2.bx.growTo(0); hgrow.forEach(f=>f(0)); }
-  return ()=>{ const old=w3d.local.slice(), drop=l=>{ for(const g of l) w3dTrash([...g.children,g]); }; if(w3d.reveal){ old.push(...w3d.reveal.old); w3d.reveal=null; }
-    grp.visible=true; w3d.local=[grp]; if(far||!old.length) drop(old); else { const kids=grp.children.slice(); kids.forEach(k=>{ k.visible=false; }); w3d.reveal={kids,old,drop}; }
+  return ()=>{ const old=w3d.local.slice(), drop=l=>{ for(const g of l){ g.visible=false; w3dTrash([...g.children,g]); } }, hidePools=l=>{ for(const g of l) for(const k of g.children) if(k.userData.pool) k.visible=false; }; if(w3d.reveal){ old.push(...w3d.reveal.old); w3d.reveal=null; }
+    grp.visible=true; w3d.local=[grp]; if(far||!old.length) drop(old); else { const kids=grp.children.slice(); kids.forEach(k=>{ k.visible=false; }); w3d.reveal={kids,old,drop,hidePools}; }
     if(cars!==w3d.cars){ if(w3d.cars) w3dTrash([w3d.cars.m]); w3d.cars=cars; } w3d.hg=hg; w3d.bKeys=keys; w3d.bKC=[cx,cy]; w3d.grow=G2; }; }
 // Streets near the viewer as geometry rather than paint: pavements, a roadway inside them, junctions rounded off,
 // centre and lane lines, zebra crossings on the bigger roads. Drawn straight over the ground in three passes
@@ -1081,7 +1081,7 @@ function w3dRoadMesh(cx,cy,R){
     // the pool of light on the road: a soft warm disc under each head, added to whatever is beneath it, at night only
     if(!w3d.poolTex){ const cv=document.createElement('canvas'); cv.width=cv.height=64; const g=cv.getContext('2d'), gr=g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.35,'rgba(255,255,255,.7)'); gr.addColorStop(0.7,'rgba(255,255,255,.28)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,64,64); w3d.poolTex=new T.CanvasTexture(cv); }
     const pmL=w3d.poolM||(w3d.poolM=new T.MeshBasicMaterial({map:w3d.poolTex,color:0xffdcb0,transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-6,fog:false})); pmL.userData.keep=true;
-    const plg=new T.PlaneGeometry(1,1); plg.rotateX(-Math.PI/2); const pool=new T.InstancedMesh(plg,pmL,lamps.length); pool.renderOrder=-1;
+    const plg=new T.PlaneGeometry(1,1); plg.rotateX(-Math.PI/2); const pool=new T.InstancedMesh(plg,pmL,lamps.length); pool.renderOrder=-1; pool.userData.pool=true;      /* light adds up: two sets of these must never show at once */
     const pm=new T.InstancedMesh(pg,new T.MeshStandardMaterial({vertexColors:true,roughness:0.6}),lamps.length), lm=w3d.lampM||(w3d.lampM=new T.MeshStandardMaterial({color:0xfff2d0,emissive:0xffd59a,emissiveIntensity:0})), hm=new T.InstancedMesh(hg,lm,lamps.length), am=new T.InstancedMesh(ag,pm.material,lamps.length), M=new T.Matrix4(), Q=new T.Quaternion(), V=new T.Vector3(), up=new T.Vector3(0,1,0), one=new T.Vector3(1,1,1);
     lm.userData.keep=true; const Sc=new T.Vector3(), M2=new T.Matrix4();
     lamps.forEach((q,i)=>{ const arm=q[3]||0.012, ux=Math.cos(q[2]), uz=Math.sin(q[2]), gy=w3dHt(q[0],q[1]); Q.setFromAxisAngle(up,-q[2]);
@@ -1311,7 +1311,7 @@ function w3dFrame(dt){
   if(w3d.grow){ const g=w3d.grow; g.t+=dt; const f=smooth(g.t,0,15); g.bx.growTo(f); g.hgrow.forEach(fn=>fn(f)); if(f>=1) w3d.grow=null; }
   // streets added since the land was drawn: redraw it in the background now and then, never while the surroundings are being built
   const now=performance.now(); if(w3d.cut){ w3d.cut=false; if(!w3d.gj&&G.rn&&G.rn.ver!==w3d.gRn){ w3d.gRn=G.rn.ver; w3d.gAt=now; w3d.gj={it:w3dGroundGen()}; } }      /* new streets reach the land only at a cut */
-  if(w3d.reveal){ const r=w3d.reveal; for(let k=0;k<2&&r.kids.length;k++) r.kids.shift().visible=true; if(!r.kids.length){ r.drop(r.old); w3d.reveal=null; } }
+  if(w3d.reveal){ const r=w3d.reveal; for(let k=0;k<2&&r.kids.length;k++){ const kid=r.kids.shift(); if(kid.userData.pool&&r.hidePools) r.hidePools(r.old); kid.visible=true; } if(!r.kids.length){ r.drop(r.old); w3d.reveal=null; } }
   if(w3d.gj&&!w3d.lj&&w3dRun(w3d.gj,4)) w3d.gj=null;
   for(const tr of (w3d.trains||[])){ if(!tr.L._p3) continue; for(let k=0;k<tr.n;k++){ const p=w3dTrainPos(tr,k); w3dSetCars(tr.m,k*W3D_CARS,tr.L,p.u,p.dir); } tr.m.instanceMatrix.needsUpdate=true; }
   if(w3d.look){ const q=w3d.look; w3d.vp=[q.x,q.z]; w3dLocal(q.x,q.z); w3d.cam3.position.set(q.x+Math.cos(q.az)*q.d,q.h,q.z+Math.sin(q.az)*q.d); w3d.cam3.lookAt(q.x,q.ty||0.03,q.z); if(w3d.sky){ w3d.sky.position.copy(w3d.cam3.position); w3d.sky.material.uniforms.uT.value=performance.now()/1000; } if(w3d.watM) w3d.watM.userData.uT.value=performance.now()/1000%4000;
